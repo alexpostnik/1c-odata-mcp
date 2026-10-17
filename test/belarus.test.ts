@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Connection } from "../src/context.js";
 import { createServer } from "../src/mcp/server.js";
-import { accountsByCode, resolveAccounts } from "../src/odata/accounting.js";
+import { accountPrefixes, accountingRegister, defaultAccountCodes } from "../src/config/accounting.js";
+import { counterpartyTaxField } from "../src/odata/counterparty-policy.js";
+import { accountsByCode, resolveAccounts, resolveDefaultAccounts } from "../src/odata/accounting.js";
 
 const baseEnv = {
   ODATA_BASE_URL: "https://example.invalid/odata/",
@@ -131,6 +133,108 @@ describe("Belarus counterparty policy", () => {
     expect(conn.client.create).toHaveBeenCalledOnce();
     expect(post).not.toHaveBeenCalled();
   });
+  it("records a pre-POST duplicate refusal as rejected, preserving the reason", async () => {
+    const { conn, collection, tools, post } = fixture();
+    const tool = tools["write.counterparty.create_counterparty"]!;
+    const args = { name: "Synthetic", inn: "123456789", confirm: false };
+    const preview = await tool.handler(args, {});
+    collection.mockResolvedValue({ value: [{ Ref_Key: key, УНП: "123456789" }] });
+    const result = await tool.handler(
+      { ...args, confirm: true, operationId: preview.structuredContent?.operationId },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(await conn.client.operationEntry(preview.structuredContent?.operationId as string)).toMatchObject({
+      state: "rejected",
+    });
+    expect(post).not.toHaveBeenCalled();
+  });
+  it("permits self identity during update and rejects duplicate identity before PATCH", async () => {
+    const { conn, collection, tools, post } = fixture();
+    const tool = tools["write.entity.update_entity"]!;
+    const args = { entitySet: set, ref: key, fields: { Description: "Renamed" }, confirm: false };
+    collection.mockResolvedValue({ value: [{ Ref_Key: key.toUpperCase(), УНП: "123456789" }] });
+    expect((await tool.handler(args, {})).isError).not.toBe(true);
+    collection.mockResolvedValue({
+      value: [{ Ref_Key: "22222222-2222-4222-8222-222222222222", УНП: "123456789" }],
+    });
+    expect((await tool.handler({ ...args, confirm: true }, {})).isError).toBe(true);
+    expect(conn.client.patch).toHaveBeenCalledOnce();
+    expect(post).not.toHaveBeenCalled();
+  });
+  it("exempts structural folders while refusing a card-to-folder policy bypass", async () => {
+    const { conn, collection, tools, post } = fixture();
+    // Exercise the transport directly: folders are the sole UNP exemption.
+    await conn.client.request(`${set}?$format=json`, "POST", { Description: "Group", IsFolder: true });
+    expect(conn.client.getCollection).not.toHaveBeenCalled();
+    post.mockClear();
+    const result = await tools["write.entity.update_entity"]!.handler(
+      { entitySet: set, ref: key, fields: { IsFolder: true }, confirm: false },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(collection).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
+  it.each([null, "true", 1])("rejects a nonboolean folder flag %s", async (IsFolder) => {
+    const { tools, post } = fixture();
+    const result = await tools["write.entity.update_entity"]!.handler(
+      { entitySet: set, ref: key, fields: { IsFolder }, confirm: false },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(post).not.toHaveBeenCalled();
+  });
+  it("does not include upstream error text or identifiers in uniqueness diagnostics", async () => {
+    const { collection, tools } = fixture();
+    collection.mockRejectedValue(new Error("Synthetic private backend detail"));
+    const result = await tools["write.counterparty.create_counterparty"]!.handler(
+      { name: "Synthetic", inn: "123456789", confirm: false },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("Synthetic private backend detail");
+    expect(JSON.stringify(result)).not.toContain("123456789");
+  });
+  it("maps read-side UNP search without selecting unpublished Russian-only fields", async () => {
+    const { collection, tools } = fixture();
+    collection.mockResolvedValue({ value: [{ Ref_Key: key, Description: "Synthetic", УНП: "AB1234567" }] });
+    const result = await tools["read.counterparty.find_counterparty"]!.handler(
+      { query: "AB1234567", limit: 20 },
+      {},
+    );
+    expect(result.structuredContent?.rows).toMatchObject([{ inn: "AB1234567" }]);
+    const url = decodeURIComponent(collection.mock.calls[0]![0]);
+    expect(url).toContain("УНП eq 'AB1234567'");
+    expect(url).not.toContain("КПП");
+    expect(url).not.toContain("ИНН");
+  });
+  it("requires explicit mapping for ambiguous or incompatible tax metadata", async () => {
+    const { conn } = fixture();
+    conn.cfg.counterpartyTaxField = undefined;
+    vi.mocked(conn.client.getMetadata).mockResolvedValue({
+      entities: new Map([
+        [
+          set,
+          {
+            properties: [
+              { name: "УНП", type: "Edm.String" },
+              { name: "ИНН", type: "Edm.String" },
+            ],
+          },
+        ],
+      ]),
+    } as never);
+    await expect(counterpartyTaxField(conn)).rejects.toThrow("one published");
+    vi.mocked(conn.client.getMetadata).mockResolvedValue({
+      entities: new Map([[set, { properties: [{ name: "УНП", type: "Edm.Int64" }] }]]),
+    } as never);
+    await expect(counterpartyTaxField(conn)).rejects.toThrow("Edm.String");
+    vi.mocked(conn.client.getMetadata).mockResolvedValue({
+      entities: new Map([[set, { properties: [{ name: "ИНН", type: "Edm.String" }] }]]),
+    } as never);
+    await expect(counterpartyTaxField(conn)).resolves.toBe("ИНН");
+  });
   it("replays a successful confirmation without another uniqueness read or POST", async () => {
     const { collection, tools, post } = fixture();
     const tool = tools["write.counterparty.create_counterparty"]!;
@@ -231,6 +335,52 @@ describe("configurable accounting", () => {
     expect(getCollection.mock.calls[0]![0]).toContain("ChartOfAccounts_Test?");
     await resolveAccounts(conn as never, ["41"]);
   });
+  it("fails closed when configured Belarus fallback accounts do not exist", async () => {
+    const cfg = parseConfig({ ...baseEnv, ODATA_COUNTERPARTY_TAX_POLICY: "by-required-unique", ODATA_ACCOUNTING_CONFIG: JSON.stringify({ defaults: { income: ["90.7"] } }) }).connections[0]!;
+    const conn = { cfg, available: async () => new Set(["ChartOfAccounts_Хозрасчетный"]), client: { getCollection: async () => ({ value: [] }) } };
+    await expect(resolveDefaultAccounts(conn as never, ["income"])).rejects.toThrow("income");
+  });
+  it("uses configured accounting groups and refuses missing Belarus defaults", () => {
+    const cfg = parseConfig({
+      ...baseEnv,
+      ODATA_COUNTERPARTY_TAX_POLICY: "by-required-unique",
+      ODATA_ACCOUNTING_CONFIG: JSON.stringify({
+        register: "AccountingRegister_Test",
+        prefixes: { receivables: ["62.7"] },
+        defaults: { goods: ["41.7"] },
+      }),
+    }).connections[0]!;
+    expect(accountingRegister(cfg)).toEqual(["AccountingRegister_Test"]);
+    expect(accountPrefixes(cfg, "receivables")).toEqual(["62.7"]);
+    expect(defaultAccountCodes(cfg, "goods")).toEqual(["41.7"]);
+    expect(() => accountPrefixes(cfg, "inventory")).toThrow("Configure");
+    expect(() => defaultAccountCodes(cfg, "income")).toThrow("Russian account defaults");
+    const legacy = parseConfig(baseEnv).connections[0]!;
+    expect(accountPrefixes(legacy, "inventory")).toEqual(["41", "10", "43"]);
+    expect(defaultAccountCodes(legacy, "income")).toEqual(["90.01.1", "90.01"]);
+  });
+  it("allows per-database policy and accounting overrides of global configuration", () => {
+    const cfg = parseConfig({
+      ODATA_DB_A_BASE_URL: baseEnv.ODATA_BASE_URL,
+      ODATA_DB_A_USERNAME: "u",
+      ODATA_DB_A_PASSWORD: "p",
+      ODATA_DB_B_BASE_URL: baseEnv.ODATA_BASE_URL,
+      ODATA_DB_B_USERNAME: "u",
+      ODATA_DB_B_PASSWORD: "p",
+      ODATA_COUNTERPARTY_TAX_POLICY: "by-required-unique",
+      ODATA_DB_B_COUNTERPARTY_TAX_POLICY: "ru",
+      ODATA_ACCOUNTING_CONFIG: JSON.stringify({ chart: "ChartOfAccounts_Global" }),
+      ODATA_DB_B_ACCOUNTING_CONFIG: JSON.stringify({ chart: "ChartOfAccounts_Local" }),
+    });
+    expect(cfg.connections.find((c) => c.name === "a")).toMatchObject({
+      counterpartyTaxPolicy: "by-required-unique",
+      accounting: { chart: "ChartOfAccounts_Global" },
+    });
+    expect(cfg.connections.find((c) => c.name === "b")).toMatchObject({
+      counterpartyTaxPolicy: "ru",
+      accounting: { chart: "ChartOfAccounts_Local" },
+    });
+  });
   it("accepts explicit chart/register/prefix/default mappings and rejects malformed JSON", () => {
     const accounting = {
       chart: "ChartOfAccounts_Test",
@@ -242,5 +392,19 @@ describe("configurable accounting", () => {
       parseConfig({ ...baseEnv, ODATA_ACCOUNTING_CONFIG: JSON.stringify(accounting) }).connections[0],
     ).toMatchObject({ accounting });
     expect(() => parseConfig({ ...baseEnv, ODATA_ACCOUNTING_CONFIG: "{" })).toThrow();
+  });
+});
+
+describe("shared metadata cache", () => {
+  it("uses one metadata request across tool and transport consumers, and retries failed loads", async () => {
+    const cfg = parseConfig(baseEnv);
+    const conn = new Connection(cfg.connections[0]!, cfg.behavior);
+    const xml = `<Edmx><DataServices><Schema><EntityType Name="Counterparties"><Property Name="УНП" Type="Edm.String"/></EntityType><EntityContainer><EntitySet Name="Catalog_Контрагенты" EntityType="StandardODATA.Counterparties"/></EntityContainer></Schema></DataServices></Edmx>`;
+    const getText = vi.spyOn(conn.client, "getText").mockRejectedValueOnce(new Error("Synthetic unavailable metadata")).mockResolvedValue(xml);
+    await expect(conn.getMetadata()).rejects.toThrow("unavailable");
+    const [toolMetadata, transportMetadata] = await Promise.all([conn.getMetadata(), conn.client.getMetadata()]);
+    expect(toolMetadata).toBe(transportMetadata);
+    expect(toolMetadata.entities.has(set)).toBe(true);
+    expect(getText).toHaveBeenCalledTimes(2); // one failed attempt + one shared successful load
   });
 });
