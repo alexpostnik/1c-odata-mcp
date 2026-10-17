@@ -1,6 +1,6 @@
 # Capability map and migration boundaries
 
-The native Node server remains the default installation. Optional Python and documentation tools are source contributions in this repository; `npx 1c-odata-mcp` does not install or start them. This map describes where each capability lives so a deployment can decide which contracts it needs.
+The native Node server remains the default installation. Optional Python and documentation tools are source contributions in this repository; `npx 1c-odata-mcp` does not install or start them. This map describes where each capability lives so a deployment can decide which contracts it needs. See the [cloud/local availability guide](AVAILABILITY.md) for offline work and evidence handoff when a source cannot be reached.
 
 | Capability | Native Node server | Optional contribution / remaining setup |
 | --- | --- | --- |
@@ -9,6 +9,7 @@ The native Node server remains the default installation. Optional Python and doc
 | Required unique Belarus UNP | Opt-in per-base policy, metadata property mapping, alphanumeric personal UNP, fresh exact duplicate checks, process-local coordination | Configure the field; database-wide uniqueness requires a 1C constraint / coordinated writers; see [Belarus setup](BELARUS.md) |
 | Chart of accounts, balances, turnovers and document postings | Configurable chart/register entity names and analytics account prefixes | Published property/dimension/virtual-table contracts must match; live compatibility is configuration-specific |
 | Account selection for document preparation | Configurable candidate code groups; nomenclature-register and explicit income/expense overrides | Belarus policy requires explicit verified groups and disables implicit Russian fallback codes |
+| Contract settlement-account settings | Metadata-only `read.schema.discover_settlement_settings`: published information registers, exact fields/keys/types and caller mapping checks | Dimension/resource roles, selection precedence, and compound-key record read/write remain unverified; neither runtime currently fills these settings; see [discovery guide](SETTLEMENT-SETTINGS.md) |
 | Generic migration bridge and durable writes | Native contracts remain supported | [`contrib/python`](../contrib/python/README.md): Python OData client/CSDL handling, payload/reference validation, durable ledger, preview and request contracts |
 | Recovery queues, dependency graphs, checkpoints and reconciliation | No native orchestration service added | Optional Python queue planning/checkpoint commands; callers supply source identities, dependencies, state and recovery evidence |
 | Bank statement graph and recovery planning | Native cashflow/document reads | Optional Python graph reader, schema, classifier, rule engine and adapters; configure source access and accounting policy |

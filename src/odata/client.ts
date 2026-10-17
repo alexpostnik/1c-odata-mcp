@@ -109,7 +109,7 @@ export class ODataClient {
               : "Counterparty policy could not be verified; no write sent.",
           );
         }
-        const claim = `${base.toString()}\0${unp ?? ""}`;
+        const claim = `${base.toString()}\0${unp?.normalize("NFKC").toUpperCase() ?? ""}`;
         const owner = ODataClient.unpClaims.get(claim);
         if (unp && owner && (method === "PATCH" || owner !== operationId))
           throw new BeforeWriteError(

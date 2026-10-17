@@ -8,7 +8,7 @@ Set these variables in the server's environment (or in `.env` when using the doc
 
 ```dotenv
 ODATA_COUNTERPARTY_TAX_POLICY=by-required-unique
-# Set this only after checking read.system.describe_entity / $metadata:
+# Set this only after checking read.schema.describe_entity / $metadata:
 ODATA_COUNTERPARTY_TAX_FIELD=УНП
 ```
 
@@ -24,7 +24,7 @@ Both preview and the actual write enforce the policy, including generic updates 
 
 The final check runs inside the transport immediately before sending POST/PATCH, after preview/journal/reference work. A refusal before transport is recorded as rejected; no write was sent. Successful operation replay returns from the existing durable journal without another uniqueness lookup or POST. Lost responses keep the existing unknown-outcome/reconciliation flow.
 
-Creates to the same normalized base URL are serialized within one Node process. An uncertain create also reserves that UNP in memory until the operation is reconciled or explicitly marked not applied through the existing status flow. This protects cooperating connections in that process. It cannot enforce uniqueness against another Node process, URL aliases resolving to the same database, unrelated 1C clients, or an earlier request that survives a process restart. For a database-wide guarantee, enforce the same constraint in the 1C configuration and coordinate writers. Preserve the write journal and reconcile uncertain operations before restarting or switching writers.
+Creates to the same normalized base URL are serialized within one Node process. Local claims use a conservative Unicode-normalized uppercase UNP key without changing the submitted identifier. An uncertain create also reserves that UNP in memory until the operation is reconciled or explicitly marked not applied through the existing status flow. Empty, malformed or mismatched success responses retain the claim; PATCH cannot race or release an outstanding create claim. This protects cooperating connections in that process. It cannot enforce uniqueness against another Node process, URL aliases resolving to the same database, unrelated 1C clients, or an earlier request that survives a process restart. For a database-wide guarantee, enforce the same constraint in the 1C configuration and coordinate writers. Preserve the write journal and reconcile uncertain operations before restarting or switching writers.
 
 ## Accounting mappings
 

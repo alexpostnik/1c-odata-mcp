@@ -1,3 +1,8 @@
+import {
+  discoverSettlementSettings,
+  settlementSettingsMappingSchema,
+  settlementSettingsResultSchema,
+} from "../odata/settlement-settings.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
@@ -151,6 +156,44 @@ export function registerMetaTools(server: McpServer, ctx: ServerContext): void {
         }
 
         return ok({ database: ctx.db(database).cfg.name, odataVersion: meta.odataVersion, groups: grouped });
+      }),
+  );
+
+  server.registerTool(
+    "read.schema.discover_settlement_settings",
+    {
+      title: "Найти схему настроек счетов расчётов",
+      description:
+        "Показывает опубликованные регистры сведений, их точные поля/типы/ключи для поиска настроек счетов по организации, контрагенту, договору и виду расчётов. Роли измерений/ресурсов неизвестны без документации; явный mapping проверяет только наличие разных полей. Отсутствие в metadata не означает отсутствия функции 1С. Не читает записи, не пишет настройки и не выводит счёт учёта из банковского номера.",
+      inputSchema: {
+        database: databaseField,
+        search: z
+          .string()
+          .optional()
+          .describe(
+            "Подстрока фактического имени регистра или поля; без неё — все опубликованные регистры сведений",
+          ),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(500)
+          .default(50)
+          .describe("Лимит кандидатов схемы; усечение отмечается явно"),
+        mapping: settlementSettingsMappingSchema
+          .optional()
+          .describe(
+            "Точные имена из metadata и роли, подтверждённые документацией конфигурации; роли автоматически не проверяются",
+          ),
+      },
+      outputSchema: settlementSettingsResultSchema,
+    },
+    ({ database, search, limit, mapping }) =>
+      guard("read.schema.discover_settlement_settings", async () => {
+        const conn = ctx.db(database);
+        return ok(
+          discoverSettlementSettings(await conn.getMetadata(), conn.cfg.name, { search, limit, mapping }),
+        );
       }),
   );
 
