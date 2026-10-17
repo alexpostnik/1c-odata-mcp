@@ -1,0 +1,33 @@
+{
+  "statements": [
+    {
+      "statement_id": "dataset:synthetic-2010:statement:1",
+      "opening": "0.00",
+      "closing": "10.01",
+      "printed_debit_total": "20.01",
+      "printed_credit_total": "30.02",
+      "no_activity": false,
+      "opening_raw": "0.00",
+      "first_for_account": true,
+      "first_account_basis": "printed first-statement marker",
+      "source_review": {
+        "origin": "independent_original_pdf",
+        "review_status": "reviewed",
+        "reference": "synthetic printed controls review"
+      },
+      "printed_operation_count": {
+        "status": "absent",
+        "value": null,
+        "raw": null
+      },
+      "source_unit_review": {
+        "status": "verified",
+        "source_unit": "synthetic-unit",
+        "source_epoch": "synthetic-epoch",
+        "transfer_factor": "1",
+        "printed_label_anomaly": false,
+        "basis": "Synthetic fixture units only; no actual PDF or historical denomination proof"
+      }
+    }
+  ]
+}

@@ -1,9 +1,10 @@
+import { accountPrefixes } from "../config/accounting.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Connection, ServerContext } from "../context.js";
 import { ok, fail, guard, databaseField, organizationField, dateField } from "./_shared.js";
 import { and, cmp, odataGuid } from "../odata/query.js";
-import { ACCOUNT_PREFIX, CATALOGS, DOC_FIELDS, DOCUMENTS, resolveEntity } from "../config/mapping.js";
+import { CATALOGS, DOC_FIELDS, DOCUMENTS, resolveEntity } from "../config/mapping.js";
 import {
   balanceByAccounts,
   resolveAccounts,
@@ -552,7 +553,7 @@ export function registerRegisterTools(server: McpServer, ctx: ServerContext): vo
         const t0 = Date.now();
         const conn = ctx.db(database);
         const org = await orgKeyOf(conn, organization);
-        const accounts = await resolveAccounts(conn, ACCOUNT_PREFIX.receivables);
+        const accounts = await resolveAccounts(conn, accountPrefixes(conn.cfg, "receivables"));
         const rows = await balanceByAccounts(
           conn,
           accounts.map((a) => a.key),
@@ -727,7 +728,7 @@ export function registerRegisterTools(server: McpServer, ctx: ServerContext): vo
         const t0 = Date.now();
         const conn = ctx.db(database);
         const org = await orgKeyOf(conn, organization);
-        const accounts = await resolveAccounts(conn, ACCOUNT_PREFIX.inventory);
+        const accounts = await resolveAccounts(conn, accountPrefixes(conn.cfg, "inventory"));
         const rows = await balanceByAccounts(
           conn,
           accounts.map((a) => a.key),

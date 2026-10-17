@@ -1,0 +1,9 @@
+include README.md pyproject.toml conftest.py
+recursive-include examples *.json
+recursive-include tests *.py
+recursive-include tools *.py *.ps1 *.json *.md
+recursive-include src *.py *.json
+recursive-include onec_bank_graph *.py *.json *.md
+global-exclude *.py[cod]
+global-exclude __pycache__
+recursive-include windows-tests *.py *.ps1

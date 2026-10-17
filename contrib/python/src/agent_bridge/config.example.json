@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0",
+  "sources": {
+    "source_77_example": {
+      "kind": "ssh-windows-json",
+      "host": "windows-host.example.invalid",
+      "user": "migration-reader",
+      "identityFile": "/Users/REPLACE_ME/.ssh/onec_bridge_windows_ed25519",
+      "hostKeyAlias": "win77-bridge.local",
+      "remoteCommand": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -File C:\\1c-migration\\repo\\tools\\agent-bridge\\windows\\Invoke-77Bridge.ps1 -Config C:\\1c-migration\\private\\bridge.local.json"
+    },
+    "live77_interactive_broker_example": {
+      "kind": "ssh-windows-json",
+      "host": "windows-host.example.invalid",
+      "user": "onecbridge",
+      "identityFile": "/Users/REPLACE_ME/.ssh/onec_bridge_windows_ed25519",
+      "hostKeyAlias": "win77-bridge.local",
+      "remoteCommand": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -File C:\\ProgramData\\1c-live-bridge\\interactive-broker\\client\\Invoke-77InteractiveBrokerClient.ps1 -Config C:\\ProgramData\\1c-live-bridge\\interactive-broker\\client\\broker-client.local.json",
+      "requestTimeoutSeconds": 210
+    }
+  },
+  "targets": {
+    "prod_example": {
+      "environment": "prod",
+      "serviceUrl": "https://example.invalid/odata/standard.odata/",
+      "username": "odata-readonly",
+      "keychainService": "onec-bridge-prod-example"
+    },
+    "test_example": {
+      "environment": "test",
+      "serviceUrl": "https://test.example.invalid/odata/standard.odata/",
+      "username": "odata-test-readonly",
+      "keychainService": "onec-bridge-test-example"
+    }
+  },
+  "ledger": {
+    "path": "/Users/REPLACE_ME/Library/Application Support/onec-bridge/ledger.sqlite3"
+  },
+  "scanLedger": {
+    "path": "/Users/REPLACE_ME/Library/Application Support/onec-bridge/source-scan.sqlite3"
+  }
+}

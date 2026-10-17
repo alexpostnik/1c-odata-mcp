@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onec-community-toolkit"
+version = "0.1.0"
+description = "Optional Python recovery, graph, queue and legacy bridge toolkit for 1C"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.11"
+dependencies = ["mcp==2.2.0", "requests>=2.32,<3", "anyio>=4,<5", "tomlkit>=0.13,<1", "uvicorn>=0.30,<1", "jsonschema>=4.20,<5", "cryptography>=45,<46; sys_platform == 'darwin'"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "pytest-cov>=6,<8", "build>=1,<2"]
+
+[project.scripts]
+onec-python-mcp = "onec_odata_mcp.server:main"
+onec83-queue-plan = "onec_odata_mcp.queue_manifest:main"
+onec83-queue-checkpoint = "onec_odata_mcp.queue_checkpoint:main"
+onec83-profile-preview = "onec_odata_mcp.profile_preview:main"
+onec-mcp-http-auth-odata = "onec_mcp_runtime.headers:odata_main"
+onec-mcp-http-auth-live77 = "onec_mcp_runtime.headers:live77_main"
+onec-mcp-runtime = "onec_mcp_runtime.macos:main"
+onec-legacy-bridge = "agent_bridge.server:main"
+onec-bank-graph = "onec_bank_graph.reader:main"
+onec-bank-rules = "onec_bank_graph.bank_statement_rules:main"
+
+[tool.setuptools.packages.find]
+where = ["src/onec-odata-mcp", "src/agent_bridge", "src/mcp_http_runtime", "."]
+include = ["onec_odata_mcp*", "agent_bridge*", "onec_mcp_runtime*", "onec_bank_graph*"]
+
+[tool.setuptools.package-data]
+onec_bank_graph = ["references/*.json", "references/*.md", "assets/*.json"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+pythonpath = ["src/onec-odata-mcp", "src/agent_bridge", "src/mcp_http_runtime", ".", "onec_bank_graph/scripts", "onec_bank_graph", "tools/bank-graph", "src/onec-odata-mcp/tests"]
+testpaths = ["src/onec-odata-mcp/tests", "tests", "tools/bank-graph", "onec_bank_graph/scripts", "onec_bank_graph", "tools/bank-graph", "src/onec-odata-mcp/tests"]
+
+[tool.coverage.run]
+omit = ["*/test_*.py", "*/tests/*"]

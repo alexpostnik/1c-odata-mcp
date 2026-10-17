@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0",
+  "spoolRoot": "C:\\REPLACE_WITH_PRIVATE_SPOOL",
+  "bridgeScript": "C:\\REPLACE_WITH_REVIEWED_ADAPTER\\Invoke-77Bridge.ps1",
+  "bridgeConfig": "C:\\REPLACE_WITH_PRIVATE_CONFIG\\bridge.local.json",
+  "powerShell32": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "bridgeAccountSid": "REPLACE_WITH_EXACT_WINDOWS_ACCOUNT_SID",
+  "invocationTimeoutSeconds": 50,
+  "pollMilliseconds": 100,
+  "requestMaxBytes": 16384,
+  "responseMaxBytes": 2000000,
+  "requestTtlSeconds": 600,
+  "statusPath": "C:\\REPLACE_WITH_PRIVATE_STATUS\\broker-status.json",
+  "statusIntervalSeconds": 5,
+  "statusStaleSeconds": 180
+}

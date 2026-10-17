@@ -13,3 +13,6 @@ export class InputError extends Error {
     this.name = "InputError";
   }
 }
+
+/** Validation completed before any write request was sent. Safe to mark the operation rejected. */
+export class BeforeWriteError extends InputError {}

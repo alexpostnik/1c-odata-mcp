@@ -1,0 +1,350 @@
+{
+  "entities": [
+    {
+      "alias": "account",
+      "type": "Account",
+      "properties": {
+        "number_raw": "SYNTHETIC-LEGACY-001",
+        "format": "historical",
+        "identity_status": "observed",
+        "iban_effective_date": "2017-07-04",
+        "iban_raw": null,
+        "bic_raw": null
+      }
+    },
+    {
+      "alias": "currency",
+      "type": "CurrencyContext",
+      "properties": {
+        "printed_currency": "BYR",
+        "unit_raw": "units",
+        "semantics_status": "verified",
+        "epoch": "synthetic-BYR-2010",
+        "conversion_factor": null,
+        "evidence_refs": [
+          "synthetic-unit-review"
+        ]
+      }
+    },
+    {
+      "alias": "party",
+      "type": "Party",
+      "properties": {
+        "name_raw": "SYNTHETIC PARTY",
+        "unp_raw": "000000000",
+        "role_raw": "customer",
+        "identity_status": "observed"
+      }
+    },
+    {
+      "alias": "bank",
+      "type": "Bank",
+      "properties": {
+        "name_raw": "SYNTHETIC BANK",
+        "code_raw": "001",
+        "code_system_raw": "historical",
+        "valid_from": null,
+        "valid_to": null,
+        "identity_status": "observed",
+        "branch_raw": "SYNTHETIC BRANCH",
+        "city_raw": null,
+        "country_raw": null
+      }
+    },
+    {
+      "alias": "reference",
+      "type": "DocumentReference",
+      "properties": {
+        "kind_raw": "invoice",
+        "number_raw": "SYN-1",
+        "date": "2010-04-30",
+        "period_raw": null,
+        "availability": "mentioned_only",
+        "artifact_ref": null
+      }
+    },
+    {
+      "alias": "fee",
+      "type": "AmountComponent",
+      "properties": {
+        "kind": "fee",
+        "value_raw": "0,01",
+        "value": "0.01",
+        "unit_raw": null,
+        "currency_raw": null,
+        "inclusion": "unknown"
+      }
+    },
+    {
+      "alias": "tax",
+      "type": "TaxDetail",
+      "properties": {
+        "tax_kind_raw": "SYNTHETIC TAX",
+        "budget_code_raw": "00000",
+        "payment_kind_raw": "tax",
+        "period_raw": "2010",
+        "payer_unp_raw": "000000000"
+      }
+    },
+    {
+      "alias": "cash-symbol",
+      "type": "CashSymbol",
+      "properties": {
+        "code_raw": "SYN-CASH",
+        "amount_raw": "20,01",
+        "amount": "20.01",
+        "markers_raw": null,
+        "semantics_status": "unknown"
+      }
+    },
+    {
+      "alias": "statement:1:row:1:identity",
+      "type": "Party",
+      "properties": {
+        "role_raw": "payee",
+        "name_raw": "SYNTHETIC COUNTERPARTY",
+        "unp_raw": "123456789",
+        "identity_status": "observed"
+      },
+      "observations": [
+        {
+          "field": "name_raw",
+          "raw": "SYNTHETIC COUNTERPARTY",
+          "normalized": "SYNTHETIC COUNTERPARTY",
+          "status": "observed"
+        },
+        {
+          "field": "unp_raw",
+          "raw": "123456789",
+          "normalized": "123456789",
+          "status": "observed"
+        }
+      ]
+    },
+    {
+      "alias": "statement:1:row:2:identity",
+      "type": "Party",
+      "properties": {
+        "role_raw": "payer",
+        "name_raw": "SYNTHETIC COUNTERPARTY",
+        "unp_raw": "123456789",
+        "identity_status": "observed"
+      },
+      "observations": [
+        {
+          "field": "name_raw",
+          "raw": "SYNTHETIC COUNTERPARTY",
+          "normalized": "SYNTHETIC COUNTERPARTY",
+          "status": "observed"
+        },
+        {
+          "field": "unp_raw",
+          "raw": "123456789",
+          "normalized": "123456789",
+          "status": "observed"
+        }
+      ]
+    }
+  ],
+  "statements": [
+    {
+      "alias": "statement:1",
+      "properties": {
+        "account_id": "account",
+        "currency_context_id": "currency",
+        "statement_date": "2011-01-01",
+        "period_start": "2010-01-01",
+        "period_end": "2010-12-31",
+        "opening": "0.00",
+        "closing": "10.01",
+        "printed_debit_total": "20.01",
+        "printed_credit_total": "30.02",
+        "debit_is": "outflow",
+        "opening_sign_rule": "signed",
+        "rows_complete": true,
+        "expected_operations": 2,
+        "selection": "include",
+        "selection_evidence": [],
+        "year": 2010,
+        "heading_raw": "SYNTHETIC STATEMENT",
+        "executor_raw": "SYN-EX",
+        "previous_operation_date": null,
+        "first_statement_marker": "first",
+        "account_number_raw": "SYNTHETIC-LEGACY-001",
+        "first_account_evidence": [],
+        "opening_origin": "printed"
+      },
+      "operations": [
+        {
+          "properties": {
+            "transaction_date": "2010-05-01",
+            "booking_date": "2010-05-01",
+            "value_date": null,
+            "document_date": "2010-04-30",
+            "service_period_raw": null,
+            "document_number_raw": "SYN-OUT",
+            "document_type_raw": "payment-order",
+            "unlabelled_numeric_raw": "99",
+            "printed_debit": "20.01",
+            "printed_credit": "0.00",
+            "direction": "outflow",
+            "amount": "20.01",
+            "purpose_raw": "Synthetic service payment\nКомиссия банка 0,01; invoice SYN-1",
+            "classification": null,
+            "classification_status": "unknown",
+            "row_status": "complete",
+            "duplicate_status": "unique",
+            "operation_code_raw": "01",
+            "executor_code_raw": "009",
+            "priority_raw": "01",
+            "counterparty": {
+              "role": "payee",
+              "party_id": "statement:1:row:1:identity",
+              "name_raw": "SYNTHETIC COUNTERPARTY",
+              "unp_raw": "123456789",
+              "status": "observed"
+            },
+            "purpose_status": "observed"
+          },
+          "alias": "statement:1:row:1",
+          "observations": [
+            {
+              "field": "identity_detail_raw",
+              "raw": "Наименование корреспондента: SYNTHETIC COUNTERPARTY\nУНП плательщика: 111222333 УНП получателя: 123456789\nSynthetic service payment\nКомиссия банка 0,01; invoice SYN-1",
+              "normalized": null,
+              "status": "observed"
+            },
+            {
+              "field": "printed_debit",
+              "raw": "20.01",
+              "normalized": "20.01",
+              "status": "observed"
+            },
+            {
+              "field": "printed_credit",
+              "raw": "0.00",
+              "normalized": "0.00",
+              "status": "observed"
+            }
+          ]
+        },
+        {
+          "properties": {
+            "transaction_date": "2010-05-01",
+            "booking_date": "2010-05-01",
+            "value_date": null,
+            "document_date": "2010-04-30",
+            "service_period_raw": null,
+            "document_number_raw": "SYN-IN",
+            "document_type_raw": "payment-order",
+            "unlabelled_numeric_raw": "99",
+            "printed_debit": "0.00",
+            "printed_credit": "30.02",
+            "direction": "inflow",
+            "amount": "30.02",
+            "purpose_raw": "Synthetic receipt",
+            "classification": null,
+            "classification_status": "unknown",
+            "row_status": "complete",
+            "duplicate_status": "unique",
+            "operation_code_raw": "01",
+            "executor_code_raw": "009",
+            "priority_raw": "01",
+            "counterparty": {
+              "role": "payer",
+              "party_id": "statement:1:row:2:identity",
+              "name_raw": "SYNTHETIC COUNTERPARTY",
+              "unp_raw": "123456789",
+              "status": "observed"
+            },
+            "purpose_status": "observed"
+          },
+          "alias": "statement:1:row:2",
+          "observations": [
+            {
+              "field": "identity_detail_raw",
+              "raw": "Наименование корреспондента: SYNTHETIC COUNTERPARTY\nУНП плательщика: 123456789 УНП получателя: 444555666\nSynthetic receipt",
+              "normalized": null,
+              "status": "observed"
+            },
+            {
+              "field": "printed_debit",
+              "raw": "0.00",
+              "normalized": "0.00",
+              "status": "observed"
+            },
+            {
+              "field": "printed_credit",
+              "raw": "30.02",
+              "normalized": "30.02",
+              "status": "observed"
+            }
+          ]
+        }
+      ],
+      "observations": [
+        {
+          "field": "counterparty_field_type",
+          "raw": "Наименование корреспондента:",
+          "normalized": "counterparty_full_name",
+          "status": "observed"
+        },
+        {
+          "field": "counterparty_field_type",
+          "raw": "УНП плательщика:",
+          "normalized": "payer_unp",
+          "status": "observed"
+        },
+        {
+          "field": "counterparty_field_type",
+          "raw": "УНП получателя:",
+          "normalized": "payee_unp",
+          "status": "observed"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "type": "OWNED_BY",
+      "from": "account",
+      "to": "party"
+    },
+    {
+      "type": "SERVICED_BY",
+      "from": "account",
+      "to": "bank"
+    },
+    {
+      "type": "MENTIONS",
+      "from": "statement:1:row:1",
+      "to": "reference"
+    },
+    {
+      "type": "HAS_COMPONENT",
+      "from": "statement:1:row:1",
+      "to": "fee"
+    },
+    {
+      "type": "HAS_TAX",
+      "from": "statement:1:row:1",
+      "to": "tax"
+    },
+    {
+      "type": "HAS_CASH_SYMBOL",
+      "from": "statement:1:row:1",
+      "to": "cash-symbol"
+    },
+    {
+      "from": "statement:1:row:1",
+      "to": "statement:1:row:1:identity",
+      "type": "PAYEE"
+    },
+    {
+      "from": "statement:1:row:2",
+      "to": "statement:1:row:2:identity",
+      "type": "PAYER"
+    }
+  ],
+  "dataset_id": "synthetic-2010"
+}

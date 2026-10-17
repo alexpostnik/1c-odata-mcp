@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0",
+  "progId": "V77.Application",
+  "sources": [
+    {
+      "alias": "src77-example-copy",
+      "databasePath": "C:\\REPLACE-WITH-LOCAL-TEST-COPY",
+      "userName": "REPLACE_WITH_READ_ONLY_USER",
+      "credentialFile": "C:\\Users\\REPLACE_WINDOWS_USER\\AppData\\Local\\1c-live-bridge\\credentials\\source77.credential.xml",
+      "runMode": "RMAccount",
+      "datasets": [
+        {
+          "kind": "document",
+          "type": "REPLACE_WITH_DOCUMENT_METADATA_NAME",
+          "metadataAllFields": false,
+          "fields": []
+        },
+        {
+          "kind": "reference",
+          "type": "REPLACE_WITH_CATALOG_METADATA_NAME",
+          "metadataAllFields": false,
+          "fields": []
+        }
+      ]
+    }
+  ]
+}

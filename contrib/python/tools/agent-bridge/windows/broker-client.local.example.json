@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "spoolRoot": "C:\\REPLACE_WITH_PRIVATE_SPOOL",
+  "timeoutSeconds": 60,
+  "pollMilliseconds": 100,
+  "requestMaxBytes": 16384,
+  "responseMaxBytes": 2000000,
+  "statusPath": "C:\\REPLACE_WITH_PRIVATE_STATUS\\broker-status.json",
+  "statusStaleSeconds": 180
+}

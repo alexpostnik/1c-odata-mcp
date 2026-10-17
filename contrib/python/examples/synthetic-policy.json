@@ -1,0 +1,101 @@
+{
+  "notice": "Entirely synthetic example. Accounts and ratios are illustrative, not accounting advice.",
+  "profiles": [
+    {
+      "id": "bank-commission",
+      "version": 1,
+      "kind": "bank_commission",
+      "policy_rule_id": "commission",
+      "policy_status": "declared",
+      "odata_mapping": {
+        "status": "unknown"
+      },
+      "required_source_facts": [
+        "source_date",
+        "in_current_migration",
+        "operation_class",
+        "payment_purpose",
+        "payer_recipient_checked",
+        "cash_direction",
+        "separate_payment",
+        "amount"
+      ],
+      "selector": {
+        "allowed_values": [
+          "bank_commission"
+        ]
+      },
+      "conceptual_document": {
+        "kind": "BankWriteOff"
+      },
+      "expected_accounts": [
+        {
+          "debit": "expense",
+          "credit": "bank"
+        }
+      ]
+    },
+    {
+      "id": "contribution-split",
+      "version": 1,
+      "kind": "contribution_split",
+      "secondary_share": [
+        1,
+        7
+      ],
+      "policy_rule_id": "contribution",
+      "policy_status": "declared",
+      "odata_mapping": {
+        "status": "unknown"
+      },
+      "required_source_facts": [
+        "source_date",
+        "in_current_migration",
+        "operation_class",
+        "payment_purpose",
+        "payer_recipient_checked",
+        "is_fine_or_penalty",
+        "amount_whole_rub",
+        "counterparty_verified"
+      ],
+      "selector": {
+        "allowed_values": [
+          "ordinary_fszn_contribution"
+        ]
+      },
+      "conceptual_document": {
+        "kind": "BankWriteOff"
+      },
+      "expected_accounts": [
+        {
+          "debit": "primary",
+          "credit": "bank"
+        },
+        {
+          "debit": "secondary",
+          "credit": "bank"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "commission",
+      "status": "declared",
+      "debit_account": "expense"
+    },
+    {
+      "id": "contribution",
+      "status": "declared",
+      "ratio": "6:1 synthetic example",
+      "parts": [
+        {
+          "amount_fraction": "6/7"
+        },
+        {
+          "amount_fraction": "1/7"
+        }
+      ]
+    }
+  ]
+}

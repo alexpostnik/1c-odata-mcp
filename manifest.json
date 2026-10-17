@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.6.1",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 60 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 61 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -363,6 +363,322 @@
       }
     },
     {
+      "name": "read.schema.discover_settlement_settings",
+      "title": "Найти схему настроек счетов расчётов",
+      "description": "Показывает опубликованные регистры сведений, их точные поля/типы/ключи для поиска настроек счетов по организации, контрагенту, договору и виду расчётов. Роли измерений/ресурсов неизвестны без документации; явный mapping проверяет только наличие разных полей. Отсутствие в metadata не означает отсутствия функции 1С. Не читает записи, не пишет настройки и не выводит счёт учёта из банковского номера.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "search": {
+            "description": "Подстрока фактического имени регистра или поля; без неё — все опубликованные регистры сведений",
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "description": "Лимит кандидатов схемы; усечение отмечается явно",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 500
+          },
+          "mapping": {
+            "description": "Точные имена из metadata и роли, подтверждённые документацией конфигурации; роли автоматически не проверяются",
+            "type": "object",
+            "properties": {
+              "entitySet": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dimensions": {
+                "type": "object",
+                "properties": {
+                  "organization": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "counterparty": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "contract": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "settlementKind": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "organization",
+                  "counterparty",
+                  "contract",
+                  "settlementKind"
+                ],
+                "additionalProperties": false
+              },
+              "resources": {
+                "type": "object",
+                "properties": {
+                  "settlementAccount": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "advanceAccount": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "settlementAccount"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "entitySet",
+              "dimensions",
+              "resources"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "mapping_required",
+              "mapping_fields_verified",
+              "invalid_mapping",
+              "not_published_or_different_name_or_unknown"
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entitySet": {
+                  "type": "string"
+                },
+                "keys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "nullable": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "nullable"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "roles": {
+                  "type": "string",
+                  "const": "unknown"
+                },
+                "relations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "toType": {
+                        "type": "string"
+                      },
+                      "collection": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "toType",
+                      "collection"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "entitySet",
+                "keys",
+                "fields",
+                "roles",
+                "relations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "count": {
+            "type": "number"
+          },
+          "matchingCount": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "entitySet": {
+                "type": "string"
+              },
+              "dimensions": {
+                "type": "object",
+                "properties": {
+                  "organization": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "counterparty": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "contract": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "settlementKind": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "organization",
+                  "counterparty",
+                  "contract",
+                  "settlementKind"
+                ],
+                "additionalProperties": false
+              },
+              "resources": {
+                "type": "object",
+                "properties": {
+                  "settlementAccount": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "advanceAccount": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "settlementAccount"
+                ],
+                "additionalProperties": false
+              },
+              "roles": {
+                "type": "string",
+                "const": "caller_supplied_unverified"
+              },
+              "genericWriteSupport": {
+                "type": "string",
+                "const": "unknown"
+              },
+              "missingFields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "duplicateFields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "nullable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "nullable"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "entitySet",
+              "dimensions",
+              "resources",
+              "roles",
+              "genericWriteSupport",
+              "missingFields",
+              "duplicateFields",
+              "fields"
+            ],
+            "additionalProperties": false
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "database",
+          "status",
+          "candidates",
+          "count",
+          "matchingCount",
+          "truncated",
+          "limitations"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
       "name": "read.schema.describe_entity",
       "title": "Описание объекта",
       "description": "Показывает поля (с типами) и связи конкретного объекта 1С из $metadata. Принимает техническое имя EntitySet, напр. 'Catalog_Контрагенты' или 'Document_РеализацияТоваровУслуг'. Используйте перед поиском, чтобы узнать доступные поля.",
@@ -457,7 +773,7 @@
           "query": {
             "type": "string",
             "minLength": 1,
-            "description": "Часть названия или ИНН контрагента"
+            "description": "Часть названия, ИНН или УНП контрагента"
           },
           "limit": {
             "default": 20,
@@ -3398,7 +3714,7 @@
             "description": "Наименование контрагента (Description)"
           },
           "inn": {
-            "description": "ИНН",
+            "description": "ИНН / УНП (обязателен при Belarus policy; поле из $metadata)",
             "type": "string"
           },
           "kpp": {
@@ -4239,7 +4555,7 @@
             "type": "string"
           },
           "inn": {
-            "description": "ИНН",
+            "description": "ИНН / УНП (обязателен при Belarus policy; поле из $metadata)",
             "type": "string"
           },
           "kpp": {
