@@ -1,0 +1,2310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Standalone banking business property graph v1 (no PDF links)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "status": {
+      "enum": [
+        "observed",
+        "verified",
+        "inferred",
+        "unknown",
+        "absent",
+        "unreadable",
+        "not_applicable"
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "normalized": {
+          "type": [
+            "string",
+            "null",
+            "boolean",
+            "integer"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        }
+      },
+      "required": [
+        "field",
+        "raw",
+        "normalized",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "raw_field": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "money": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/decimal"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Party"
+        },
+        {
+          "$ref": "#/$defs/Account"
+        },
+        {
+          "$ref": "#/$defs/Bank"
+        },
+        {
+          "$ref": "#/$defs/CurrencyContext"
+        },
+        {
+          "$ref": "#/$defs/Statement"
+        },
+        {
+          "$ref": "#/$defs/Operation"
+        },
+        {
+          "$ref": "#/$defs/DocumentReference"
+        },
+        {
+          "$ref": "#/$defs/AmountComponent"
+        },
+        {
+          "$ref": "#/$defs/TaxDetail"
+        },
+        {
+          "$ref": "#/$defs/DuplicateDecision"
+        },
+        {
+          "$ref": "#/$defs/CashSymbol"
+        }
+      ]
+    },
+    "Party": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "Party"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "name_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "unp_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "identity_status": {
+              "$ref": "#/$defs/status"
+            }
+          },
+          "required": [
+            "name_raw",
+            "unp_raw",
+            "role_raw",
+            "identity_status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "Account": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "Account"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "number_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format": {
+              "enum": [
+                "historical",
+                "iban",
+                "unknown"
+              ]
+            },
+            "identity_status": {
+              "$ref": "#/$defs/status"
+            },
+            "iban_effective_date": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "iban_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bic_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "identifier": {
+              "$ref": "#/$defs/bank_identifier"
+            }
+          },
+          "required": [
+            "number_raw",
+            "format",
+            "identity_status",
+            "iban_effective_date",
+            "iban_raw",
+            "bic_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "Bank": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "Bank"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "name_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code_system_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "valid_from": {
+              "$ref": "#/$defs/date"
+            },
+            "valid_to": {
+              "$ref": "#/$defs/date"
+            },
+            "identity_status": {
+              "$ref": "#/$defs/status"
+            },
+            "branch_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "city_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "country_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "identifier": {
+              "$ref": "#/$defs/bank_identifier"
+            }
+          },
+          "required": [
+            "name_raw",
+            "code_raw",
+            "code_system_raw",
+            "valid_from",
+            "valid_to",
+            "identity_status",
+            "branch_raw",
+            "city_raw",
+            "country_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "CurrencyContext": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "CurrencyContext"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "printed_currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "unit_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "semantics_status": {
+              "enum": [
+                "verified",
+                "unknown"
+              ]
+            },
+            "epoch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conversion_factor": {
+              "$ref": "#/$defs/money"
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          },
+          "required": [
+            "printed_currency",
+            "unit_raw",
+            "semantics_status",
+            "epoch",
+            "conversion_factor",
+            "evidence_refs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "Statement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "Statement"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "account_id": {
+              "$ref": "#/$defs/id"
+            },
+            "currency_context_id": {
+              "$ref": "#/$defs/id"
+            },
+            "statement_date": {
+              "$ref": "#/$defs/date"
+            },
+            "period_start": {
+              "$ref": "#/$defs/date"
+            },
+            "period_end": {
+              "$ref": "#/$defs/date"
+            },
+            "opening": {
+              "$ref": "#/$defs/money"
+            },
+            "closing": {
+              "$ref": "#/$defs/money"
+            },
+            "printed_debit_total": {
+              "$ref": "#/$defs/money"
+            },
+            "printed_credit_total": {
+              "$ref": "#/$defs/money"
+            },
+            "debit_is": {
+              "enum": [
+                "outflow",
+                "inflow",
+                "unknown"
+              ]
+            },
+            "opening_sign_rule": {
+              "enum": [
+                "signed",
+                "unknown"
+              ]
+            },
+            "rows_complete": {
+              "type": "boolean"
+            },
+            "expected_operations": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "selection": {
+              "enum": [
+                "include",
+                "exclude_reissue",
+                "hold"
+              ]
+            },
+            "selection_evidence": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "year": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1900,
+              "maximum": 9999
+            },
+            "heading_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "previous_operation_date": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "first_statement_marker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "account_number_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "first_account_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "opening_origin": {
+              "enum": [
+                "printed",
+                "first_statement_blank_zero",
+                "unknown"
+              ]
+            },
+            "archive_only": {
+              "type": "boolean",
+              "const": true
+            },
+            "header_fields": {
+              "type": "object",
+              "properties": {
+                "own_bank_name_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "own_bank_code_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "own_bank_code_label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "executor_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "previous_operation_marker_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "previous_operation_date_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "own_account_line_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "future_account_line_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "own_organization_name_assertions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "label",
+                      "raw"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "raw": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "own_bank_name_raw",
+                "own_bank_code_raw",
+                "own_bank_code_label",
+                "executor_raw",
+                "previous_operation_marker_raw",
+                "previous_operation_date_raw",
+                "own_account_line_raw",
+                "own_organization_name_assertions"
+              ]
+            }
+          },
+          "required": [
+            "account_id",
+            "currency_context_id",
+            "statement_date",
+            "period_start",
+            "period_end",
+            "opening",
+            "closing",
+            "printed_debit_total",
+            "printed_credit_total",
+            "debit_is",
+            "opening_sign_rule",
+            "rows_complete",
+            "expected_operations",
+            "selection",
+            "selection_evidence",
+            "year",
+            "heading_raw",
+            "executor_raw",
+            "previous_operation_date",
+            "first_statement_marker",
+            "account_number_raw",
+            "first_account_evidence",
+            "opening_origin"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "Operation"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "statement_id": {
+              "$ref": "#/$defs/id"
+            },
+            "ordinal": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "transaction_date": {
+              "$ref": "#/$defs/date"
+            },
+            "booking_date": {
+              "$ref": "#/$defs/date"
+            },
+            "value_date": {
+              "$ref": "#/$defs/date"
+            },
+            "document_date": {
+              "$ref": "#/$defs/date"
+            },
+            "service_period_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "document_number_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "document_type_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "unlabelled_numeric_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "printed_debit": {
+              "$ref": "#/$defs/money"
+            },
+            "printed_credit": {
+              "$ref": "#/$defs/money"
+            },
+            "direction": {
+              "enum": [
+                "inflow",
+                "outflow",
+                "unknown"
+              ]
+            },
+            "amount": {
+              "$ref": "#/$defs/money"
+            },
+            "purpose_raw": {
+              "type": "string"
+            },
+            "classification": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "classification_status": {
+              "$ref": "#/$defs/status"
+            },
+            "row_status": {
+              "enum": [
+                "complete",
+                "partial",
+                "unreadable"
+              ]
+            },
+            "duplicate_status": {
+              "enum": [
+                "unreviewed",
+                "unique",
+                "candidate",
+                "confirmed_duplicate"
+              ]
+            },
+            "operation_code_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "executor_code_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "priority_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "one_c_rko": {
+              "$ref": "#/$defs/OneCRko"
+            },
+            "payment1c_comment_raw": {
+              "type": "string",
+              "description": "Immutable full original purpose, identical to purpose_raw; never the writable value. Use verified payment1c_text.value."
+            },
+            "purpose_status": {
+              "enum": [
+                "observed",
+                "unknown"
+              ]
+            },
+            "settlement": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": [
+                    "verified_equation",
+                    "verified_withheld_fee",
+                    "unknown",
+                    "not_applicable"
+                  ]
+                },
+                "gross": {
+                  "$ref": "#/$defs/money"
+                },
+                "commission": {
+                  "$ref": "#/$defs/money"
+                },
+                "net": {
+                  "$ref": "#/$defs/money"
+                }
+              },
+              "required": [
+                "status",
+                "gross",
+                "commission",
+                "net"
+              ],
+              "additionalProperties": false
+            },
+            "bank_debit_is": {
+              "enum": [
+                "outflow",
+                "inflow",
+                "unknown"
+              ]
+            },
+            "counterparty": {
+              "$ref": "#/$defs/CounterpartyIdentity"
+            },
+            "processing": {
+              "$ref": "#/$defs/RowProcessing"
+            },
+            "counterparty_clarification": {
+              "$ref": "#/$defs/CounterpartyClarification"
+            },
+            "payment1c_text": {
+              "$ref": "#/$defs/Payment1cText"
+            },
+            "modern_fields": {
+              "$ref": "#/$defs/ModernFields"
+            },
+            "source_text": {
+              "type": "object",
+              "required": [
+                "profile",
+                "value",
+                "raw_preserved"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "profile": {
+                  "const": "source-bound-winansi-1b-cash-service-v1"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "raw_preserved": {
+                  "const": true
+                }
+              }
+            },
+            "owner_counterparty_type": {
+              "$ref": "#/$defs/OwnerCounterpartyType"
+            },
+            "owner_counterparty_identity": {
+              "$ref": "#/$defs/OwnerCounterpartyIdentity"
+            },
+            "owner_role_unps": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/OwnerRoleUnp"
+              }
+            }
+          },
+          "required": [
+            "statement_id",
+            "ordinal",
+            "transaction_date",
+            "booking_date",
+            "value_date",
+            "document_date",
+            "service_period_raw",
+            "document_number_raw",
+            "document_type_raw",
+            "unlabelled_numeric_raw",
+            "printed_debit",
+            "printed_credit",
+            "direction",
+            "amount",
+            "purpose_raw",
+            "classification",
+            "classification_status",
+            "row_status",
+            "duplicate_status",
+            "operation_code_raw",
+            "executor_code_raw",
+            "priority_raw"
+          ],
+          "additionalProperties": false,
+          "dependentRequired": {
+            "payment1c_comment_raw": [
+              "purpose_status"
+            ],
+            "settlement": [
+              "purpose_status"
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentReference": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "DocumentReference"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "kind_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "number_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "date": {
+              "$ref": "#/$defs/date"
+            },
+            "period_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "availability": {
+              "enum": [
+                "mentioned_only",
+                "available",
+                "unknown"
+              ]
+            },
+            "artifact_ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind_raw",
+            "number_raw",
+            "date",
+            "period_raw",
+            "availability",
+            "artifact_ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "AmountComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "AmountComponent"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "fee",
+                "gross",
+                "net",
+                "vat",
+                "tax",
+                "penalty",
+                "interest",
+                "quantity",
+                "rate",
+                "other",
+                "basis"
+              ]
+            },
+            "value_raw": {
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/money"
+            },
+            "currency_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "inclusion": {
+              "enum": [
+                "included",
+                "separate",
+                "unknown"
+              ]
+            },
+            "unit_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "value_raw",
+            "value",
+            "currency_raw",
+            "inclusion",
+            "unit_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "TaxDetail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "TaxDetail"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "tax_kind_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "budget_code_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "payment_kind_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "period_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "payer_unp_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "tax_kind_raw",
+            "budget_code_raw",
+            "payment_kind_raw",
+            "period_raw",
+            "payer_unp_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "DuplicateDecision": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "DuplicateDecision"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "candidate",
+                "confirmed",
+                "rejected"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            },
+            "canonical_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "member_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          },
+          "required": [
+            "status",
+            "basis",
+            "canonical_id",
+            "member_ids",
+            "evidence_refs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "CONTAINS",
+            "FOR_ACCOUNT",
+            "IN_CURRENCY",
+            "OWNED_BY",
+            "SERVICED_BY",
+            "PAYER",
+            "PAYEE",
+            "FROM_ACCOUNT",
+            "TO_ACCOUNT",
+            "MENTIONS",
+            "HAS_COMPONENT",
+            "HAS_TAX",
+            "DUPLICATE_MEMBER",
+            "HAS_CASH_SYMBOL",
+            "ON_BEHALF_OF"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/id"
+        },
+        "to": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "CashSymbol": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "observations",
+        "unrecognized_fields",
+        "properties"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "CashSymbol"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "unrecognized_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raw_field"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code_raw",
+            "amount_raw",
+            "amount",
+            "markers_raw",
+            "semantics_status"
+          ],
+          "properties": {
+            "code_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "amount_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "amount": {
+              "$ref": "#/$defs/money"
+            },
+            "markers_raw": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "semantics_status": {
+              "$ref": "#/$defs/status"
+            }
+          }
+        }
+      }
+    },
+    "OneCRko": {
+      "description": "Optional TEST cash-RKO observation only. Absence means unknown. Schema validity does not authenticate a receipt or completion.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "database",
+        "status",
+        "document",
+        "observed_at",
+        "posted",
+        "deletion_mark",
+        "observed_on",
+        "observed_precision",
+        "snapshot_atomic"
+      ],
+      "properties": {
+        "scope": {
+          "const": "cash_revenue_rko"
+        },
+        "database": {
+          "const": "test"
+        },
+        "status": {
+          "enum": [
+            "unknown",
+            "candidate",
+            "pending",
+            "partial",
+            "loaded_verified"
+          ]
+        },
+        "document": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date",
+                "number",
+                "type"
+              ],
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "number": {
+                  "type": "string",
+                  "pattern": "^[0-9A-Za-zА-Яа-яЁё-]{1,32}$"
+                },
+                "type": {
+                  "const": "Расходный кассовый ордер"
+                }
+              }
+            }
+          ]
+        },
+        "observed_at": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+            }
+          ]
+        },
+        "posted": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "deletion_mark": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "observed_on": {
+          "type": "string",
+          "format": "date"
+        },
+        "observed_precision": {
+          "enum": [
+            "unknown_time",
+            "exact_timestamp"
+          ]
+        },
+        "snapshot_atomic": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "loaded_verified"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "document": {
+                "type": "object"
+              },
+              "posted": {
+                "const": true
+              },
+              "deletion_mark": {
+                "const": false
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+              },
+              "observed_precision": {
+                "const": "exact_timestamp"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observed_precision": {
+                "const": "unknown_time"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "observed_at": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CounterpartyIdentity": {
+      "type": "object",
+      "required": [
+        "role",
+        "party_id",
+        "name_raw",
+        "unp_raw",
+        "status"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "payer",
+            "payee",
+            "unknown"
+          ]
+        },
+        "party_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unp_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "unknown"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "role": {
+                "enum": [
+                  "payer",
+                  "payee"
+                ]
+              },
+              "party_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name_raw": {
+                "type": "string",
+                "minLength": 1
+              },
+              "unp_raw": {
+                "type": "string",
+                "pattern": "^(?!000000000$)(?:[0-9]{9}|[A-Z]{2}[0-9]{7})$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "RowProcessing": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "needs_clarification",
+            "blocked_format"
+          ]
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effective_counterparty": {
+          "$ref": "#/$defs/EffectiveCounterparty"
+        }
+      },
+      "required": [
+        "status",
+        "gaps",
+        "questions",
+        "effective_counterparty"
+      ],
+      "additionalProperties": false
+    },
+    "EffectiveCounterparty": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "payer",
+            "payee",
+            "unknown"
+          ]
+        },
+        "name_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unp_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "source_observed",
+            "owner_confirmed",
+            "unknown"
+          ]
+        },
+        "internal_id": {
+          "type": "string",
+          "pattern": "^internal-counterparty:[1-9][0-9]*$"
+        },
+        "confirmed_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmed_entity_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "business_relation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "correction_kind": {
+          "const": "owner_disputed_source"
+        },
+        "resolution_status": {
+          "enum": [
+            "pending",
+            "confirmed"
+          ]
+        }
+      },
+      "required": [
+        "role",
+        "name_raw",
+        "unp_raw",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "CounterpartyClarification": {
+      "type": "object",
+      "properties": {
+        "name_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unp_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "original_detail_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answered_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "payer",
+            "payee"
+          ]
+        },
+        "answered_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "role",
+        "name_raw",
+        "unp_raw",
+        "original_detail_raw",
+        "answered_by",
+        "answered_at",
+        "answer_ref",
+        "confirmation_ref"
+      ],
+      "additionalProperties": false
+    },
+    "Payment1cText": {
+      "type": "object",
+      "description": "Offline XML1.0-safe single-line full business purpose; immutable raw remains separate. Not proof of platform/form acceptance.",
+      "properties": {
+        "profile": {
+          "const": "xml10-single-line-escp-cash-v1"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "held"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "enum": [
+                  "removed_escp_italic_4",
+                  "removed_escp_italic_5",
+                  "unknown_escape_sequence",
+                  "xml10_forbidden_character",
+                  "unsupported_control_character",
+                  "whitespace_collapsed",
+                  "purpose_boundary_unresolved",
+                  "empty_business_text"
+                ]
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "codepoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "index",
+              "codepoint"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "profile",
+        "status",
+        "value",
+        "diagnostics"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "held"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "bank_identifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw",
+        "normalized",
+        "format",
+        "format_status",
+        "value_check",
+        "existence",
+        "profile",
+        "diagnostics"
+      ],
+      "properties": {
+        "raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "normalized": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "enum": [
+            "historical_numeric",
+            "bic",
+            "iban",
+            "unknown"
+          ]
+        },
+        "format_status": {
+          "enum": [
+            "recognized",
+            "unknown",
+            "absent",
+            "damaged"
+          ]
+        },
+        "value_check": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_checked",
+            "not_applicable"
+          ]
+        },
+        "existence": {
+          "const": "unknown"
+        },
+        "profile": {
+          "const": "bank-identifiers-by-v1"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ModernFields": {
+      "type": "object",
+      "properties": {
+        "sidecar_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bank_name_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unp_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "urgency_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "acceptance_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unlabelled_codes_raw": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "sidecar_raw",
+        "name_raw",
+        "bank_name_raw",
+        "unp_raw",
+        "urgency_raw",
+        "acceptance_raw",
+        "unlabelled_codes_raw"
+      ],
+      "additionalProperties": false
+    },
+    "OwnerCounterpartyType": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "original_detail_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answered_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "payer",
+            "payee"
+          ]
+        },
+        "person_type": {
+          "enum": [
+            "physical_person",
+            "legal_entity"
+          ]
+        },
+        "origin": {
+          "const": "owner_confirmed"
+        },
+        "answered_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "operation_id",
+        "original_detail_raw",
+        "answered_by",
+        "answer_ref",
+        "confirmation_ref",
+        "role",
+        "person_type",
+        "origin",
+        "answered_at"
+      ],
+      "additionalProperties": false
+    },
+    "OwnerCounterpartyIdentity": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmed_entity_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmed_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "original_detail_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answered_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "payer",
+            "payee"
+          ]
+        },
+        "internal_id": {
+          "type": "string",
+          "pattern": "^internal-counterparty:[1-9][0-9]*$"
+        },
+        "business_facts_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "answered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "origin": {
+          "const": "owner_confirmed"
+        },
+        "business_relation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      },
+      "required": [
+        "operation_id",
+        "confirmed_entity_ref",
+        "confirmed_name",
+        "original_detail_raw",
+        "answered_by",
+        "answer_ref",
+        "confirmation_ref",
+        "role",
+        "internal_id",
+        "business_facts_sha256",
+        "answered_at",
+        "origin",
+        "business_relation"
+      ],
+      "additionalProperties": false
+    },
+    "OwnerRoleUnp": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "party_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "official_unp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "original_detail_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answered_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "payer",
+            "payee"
+          ]
+        },
+        "origin": {
+          "const": "owner_confirmed"
+        },
+        "original_unp_raw": {
+          "type": "string"
+        },
+        "business_facts_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "answered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correction": {
+          "$ref": "#/$defs/OwnerUnpCorrection"
+        }
+      },
+      "required": [
+        "operation_id",
+        "party_id",
+        "official_unp",
+        "original_detail_raw",
+        "answered_by",
+        "answer_ref",
+        "confirmation_ref",
+        "role",
+        "origin",
+        "original_unp_raw",
+        "business_facts_sha256",
+        "answered_at"
+      ],
+      "additionalProperties": false
+    },
+    "OwnerUnpCorrection": {
+      "type": "object",
+      "properties": {
+        "dispute_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "replacement_evidence_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "account_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "account_number_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "const": "owner_disputed_source"
+        },
+        "replacement_evidence": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "official_unp": {
+              "type": "string",
+              "minLength": 1
+            },
+            "account_number_raw": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name_raw": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "official_unp",
+            "account_number_raw",
+            "name_raw"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "confirmed"
+          ]
+        }
+      },
+      "required": [
+        "dispute_ref",
+        "replacement_evidence_ref",
+        "account_id",
+        "account_number_raw",
+        "name_raw",
+        "kind",
+        "replacement_evidence",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

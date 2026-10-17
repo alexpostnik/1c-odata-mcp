@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Separately reviewed logical statement controls (no PDF links)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "statements"
+  ],
+  "properties": {
+    "statements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "statement_id",
+          "opening",
+          "closing",
+          "printed_debit_total",
+          "printed_credit_total",
+          "no_activity",
+          "opening_raw",
+          "first_for_account",
+          "first_account_basis"
+        ],
+        "properties": {
+          "opening": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "printed_debit_total": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "printed_credit_total": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statement_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "no_activity": {
+            "type": "boolean"
+          },
+          "opening_raw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "first_for_account": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "first_account_basis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_review": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "origin",
+              "review_status",
+              "reference"
+            ],
+            "properties": {
+              "origin": {
+                "const": "independent_original_pdf"
+              },
+              "review_status": {
+                "enum": [
+                  "reviewed",
+                  "unknown"
+                ]
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "printed_operation_count": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "value",
+              "raw"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "observed",
+                  "absent",
+                  "unknown"
+                ]
+              },
+              "value": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "raw": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "absent"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "value": {
+                      "type": "null"
+                    },
+                    "raw": {
+                      "type": "null"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "observed"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "value": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "raw": {
+                      "type": "string",
+                      "pattern": "^\\s*(?:[^0-9\\n]*:\\s*)?[0-9]+\\s*$"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "source_unit_review": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "source_unit",
+              "source_epoch",
+              "transfer_factor",
+              "printed_label_anomaly",
+              "basis"
+            ],
+            "properties": {
+              "status": {
+                "const": "verified"
+              },
+              "source_unit": {
+                "type": "string"
+              },
+              "source_epoch": {
+                "type": "string"
+              },
+              "transfer_factor": {
+                "const": "1"
+              },
+              "printed_label_anomaly": {
+                "type": "boolean"
+              },
+              "basis": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

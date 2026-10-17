@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "bank-commission:1": "f09a2f92fd2abb937ace1425d562d9756e7f7491f3cfebfb5fc4aae562e5bdcb",
+    "contribution-split:1": "78219e86b7182d724e542f0db03c582d3c0f1a4619bb96507fa4ce54141fa0bb"
+  },
+  "rules": {
+    "commission": "e3d93ef80635f7fcc1bf56b3ded034c2dfc7dcc42ca2149ea339bcb9e701a846",
+    "contribution": "863aadf2a7d3cc837b72d37fb99924346fae3009ea8e27791b6ded64b2a1f660"
+  }
+}
