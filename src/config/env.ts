@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AccountingSchema, type AccountingConfig } from "./accounting.js";
 import { homedir } from "node:os";
 import { resolve, join } from "node:path";
 
@@ -23,6 +24,9 @@ export interface ConnectionConfig {
   password: string;
   /** Разрешена ли запись в эту базу (POST/PATCH). По умолчанию false. */
   writable: boolean;
+  counterpartyTaxPolicy?: "ru" | "by-required-unique";
+  counterpartyTaxField?: string;
+  accounting?: AccountingConfig;
 }
 
 export interface Behavior {
@@ -65,7 +69,23 @@ const BehaviorSchema = z.object({
   READ_ONLY: z.enum(["true", "false"]).default("true"),
 });
 
+const JsonAccountingSchema = z.preprocess((value, ctx) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    ctx.addIssue({ code: "custom", message: "must be valid accounting JSON" });
+    return z.NEVER;
+  }
+}, AccountingSchema.optional());
+
 const ConnSchema = z.object({
+  counterpartyTaxPolicy: z.enum(["ru", "by-required-unique"]).default("ru"),
+  counterpartyTaxField: z
+    .string()
+    .regex(/^[\p{L}_][\p{L}\p{N}_]*$/u)
+    .optional(),
+  accounting: JsonAccountingSchema,
   name: z.string().min(1),
   label: z.string().min(1).optional(),
   baseUrl: z.string().url("должен быть валидным URL").transform(normalizeUrl),
@@ -92,6 +112,10 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       username: env[`ODATA_DB_${tag}_USERNAME`],
       password: env[`ODATA_DB_${tag}_PASSWORD`],
       writable: env[`ODATA_DB_${tag}_WRITABLE`],
+      counterpartyTaxPolicy:
+        env[`ODATA_DB_${tag}_COUNTERPARTY_TAX_POLICY`] ?? env.ODATA_COUNTERPARTY_TAX_POLICY,
+      counterpartyTaxField: env[`ODATA_DB_${tag}_COUNTERPARTY_TAX_FIELD`] ?? env.ODATA_COUNTERPARTY_TAX_FIELD,
+      accounting: env[`ODATA_DB_${tag}_ACCOUNTING_CONFIG`] ?? env.ODATA_ACCOUNTING_CONFIG,
     });
   }
 
@@ -104,6 +128,9 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       username: env.ODATA_USERNAME,
       password: env.ODATA_PASSWORD,
       writable: env.ODATA_WRITABLE,
+      counterpartyTaxPolicy: env.ODATA_COUNTERPARTY_TAX_POLICY,
+      counterpartyTaxField: env.ODATA_COUNTERPARTY_TAX_FIELD,
+      accounting: env.ODATA_ACCOUNTING_CONFIG,
     });
   }
 

@@ -1,3 +1,9 @@
+import {
+  counterpartyTaxField,
+  checkCounterpartyPolicy,
+  COUNTERPARTY_SET,
+} from "../odata/counterparty-policy.js";
+import { defaultAccountCodes, type AccountDefault } from "../config/accounting.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Connection, ServerContext } from "../context.js";
@@ -356,6 +362,15 @@ function pickAccount(map: Map<string, string>, ...codes: string[]): string | und
   return undefined;
 }
 
+async function mappedAccounts(
+  conn: Connection,
+  groups: AccountDefault[],
+): Promise<Map<AccountDefault, string | undefined>> {
+  const candidates = groups.map((group) => [group, defaultAccountCodes(conn.cfg, group)] as const);
+  const refs = await accountsByCode(conn, [...new Set(candidates.flatMap(([, codes]) => [...codes]))]);
+  return new Map(candidates.map(([group, codes]) => [group, pickAccount(refs, ...codes)]));
+}
+
 /**
  * Резолвит счета учёта по каждой номенклатуре: сперва из регистра «Счета учёта
  * номенклатуры», недостающее добивает дефолтами по кодам плана счетов.
@@ -444,14 +459,14 @@ async function goodsAccounts(
 ): Promise<{ settlement?: string | undefined; lineAccountsFor: LineAccountsFor }> {
   const nomRefs = lines.map((l) => l.nomenclatureRef);
   if (kind === "purchase") {
-    const codes = await accountsByCode(conn, ["41.01", "41", "60.01", "60", "19.03", "19"]);
+    const codes = await mappedAccounts(conn, ["goods", "payable", "incomingVat"]);
     const defaults: NomAccounts = {
-      goods: pickAccount(codes, "41.01", "41"),
-      incomingVat: pickAccount(codes, "19.03", "19"),
+      goods: codes.get("goods"),
+      incomingVat: codes.get("incomingVat"),
     };
     const accMap = await resolveLineAccounts(conn, orgKey, nomRefs, defaults);
     return {
-      settlement: pickAccount(codes, "60.01", "60"),
+      settlement: codes.get("payable"),
       lineAccountsFor: (l) => {
         const a = accMap.get(l.nomenclatureRef);
         return clean({
@@ -462,22 +477,12 @@ async function goodsAccounts(
     };
   }
   // shipment (товары) и service (услуги) — продажа: Дт 62 Кт 90, у товаров ещё Дт 90 Кт 41.
-  const codes = await accountsByCode(conn, [
-    "41.01",
-    "41",
-    "62.01",
-    "62",
-    "90.01.1",
-    "90.01",
-    "90.02.1",
-    "90.02",
-    "90.03",
-  ]);
+  const codes = await mappedAccounts(conn, ["goods", "receivable", "income", "expense", "outgoingVat"]);
   const defaults: NomAccounts = {
-    goods: pickAccount(codes, "41.01", "41"),
-    income: pickAccount(codes, "90.01.1", "90.01"),
-    expense: pickAccount(codes, "90.02.1", "90.02"),
-    outgoingVat: pickAccount(codes, "90.03"),
+    goods: codes.get("goods"),
+    income: codes.get("income"),
+    expense: codes.get("expense"),
+    outgoingVat: codes.get("outgoingVat"),
   };
   const accMap = await resolveLineAccounts(conn, orgKey, nomRefs, defaults);
   // Переопределения (коды/GUID) резолвим одним запросом на весь документ.
@@ -490,7 +495,7 @@ async function goodsAccounts(
   const docIncome = ref(docAccounts?.income);
   const docExpense = ref(docAccounts?.expense);
   return {
-    settlement: pickAccount(codes, "62.01", "62"),
+    settlement: codes.get("receivable"),
     lineAccountsFor: (l) => {
       const a = accMap.get(l.nomenclatureRef);
       const vatField = l.vatRate !== "БезНДС" ? { СчетУчетаНДСПоРеализации_Key: a?.outgoingVat } : {};
@@ -515,8 +520,8 @@ async function goodsOnlyAccounts(
   orgKey: string,
   lines: GoodsLine[],
 ): Promise<(nomRef: string) => Record<string, string>> {
-  const codes = await accountsByCode(conn, ["41.01", "41"]);
-  const defaults: NomAccounts = { goods: pickAccount(codes, "41.01", "41") };
+  const codes = await mappedAccounts(conn, ["goods"]);
+  const defaults: NomAccounts = { goods: codes.get("goods") };
   const accMap = await resolveLineAccounts(
     conn,
     orgKey,
@@ -1134,6 +1139,7 @@ async function createOrPreview(
   const allNotes = [...(notes ?? []), ...contract.notes];
   const extra = allNotes.length ? { notes: allNotes } : {};
   if (!confirm) {
+    if (entitySet === COUNTERPARTY_SET) await checkCounterpartyPolicy(conn, payload);
     await conn.client.prepareCreate(entitySet, payload);
     return ok({
       dryRun: true,
@@ -1182,6 +1188,7 @@ async function patchOrPreview(
   const guid = ref.replace(/[{}']/g, "");
   const extra = notes?.length ? { notes } : {};
   if (!confirm) {
+    if (entitySet === COUNTERPARTY_SET) await checkCounterpartyPolicy(conn, fields, guid);
     return ok({
       dryRun: true,
       database: conn.cfg.name,
@@ -1453,7 +1460,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
       inputSchema: {
         database: databaseField,
         name: z.string().min(1).describe("Наименование контрагента (Description)"),
-        inn: z.string().optional().describe("ИНН"),
+        inn: z.string().optional().describe("ИНН / УНП (обязателен при Belarus policy; поле из $metadata)"),
         kpp: z.string().optional().describe("КПП"),
         fullName: z.string().optional().describe("Полное наименование"),
         legalType: z
@@ -1475,7 +1482,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         const { fields, notes } = await counterpartyExtras(conn, { phone, email, address, ogrn });
         const payload = clean({
           Description: name,
-          ИНН: inn,
+          [await counterpartyTaxField(conn)]: inn,
           КПП: kpp,
           НаименованиеПолное: fullName,
           ЮридическоеФизическоеЛицо: legalType,
@@ -1819,7 +1826,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         database: databaseField,
         ref: z.string().describe("Ref_Key контрагента"),
         name: z.string().optional().describe("Новое наименование (Description)"),
-        inn: z.string().optional().describe("ИНН"),
+        inn: z.string().optional().describe("ИНН / УНП (обязателен при Belarus policy; поле из $metadata)"),
         kpp: z.string().optional().describe("КПП"),
         fullName: z.string().optional().describe("Полное наименование"),
         phone: z.string().optional().describe("Телефон (контактная информация)"),
@@ -1836,7 +1843,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         const set = await resolveSet(conn, CATALOGS.counterparties, "Справочник «Контрагенты»");
         const fields: Record<string, unknown> = clean({
           Description: name,
-          ИНН: inn,
+          [await counterpartyTaxField(conn)]: inn,
           КПП: kpp,
           НаименованиеПолное: fullName,
         });
@@ -2961,9 +2968,9 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         const set = await requireEntity(conn, DOCUMENTS.bankIn, "Документ «Поступление на расчётный счёт»");
         const org = await resolveOrg(conn, organization);
         const bank = await resolveOrgBankAccount(conn, org.key, orgBankAccount);
-        const codes = await accountsByCode(conn, ["62.01", "62", "62.02"]);
-        const settle = pickAccount(codes, "62.01", "62");
-        const advance = pickAccount(codes, "62.02");
+        const codes = await mappedAccounts(conn, ["receivable", "receivableAdvance"]);
+        const settle = codes.get("receivable");
+        const advance = codes.get("receivableAdvance");
         const cpSet = resolveEntity(CATALOGS.counterparties, await conn.available());
         const payload = clean({
           Date: odataDate(date ? new Date(`${date}T00:00:00`) : new Date()),
@@ -3008,9 +3015,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
     const supplier = /Поставщик/i.test(operationKind);
     const customer = /Покупател/i.test(operationKind);
     if (!contractRef || (!supplier && !customer)) return undefined;
-    const codes = await accountsByCode(conn, supplier ? ["60.01", "60", "60.02"] : ["62.01", "62", "62.02"]);
-    const settle = pickAccount(codes, supplier ? "60.01" : "62.01", supplier ? "60" : "62");
-    const advance = pickAccount(codes, supplier ? "60.02" : "62.02");
+    const codes = await mappedAccounts(
+      conn,
+      supplier ? ["payable", "payableAdvance"] : ["receivable", "receivableAdvance"],
+    );
+    const settle = codes.get(supplier ? "payable" : "receivable");
+    const advance = codes.get(supplier ? "payableAdvance" : "receivableAdvance");
     return {
       settle,
       row: clean({

@@ -4,6 +4,16 @@ import { ODataError, fromHttpStatus } from "./errors.js";
 import type { ODataCollection, ODataEntity } from "../types/odata.js";
 import { currentWriteOperationId, currentWriteRequestHash } from "./write-operation-context.js";
 import { WriteOperationJournal, type OperationCheck } from "./write-journal.js";
+import { loadMetadata } from "./metadata.js";
+import type { MetadataMap } from "../types/odata.js";
+import {
+  COUNTERPARTY_SET,
+  checkCounterpartyPolicy,
+  counterpartyTaxField,
+  requiresUniqueUnp,
+  withCounterpartyLock,
+} from "./counterparty-policy.js";
+import { InputError, BeforeWriteError } from "../errors.js";
 import { uuidV1 } from "./uuid-v1.js";
 
 /** HTTP-методы только для чтения; остальные (POST/PATCH) считаются записью и гейтуются. */
@@ -11,6 +21,8 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
 
 export class ODataClient {
   private readonly authHeader: string;
+  private metaPromise: Promise<MetadataMap> | undefined;
+  private static readonly unpClaims = new Map<string, string>();
   private journal: WriteOperationJournal | undefined;
 
   constructor(
@@ -19,6 +31,14 @@ export class ODataClient {
   ) {
     const token = Buffer.from(`${conn.username}:${conn.password}`).toString("base64");
     this.authHeader = `Basic ${token}`;
+  }
+
+  getMetadata(): Promise<MetadataMap> {
+    this.metaPromise ??= loadMetadata(this).catch((error) => {
+      this.metaPromise = undefined;
+      throw error;
+    });
+    return this.metaPromise;
   }
 
   /** Журнал операций записи создаётся при первом обращении: чтению и read-only он не нужен. */
@@ -63,6 +83,60 @@ export class ODataClient {
    */
   async request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
     this.assertWritable(method);
+    const url = new URL(this.url(path));
+    const base = new URL(this.conn.baseUrl);
+    const relative = decodeURIComponent(url.pathname.slice(base.pathname.length));
+    const isCard = relative === COUNTERPARTY_SET || relative.startsWith(`${COUNTERPARTY_SET}(`);
+    if (requiresUniqueUnp(this.conn) && isCard && (method === "POST" || method === "PATCH")) {
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        throw new BeforeWriteError("Counterparty write body must be an object.");
+      const fields = body as Record<string, unknown>;
+      const ref = /^Catalog_Контрагенты\(guid'([0-9a-f-]+)'\)$/i.exec(relative)?.[1];
+      if (method === "PATCH" && !ref)
+        throw new BeforeWriteError("Counterparty update requires a canonical GUID path.");
+      return withCounterpartyLock(base.toString(), async () => {
+        const source = { cfg: this.conn, getMetadata: () => this.getMetadata(), client: this };
+        let field: string;
+        try {
+          field = await counterpartyTaxField(source);
+        } catch {
+          throw new BeforeWriteError("UNP metadata mapping could not be verified; no write sent.");
+        }
+        const operationId = currentWriteOperationId();
+        const claim = `${base.toString()}\0${String(fields[field] ?? "")}`;
+        if (method === "POST" && fields.IsFolder !== true) {
+          if (!operationId) throw new BeforeWriteError("Counterparty create requires a preview operationId.");
+          const owner = ODataClient.unpClaims.get(claim);
+          if (owner && owner !== operationId)
+            throw new BeforeWriteError(
+              "An earlier UNP write has an unknown outcome; reconcile it before another create.",
+            );
+        }
+        try {
+          await checkCounterpartyPolicy(source, fields, ref);
+        } catch (error) {
+          throw new BeforeWriteError(
+            error instanceof InputError
+              ? error.message
+              : "Counterparty policy could not be verified; no write sent.",
+          );
+        }
+        if (method === "POST" && fields.IsFolder !== true) ODataClient.unpClaims.set(claim, operationId!);
+        try {
+          const result = await this.requestRaw<T>(path, method, body);
+          ODataClient.unpClaims.delete(claim);
+          return result;
+        } catch (error) {
+          if (error instanceof ODataError && ["bad_request", "auth", "not_found"].includes(error.kind))
+            ODataClient.unpClaims.delete(claim);
+          throw error;
+        }
+      });
+    }
+    return this.requestRaw<T>(path, method, body);
+  }
+
+  private async requestRaw<T>(path: string, method = "GET", body?: unknown): Promise<T> {
     const url = this.url(path);
     // Тело пишущих запросов повторять небезопасно (не идемпотентно) — без retry.
     const maxAttempts = body === undefined ? this.behavior.retries + 1 : 1;
@@ -232,8 +306,10 @@ export class ODataClient {
   }
 
   /** Сверка показала, что операция до 1С не дошла. */
-  markOperationNotApplied(operationId: string): Promise<void> {
-    return this.writeJournal.markNotApplied(operationId);
+  async markOperationNotApplied(operationId: string): Promise<void> {
+    await this.writeJournal.markNotApplied(operationId);
+    for (const [claim, owner] of ODataClient.unpClaims)
+      if (owner === operationId) ODataClient.unpClaims.delete(claim);
   }
 
   /** Изменяет объект (PATCH) по полному пути с ключом. */

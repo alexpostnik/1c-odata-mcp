@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, readdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { InputError } from "../errors.js";
+import { InputError, BeforeWriteError } from "../errors.js";
 import type { ODataEntity } from "../types/odata.js";
 import { ODataError } from "./errors.js";
 
@@ -480,7 +480,10 @@ export class WriteOperationJournal {
 }
 
 function isDefinitiveRejection(error: unknown): boolean {
-  return error instanceof ODataError && ["auth", "not_found", "bad_request"].includes(error.kind);
+  return (
+    error instanceof BeforeWriteError ||
+    (error instanceof ODataError && ["auth", "not_found", "bad_request"].includes(error.kind))
+  );
 }
 
 function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {
