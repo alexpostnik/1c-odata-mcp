@@ -340,7 +340,7 @@ describe("Belarus counterparty policy", () => {
         (await tool.handler({ ...args, confirm: true, operationId: a.structuredContent?.operationId }, {}))
           .isError,
       ).toBe(true);
-      const patch = conn.client.patch(`${set}(guid'${key}')`, { Description: "Renamed", УНП: "123456789" });
+      const patch = conn.client.patch(`${set}(guid'${key}')`, patchFields);
       await expect(patch).rejects.toThrow("unknown outcome");
       expect(post).toHaveBeenCalledOnce(); // denied before PATCH transport
       expect(
@@ -350,6 +350,18 @@ describe("Belarus counterparty policy", () => {
       expect(postCount).toBe(1);
     },
   );
+  it("keeps a conservative case-insensitive claim for alphanumeric UNP after an uncertain create", async () => {
+    const { tools, post } = fixture();
+    const tool = tools["write.counterparty.create_counterparty"]!;
+    const firstArgs = { name: "Synthetic", inn: "AB1234567", confirm: false };
+    const secondArgs = { ...firstArgs, inn: "ab1234567" };
+    const a = await tool.handler(firstArgs, {});
+    const b = await tool.handler(secondArgs, {});
+    post.mockRejectedValue(new TypeError("Synthetic lost response"));
+    await tool.handler({ ...firstArgs, confirm: true, operationId: a.structuredContent?.operationId }, {});
+    await tool.handler({ ...secondArgs, confirm: true, operationId: b.structuredContent?.operationId }, {});
+    expect(post).toHaveBeenCalledOnce();
+  });
   it.each([
     { value: [], "@odata.nextLink": "next" },
     { value: [{ Ref_Key: key }] },
