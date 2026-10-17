@@ -40,3 +40,17 @@ jobs:
         working-directory: contrib/python
       - run: python -m unittest discover -s docs/toolkit/tests
       - run: python docs/toolkit/examples/make_demo.py --output "$RUNNER_TEMP/onec-docs-demo"
+
+  windows-adapter:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: contrib/python/pyproject.toml
+      - run: python -m pip install './contrib/python[test]'
+      # Synthetic AST/structured-storage fixtures; no installed 1C is accessed.
+      - run: python -m pytest windows-tests
+        working-directory: contrib/python
