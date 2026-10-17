@@ -457,7 +457,7 @@
           "query": {
             "type": "string",
             "minLength": 1,
-            "description": "Часть названия или ИНН контрагента"
+            "description": "Часть названия, ИНН или УНП контрагента"
           },
           "limit": {
             "default": 20,
@@ -3398,7 +3398,7 @@
             "description": "Наименование контрагента (Description)"
           },
           "inn": {
-            "description": "ИНН",
+            "description": "ИНН / УНП (обязателен при Belarus policy; поле из $metadata)",
             "type": "string"
           },
           "kpp": {
@@ -4239,7 +4239,7 @@
             "type": "string"
           },
           "inn": {
-            "description": "ИНН",
+            "description": "ИНН / УНП (обязателен при Belarus policy; поле из $metadata)",
             "type": "string"
           },
           "kpp": {

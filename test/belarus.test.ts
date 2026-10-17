@@ -336,8 +336,16 @@ describe("configurable accounting", () => {
     await resolveAccounts(conn as never, ["41"]);
   });
   it("fails closed when configured Belarus fallback accounts do not exist", async () => {
-    const cfg = parseConfig({ ...baseEnv, ODATA_COUNTERPARTY_TAX_POLICY: "by-required-unique", ODATA_ACCOUNTING_CONFIG: JSON.stringify({ defaults: { income: ["90.7"] } }) }).connections[0]!;
-    const conn = { cfg, available: async () => new Set(["ChartOfAccounts_Хозрасчетный"]), client: { getCollection: async () => ({ value: [] }) } };
+    const cfg = parseConfig({
+      ...baseEnv,
+      ODATA_COUNTERPARTY_TAX_POLICY: "by-required-unique",
+      ODATA_ACCOUNTING_CONFIG: JSON.stringify({ defaults: { income: ["90.7"] } }),
+    }).connections[0]!;
+    const conn = {
+      cfg,
+      available: async () => new Set(["ChartOfAccounts_Хозрасчетный"]),
+      client: { getCollection: async () => ({ value: [] }) },
+    };
     await expect(resolveDefaultAccounts(conn as never, ["income"])).rejects.toThrow("income");
   });
   it("uses configured accounting groups and refuses missing Belarus defaults", () => {
@@ -400,9 +408,15 @@ describe("shared metadata cache", () => {
     const cfg = parseConfig(baseEnv);
     const conn = new Connection(cfg.connections[0]!, cfg.behavior);
     const xml = `<Edmx><DataServices><Schema><EntityType Name="Counterparties"><Property Name="УНП" Type="Edm.String"/></EntityType><EntityContainer><EntitySet Name="Catalog_Контрагенты" EntityType="StandardODATA.Counterparties"/></EntityContainer></Schema></DataServices></Edmx>`;
-    const getText = vi.spyOn(conn.client, "getText").mockRejectedValueOnce(new Error("Synthetic unavailable metadata")).mockResolvedValue(xml);
+    const getText = vi
+      .spyOn(conn.client, "getText")
+      .mockRejectedValueOnce(new Error("Synthetic unavailable metadata"))
+      .mockResolvedValue(xml);
     await expect(conn.getMetadata()).rejects.toThrow("unavailable");
-    const [toolMetadata, transportMetadata] = await Promise.all([conn.getMetadata(), conn.client.getMetadata()]);
+    const [toolMetadata, transportMetadata] = await Promise.all([
+      conn.getMetadata(),
+      conn.client.getMetadata(),
+    ]);
     expect(toolMetadata).toBe(transportMetadata);
     expect(toolMetadata.entities.has(set)).toBe(true);
     expect(getText).toHaveBeenCalledTimes(2); // one failed attempt + one shared successful load

@@ -265,8 +265,10 @@ export class ODataClient {
   }
 
   /** Фиксирует найденный сверкой результат неизвестной операции. */
-  reconcileOperation(operationId: string, result: ODataEntity): Promise<void> {
-    return this.writeJournal.reconcile(operationId, result);
+  async reconcileOperation(operationId: string, result: ODataEntity): Promise<void> {
+    await this.writeJournal.reconcile(operationId, result);
+    for (const [claim, owner] of ODataClient.unpClaims)
+      if (owner === operationId) ODataClient.unpClaims.delete(claim);
   }
 
   /**

@@ -35,7 +35,8 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "npm run build && node --eval \"require('fs').rmSync('dist/scripts',{recursive:true,force:true})\"",
     "manifest": "npm run build && node dist/scripts/gen-manifest.js",
-    "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js"
+    "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "mcp",
@@ -72,6 +73,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "5.0.3",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.9",

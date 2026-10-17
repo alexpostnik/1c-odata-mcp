@@ -1,4 +1,9 @@
-import { accountingChart, accountingRegister } from "../config/accounting.js";
+import {
+  accountingChart,
+  accountingRegister,
+  defaultAccountCodes,
+  type AccountDefault,
+} from "../config/accounting.js";
 import type { Connection } from "../context.js";
 import { fetchAll } from "./pagination.js";
 import { and, cmp, odataGuid, odataString, or } from "./query.js";
@@ -69,6 +74,25 @@ export async function accountsByCode(
     codes.length,
   );
   for (const r of rows) result.set(String(r["Code"]), String(r["Ref_Key"]));
+  return result;
+}
+
+/** Resolve fallback groups with one batched read; missing Belarus mappings must not omit account fields silently. */
+export async function resolveDefaultAccounts(
+  conn: Connection,
+  groups: AccountDefault[],
+): Promise<Map<AccountDefault, string | undefined>> {
+  const candidates = groups.map((group) => [group, defaultAccountCodes(conn.cfg, group)] as const);
+  const refs = await accountsByCode(conn, [...new Set(candidates.flatMap(([, codes]) => [...codes]))]);
+  const result = new Map<AccountDefault, string | undefined>();
+  for (const [group, codes] of candidates) {
+    const ref = codes.map((code) => refs.get(code)).find((value) => value !== undefined);
+    if (!ref && conn.cfg?.counterpartyTaxPolicy === "by-required-unique")
+      throw new InputError(
+        `No published account matches accounting.defaults.${group}; verify this database's account codes.`,
+      );
+    result.set(group, ref);
+  }
   return result;
 }
 
