@@ -320,9 +320,9 @@ describe("Belarus counterparty policy", () => {
     expect(second.isError).toBe(true);
     expect(post).toHaveBeenCalledOnce();
   });
-  it.each([true, false])(
-    "PATCH success=%s cannot release a different uncertain CREATE's same-UNP claim",
-    async (patchSucceeds) => {
+  it.each([{ Description: "Renamed", УНП: "123456789" }, { Description: "Renamed" }])(
+    "PATCH %j cannot race or release a different uncertain CREATE's same-UNP claim",
+    async (patchFields) => {
       const { conn, tools, post } = fixture();
       const tool = tools["write.counterparty.create_counterparty"]!;
       const args = { name: "Synthetic", inn: "123456789", confirm: false };
@@ -334,17 +334,15 @@ describe("Belarus counterparty policy", () => {
           postCount++;
           throw new TypeError("Synthetic lost response");
         }
-        return new Response(patchSucceeds ? JSON.stringify({ Ref_Key: key }) : "Synthetic rejection", {
-          status: patchSucceeds ? 200 : 400,
-        });
+        return new Response(JSON.stringify({ Ref_Key: key }), { status: 200 });
       });
       expect(
         (await tool.handler({ ...args, confirm: true, operationId: a.structuredContent?.operationId }, {}))
           .isError,
       ).toBe(true);
       const patch = conn.client.patch(`${set}(guid'${key}')`, { Description: "Renamed", УНП: "123456789" });
-      if (patchSucceeds) await expect(patch).resolves.toMatchObject({ Ref_Key: key });
-      else await expect(patch).rejects.toThrow();
+      await expect(patch).rejects.toThrow("unknown outcome");
+      expect(post).toHaveBeenCalledOnce(); // denied before PATCH transport
       expect(
         (await tool.handler({ ...args, confirm: true, operationId: b.structuredContent?.operationId }, {}))
           .isError,

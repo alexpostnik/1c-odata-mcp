@@ -52,7 +52,7 @@ export async function checkCounterpartyPolicy(
   source: PolicySource,
   fields: Record<string, unknown>,
   ref?: string,
-): Promise<void> {
+): Promise<string | undefined> {
   if (!requiresUniqueUnp(source.cfg)) return;
   const field = await counterpartyTaxField(source);
   const existing = ref
@@ -101,6 +101,7 @@ export async function checkCounterpartyPolicy(
   }
   if (rows.length > 1)
     throw new InputError("UNP uniqueness response contains repeated matches; no write sent.");
+  return unp;
 }
 
 // Serialize policy check + transport across aliases to the same URL in this process.

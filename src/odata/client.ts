@@ -9,7 +9,6 @@ import type { MetadataMap } from "../types/odata.js";
 import {
   COUNTERPARTY_SET,
   checkCounterpartyPolicy,
-  counterpartyTaxField,
   requiresUniqueUnp,
   withCounterpartyLock,
 } from "./counterparty-policy.js";
@@ -96,24 +95,13 @@ export class ODataClient {
         throw new BeforeWriteError("Counterparty update requires a canonical GUID path.");
       return withCounterpartyLock(base.toString(), async () => {
         const source = { cfg: this.conn, getMetadata: () => this.getMetadata(), client: this };
-        let field: string;
-        try {
-          field = await counterpartyTaxField(source);
-        } catch {
-          throw new BeforeWriteError("UNP metadata mapping could not be verified; no write sent.");
-        }
         const operationId = currentWriteOperationId();
-        const claim = `${base.toString()}\0${String(fields[field] ?? "")}`;
-        if (method === "POST" && fields.IsFolder !== true) {
-          if (!operationId) throw new BeforeWriteError("Counterparty create requires a preview operationId.");
-          const owner = ODataClient.unpClaims.get(claim);
-          if (owner && owner !== operationId)
-            throw new BeforeWriteError(
-              "An earlier UNP write has an unknown outcome; reconcile it before another create.",
-            );
-        }
+        const isCreate = method === "POST" && fields.IsFolder !== true;
+        if (isCreate && !operationId)
+          throw new BeforeWriteError("Counterparty create requires a preview operationId.");
+        let unp: string | undefined;
         try {
-          await checkCounterpartyPolicy(source, fields, ref);
+          unp = await checkCounterpartyPolicy(source, fields, ref);
         } catch (error) {
           throw new BeforeWriteError(
             error instanceof InputError
@@ -121,14 +109,44 @@ export class ODataClient {
               : "Counterparty policy could not be verified; no write sent.",
           );
         }
-        if (method === "POST" && fields.IsFolder !== true) ODataClient.unpClaims.set(claim, operationId!);
+        const claim = `${base.toString()}\0${unp ?? ""}`;
+        const owner = ODataClient.unpClaims.get(claim);
+        if (unp && owner && (method === "PATCH" || owner !== operationId))
+          throw new BeforeWriteError(
+            "An earlier UNP write has an unknown outcome; reconcile it before another write.",
+          );
+        if (isCreate && unp) ODataClient.unpClaims.set(claim, operationId!);
+        const releaseOwnedClaim = () => {
+          if (isCreate && unp && ODataClient.unpClaims.get(claim) === operationId)
+            ODataClient.unpClaims.delete(claim);
+        };
         try {
           const result = await this.requestRaw<T>(path, method, body);
-          ODataClient.unpClaims.delete(claim);
+          if (isCreate && unp) {
+            const resultRef =
+              result && typeof result === "object" && !Array.isArray(result)
+                ? (result as Record<string, unknown>).Ref_Key
+                : undefined;
+            const expectedRef = fields.Ref_Key;
+            const validRef =
+              typeof resultRef === "string" &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultRef) &&
+              resultRef !== "00000000-0000-0000-0000-000000000000";
+            if (
+              !validRef ||
+              (typeof expectedRef === "string" && resultRef.toLowerCase() !== expectedRef.toLowerCase())
+            )
+              throw new ODataError({
+                kind: "unknown",
+                message:
+                  "Counterparty create returned no matching Ref_Key; reconcile its unknown outcome before another write.",
+              });
+            releaseOwnedClaim();
+          }
           return result;
         } catch (error) {
           if (error instanceof ODataError && ["bad_request", "auth", "not_found"].includes(error.kind))
-            ODataClient.unpClaims.delete(claim);
+            releaseOwnedClaim();
           throw error;
         }
       });
