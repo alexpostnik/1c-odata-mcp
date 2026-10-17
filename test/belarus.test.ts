@@ -60,7 +60,10 @@ function fixture(field = "УНП") {
   vi.spyOn(conn.client, "prepareCreate");
   vi.spyOn(conn.client, "create");
   vi.spyOn(conn.client, "patch");
-  const post = vi.fn(async () => new Response(JSON.stringify({ Ref_Key: key }), { status: 201 }));
+  const post = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+    const body = typeof options?.body === "string" ? JSON.parse(options.body) : {};
+    return new Response(JSON.stringify({ Ref_Key: body.Ref_Key ?? key }), { status: 201 });
+  });
   vi.stubGlobal("fetch", post);
   const tools = (
     createServer({ db: () => conn } as never) as unknown as {
@@ -257,10 +260,11 @@ describe("Belarus counterparty policy", () => {
     collection.mockImplementation(async () => ({
       value: created ? [{ Ref_Key: key, УНП: "123456789" }] : [],
     }));
-    post.mockImplementation(async () => {
+    post.mockImplementation(async (_url, options) => {
       await Promise.resolve();
       created = true;
-      return new Response(JSON.stringify({ Ref_Key: key }), { status: 201 });
+      const body = typeof options?.body === "string" ? JSON.parse(options.body) : {};
+      return new Response(JSON.stringify({ Ref_Key: body.Ref_Key }), { status: 201 });
     });
     const results = await Promise.all(
       [a, b].map((preview) =>
@@ -287,6 +291,67 @@ describe("Belarus counterparty policy", () => {
     ).toBe(true);
     expect(post).toHaveBeenCalledOnce();
   });
+  it.each([
+    "",
+    "{}",
+    "[]",
+    "null",
+    JSON.stringify({ Ref_Key: "not-a-guid" }),
+    JSON.stringify({ Ref_Key: key }),
+  ])("retains an uncertain CREATE claim after an invalid semantic 201 response %s", async (responseBody) => {
+    const { conn, tools, post } = fixture();
+    const tool = tools["write.counterparty.create_counterparty"]!;
+    const args = { name: "Synthetic", inn: "123456789", confirm: false };
+    const a = await tool.handler(args, {});
+    const b = await tool.handler(args, {});
+    post.mockImplementation(async () => new Response(responseBody, { status: 201 }));
+    const first = await tool.handler(
+      { ...args, confirm: true, operationId: a.structuredContent?.operationId },
+      {},
+    );
+    const second = await tool.handler(
+      { ...args, confirm: true, operationId: b.structuredContent?.operationId },
+      {},
+    );
+    expect(first.isError).toBe(true);
+    expect(await conn.client.operationEntry(a.structuredContent?.operationId as string)).toMatchObject({
+      state: "outcome_unknown",
+    });
+    expect(second.isError).toBe(true);
+    expect(post).toHaveBeenCalledOnce();
+  });
+  it.each([true, false])(
+    "PATCH success=%s cannot release a different uncertain CREATE's same-UNP claim",
+    async (patchSucceeds) => {
+      const { conn, tools, post } = fixture();
+      const tool = tools["write.counterparty.create_counterparty"]!;
+      const args = { name: "Synthetic", inn: "123456789", confirm: false };
+      const a = await tool.handler(args, {});
+      const b = await tool.handler(args, {});
+      let postCount = 0;
+      post.mockImplementation(async (_url, options) => {
+        if (options?.method === "POST") {
+          postCount++;
+          throw new TypeError("Synthetic lost response");
+        }
+        return new Response(patchSucceeds ? JSON.stringify({ Ref_Key: key }) : "Synthetic rejection", {
+          status: patchSucceeds ? 200 : 400,
+        });
+      });
+      expect(
+        (await tool.handler({ ...args, confirm: true, operationId: a.structuredContent?.operationId }, {}))
+          .isError,
+      ).toBe(true);
+      const patch = conn.client.patch(`${set}(guid'${key}')`, { Description: "Renamed", УНП: "123456789" });
+      if (patchSucceeds) await expect(patch).resolves.toMatchObject({ Ref_Key: key });
+      else await expect(patch).rejects.toThrow();
+      expect(
+        (await tool.handler({ ...args, confirm: true, operationId: b.structuredContent?.operationId }, {}))
+          .isError,
+      ).toBe(true);
+      expect(postCount).toBe(1);
+    },
+  );
   it.each([
     { value: [], "@odata.nextLink": "next" },
     { value: [{ Ref_Key: key }] },
