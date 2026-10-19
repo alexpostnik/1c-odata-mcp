@@ -1,3 +1,4 @@
+import { accountPrefixes } from "../config/accounting.js";
 /**
  * Проверка аналитических путей (дебиторка / остатки) на живых данных.
  * Запуск: node --env-file=.env dist/scripts/probe-analytics.js
@@ -5,7 +6,7 @@
  */
 import { loadConfig } from "../config/env.js";
 import { ServerContext } from "../context.js";
-import { ACCOUNT_PREFIX, CATALOGS, resolveEntity } from "../config/mapping.js";
+import { CATALOGS, resolveEntity } from "../config/mapping.js";
 import { balanceByAccounts, resolveAccounts, resolveNames, num } from "../odata/accounting.js";
 
 function line(s = ""): void {
@@ -17,7 +18,7 @@ async function main(): Promise<void> {
   line(`база: ${conn.cfg.name}`);
 
   line("=== ДЕБИТОРКА (сч. 62) ===");
-  const recAccts = await resolveAccounts(conn, ACCOUNT_PREFIX.receivables);
+  const recAccts = await resolveAccounts(conn, accountPrefixes(conn.cfg, "receivables"));
   line(
     `счетов: ${recAccts.length} (${recAccts
       .slice(0, 4)
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
   for (const [ref, amt] of debtors) line(`  ${cpNames.get(ref) ?? ref}: ${amt.toFixed(2)}`);
 
   line("\n=== ОСТАТКИ ТОВАРОВ (сч. 41/10/43) ===");
-  const invAccts = await resolveAccounts(conn, ACCOUNT_PREFIX.inventory);
+  const invAccts = await resolveAccounts(conn, accountPrefixes(conn.cfg, "inventory"));
   line(`счетов: ${invAccts.length}`);
   const invRows = await balanceByAccounts(
     conn,

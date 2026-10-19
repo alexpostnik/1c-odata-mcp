@@ -1,6 +1,5 @@
 import type { Behavior, ConnectionConfig, RuntimeConfig } from "./config/env.js";
 import { ODataClient } from "./odata/client.js";
-import { loadMetadata } from "./odata/metadata.js";
 import { ODataError } from "./odata/errors.js";
 import type { MetadataMap } from "./types/odata.js";
 
@@ -12,7 +11,6 @@ export class Connection {
   readonly cfg: ConnectionConfig;
   readonly behavior: Behavior;
   readonly client: ODataClient;
-  private metaPromise: Promise<MetadataMap> | undefined;
 
   constructor(cfg: ConnectionConfig, behavior: Behavior) {
     this.cfg = cfg;
@@ -21,13 +19,7 @@ export class Connection {
   }
 
   getMetadata(): Promise<MetadataMap> {
-    if (!this.metaPromise) {
-      this.metaPromise = loadMetadata(this.client).catch((e) => {
-        this.metaPromise = undefined; // дать следующему вызову повторить
-        throw e;
-      });
-    }
-    return this.metaPromise;
+    return this.client.getMetadata();
   }
 
   async available(): Promise<ReadonlySet<string>> {
