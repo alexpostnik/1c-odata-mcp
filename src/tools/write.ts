@@ -1138,48 +1138,66 @@ export async function withSettlementAccounts(
     contractRef,
     side: documentSettlementSide(entitySet, payload),
   });
-  if (!found) {
-    return {
-      payload,
-      notes: [
-        `Счета расчётов — по умолчанию (${await codesOf(...current)}): регистр «Счета учёта расчётов с ` +
-          "контрагентами» не опубликован в OData, поэтому особая настройка договора не учтена.",
-      ],
-    };
-  }
-  const choice = found.choice;
-  if (!found.side || !choice) {
-    return {
-      payload,
-      notes: [
-        `Счета расчётов — по умолчанию (${await codesOf(...current)}): ` +
-          (found.side
+  const choice = found.published && found.side ? found.choice : undefined;
+  const notes: string[] = [];
+  if (choice) {
+    notes.push(
+      `Счета расчётов ${await codesOf(choice.settle, choice.advance)} — из ${LEVEL_TEXT[choice.level]} ` +
+        "(регистр «Счета учёта расчётов с контрагентами»).",
+    );
+  } else {
+    notes.push(
+      `Счета расчётов — по умолчанию (${await codesOf(...current)}): ` +
+        (!found.published
+          ? "регистр «Счета учёта расчётов с контрагентами» не опубликован в OData, поэтому особая настройка договора не учтена."
+          : found.side
             ? "в регистре «Счета учёта расчётов с контрагентами» нет подходящей записи."
             : "вид договора не «с покупателем» и не «с поставщиком» — настройка не подбирается."),
-      ],
-    };
+    );
   }
-  const apply = (target: Record<string, unknown>, settleKey: boolean, advanceKey: boolean) => ({
-    ...target,
-    ...(settleKey && choice.settle ? { [SETTLE_FIELD]: choice.settle } : {}),
-    ...(advanceKey && choice.advance ? { [ADVANCE_FIELD]: choice.advance } : {}),
-  });
+  const apply = (target: Record<string, unknown>, settleKey: boolean, advanceKey: boolean) =>
+    choice
+      ? {
+          ...target,
+          ...(settleKey && choice.settle ? { [SETTLE_FIELD]: choice.settle } : {}),
+          ...(advanceKey && choice.advance ? { [ADVANCE_FIELD]: choice.advance } : {}),
+        }
+      : target;
+
+  // Сумма взаиморасчётов в расшифровке платежа: без неё 1С проводит оплату молча и без проводок
+  // (проверено на живой базе). Для договора в рублях она равна сумме платежа при курсе 1; для валюты
+  // и у.е. курс не угадываем — говорим прямо.
+  const rowProps = new Set(
+    (await conn.getMetadata()).entities.get(`${entitySet}_${PAYMENT_ROWS}`)?.properties.map((p) => p.name) ??
+      [],
+  );
+  const regulated = found.kind === "РасчетыВВалютеРегламентированногоУчета";
+  const withSettlementSum = (r: Record<string, unknown>) =>
+    regulated && rowProps.has("СуммаВзаиморасчетов") && r["СуммаВзаиморасчетов"] === undefined
+      ? {
+          ...r,
+          СуммаВзаиморасчетов: r["СуммаПлатежа"],
+          ...(rowProps.has("КурсВзаиморасчетов") ? { КурсВзаиморасчетов: 1 } : {}),
+          ...(rowProps.has("КратностьВзаиморасчетов") ? { КратностьВзаиморасчетов: 1 } : {}),
+        }
+      : r;
+
   let next: Record<string, unknown> = apply(payload, hasHeader, props.has(ADVANCE_FIELD) && !rows.length);
   if (rows.length) {
     next = {
       ...next,
       [PAYMENT_ROWS]: rows.map((r) =>
-        r["ДоговорКонтрагента_Key"] === contractRef ? apply(r, true, true) : r,
+        r["ДоговорКонтрагента_Key"] === contractRef ? withSettlementSum(apply(r, true, true)) : r,
       ),
     };
+    if (found.kind && !regulated) {
+      notes.push(
+        "Договор в иностранной валюте или у.е.: сумму взаиморасчётов и курс MCP не заполняет — укажите их " +
+          "в 1С до проведения, иначе 1С проведёт оплату без проводок по расчётам.",
+      );
+    }
   }
-  return {
-    payload: next,
-    notes: [
-      `Счета расчётов ${await codesOf(choice.settle, choice.advance)} — из ${LEVEL_TEXT[choice.level]} ` +
-        "(регистр «Счета учёта расчётов с контрагентами»).",
-    ],
-  };
+  return { payload: next, notes };
 }
 
 /** После записи: счёт расчётов пуст — 1С проведёт документ без проводок по расчётам, молча. */
@@ -1195,10 +1213,22 @@ export function emptySettlementWarning(
   const headerEmpty =
     Object.hasOwn(created, SETTLE_FIELD) && empty(created[SETTLE_FIELD]) && rows.length === 0;
   const rowEmpty = rows.some((r) => Object.hasOwn(r, SETTLE_FIELD) && empty(r[SETTLE_FIELD]));
-  if (!headerEmpty && !rowEmpty) return undefined;
+  const sumEmpty = rows.some(
+    (r) =>
+      r["ДоговорКонтрагента_Key"] === contract &&
+      Object.hasOwn(r, "СуммаВзаиморасчетов") &&
+      !r["СуммаВзаиморасчетов"],
+  );
+  if (!headerEmpty && !rowEmpty && !sumEmpty) return undefined;
+  const what = [
+    headerEmpty || rowEmpty ? "пуст счёт расчётов с контрагентом" : "",
+    sumEmpty ? "не заполнена сумма взаиморасчётов в расшифровке платежа" : "",
+  ]
+    .filter(Boolean)
+    .join(" и ");
   return (
-    "ВНИМАНИЕ: в созданном документе пуст счёт расчётов с контрагентом — при проведении 1С не сформирует " +
-    "проводки по расчётам. Заполните счёт (write.entity.update_entity) до проведения."
+    `ВНИМАНИЕ: в созданном документе ${what} — при проведении 1С не сформирует проводки по расчётам. ` +
+    "Заполните до проведения (write.entity.update_entity)."
   );
 }
 

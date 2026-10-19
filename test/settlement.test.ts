@@ -119,7 +119,7 @@ const REG = "InformationRegister_СчетаУчетаРасчетовСКонт�
 const ACT = "Document_РеализацияТоваровУслуг";
 const PAY = "Document_ПоступлениеНаРасчетныйСчет";
 
-const connWith = (registerRows: unknown[] | undefined) => {
+const connWith = (registerRows: unknown[] | undefined, currency = "643") => {
   const getCollection = vi.fn(async (path: string) => {
     if (path.startsWith(REG)) return { value: registerRows ?? [] };
     if (path.startsWith("ChartOfAccounts_Хозрасчетный")) {
@@ -129,12 +129,13 @@ const connWith = (registerRows: unknown[] | undefined) => {
   });
   const getEntity = vi.fn(async (path: string) =>
     path.startsWith("Catalog_Валюты")
-      ? { Code: "643" }
+      ? { Code: currency }
       : {
           Ref_Key: CTR,
           Owner_Key: CP,
           Организация_Key: ORG,
           ВидДоговора: "СПокупателем",
+          ВалютаВзаиморасчетов_Key: "c0000000-0000-4000-8000-000000000000",
           РасчетыВУсловныхЕдиницах: false,
         },
   );
@@ -155,6 +156,10 @@ const connWith = (registerRows: unknown[] | undefined) => {
         entities: new Map([
           [ACT, props(["СчетУчетаРасчетовСКонтрагентом_Key", "СчетУчетаРасчетовПоАвансам_Key"])],
           [PAY, props(["СчетУчетаРасчетовСКонтрагентом_Key"])],
+          [
+            `${PAY}_РасшифровкаПлатежа`,
+            props(["СуммаПлатежа", "СуммаВзаиморасчетов", "КурсВзаиморасчетов", "КратностьВзаиморасчетов"]),
+          ],
         ]),
       }),
       client: { getCollection, getEntity },
@@ -206,6 +211,32 @@ describe("счета расчётов в документе — из настр�
     expect(r.payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["76.09"]);
   });
 
+  const payment = {
+    ВидОперации: "ОплатаПокупателя",
+    Организация_Key: ORG,
+    ДоговорКонтрагента_Key: CTR,
+    РасшифровкаПлатежа: [{ ДоговорКонтрагента_Key: CTR, СуммаПлатежа: 1500 }],
+  };
+
+  it("оплата по рублёвому договору: сумма взаиморасчётов = сумме платежа, курс 1 (иначе 1С проводит без проводок)", async () => {
+    const { conn } = connWith(undefined);
+    const r = await withSettlementAccounts(conn, PAY, payment);
+    expect((r.payload["РасшифровкаПлатежа"] as Record<string, unknown>[])[0]).toMatchObject({
+      СуммаВзаиморасчетов: 1500,
+      КурсВзаиморасчетов: 1,
+      КратностьВзаиморасчетов: 1,
+    });
+  });
+
+  it("валютный договор: курс не угадываем — сумму взаиморасчётов не заполняем и говорим об этом", async () => {
+    const { conn } = connWith(GENERAL, "840");
+    const r = await withSettlementAccounts(conn, PAY, payment);
+    const row = (r.payload["РасшифровкаПлатежа"] as Record<string, unknown>[])[0]!;
+    expect(row["СуммаВзаиморасчетов"]).toBeUndefined();
+    expect(row["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["62.21"]);
+    expect(r.notes.join(" ")).toContain("курс MCP не заполняет");
+  });
+
   it("регистр не опубликован — счета по умолчанию остаются, предпросмотр это говорит", async () => {
     const { conn } = connWith(undefined);
     const r = await withSettlementAccounts(conn, ACT, act);
@@ -228,6 +259,19 @@ describe("счета расчётов в документе — из настр�
     };
     expect(emptySettlementWarning(created, { ДоговорКонтрагента_Key: CTR })).toContain("пуст счёт расчётов");
     expect(emptySettlementWarning(created, {})).toBeUndefined();
+    const zeroSum = {
+      СчетУчетаРасчетовСКонтрагентом_Key: A["62.01"],
+      РасшифровкаПлатежа: [
+        {
+          ДоговорКонтрагента_Key: CTR,
+          СчетУчетаРасчетовСКонтрагентом_Key: A["62.01"],
+          СуммаВзаиморасчетов: 0,
+        },
+      ],
+    };
+    expect(emptySettlementWarning(zeroSum, { ДоговорКонтрагента_Key: CTR })).toContain(
+      "сумма взаиморасчётов",
+    );
     expect(
       emptySettlementWarning(
         { СчетУчетаРасчетовСКонтрагентом_Key: A["62.01"] },

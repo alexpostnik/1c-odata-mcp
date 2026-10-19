@@ -109,24 +109,26 @@ export function pickSettlementAccounts(
 }
 
 export interface SettlementLookup {
+  /** Регистр «Счета учёта расчётов с контрагентами» опубликован в OData. */
+  published: boolean;
   choice?: SettlementChoice | undefined;
   side?: SettlementSide | undefined;
+  /** Вид расчётов договора; undefined — справочник договоров не опубликован. */
   kind?: SettlementKind | undefined;
 }
 
 /**
- * Читает договор и регистр и подбирает счета. undefined — регистр не опубликован в OData
- * (вызывающий оставляет счета по умолчанию и сообщает об этом).
+ * Читает договор (сторона, вид расчётов) и, если регистр опубликован, подбирает по нему счета.
+ * Вид расчётов нужен и без регистра: от него зависит, можно ли заполнить сумму взаиморасчётов.
  */
 export async function settlementAccountsFor(
   conn: Connection,
   p: { orgKey?: string | undefined; contractRef: string; side?: SettlementSide | undefined },
-): Promise<SettlementLookup | undefined> {
+): Promise<SettlementLookup> {
   const available = await conn.available();
   const reg = resolveEntity(REGISTERS.settlementAccounts, available);
-  if (!reg) return undefined;
   const ctrSet = resolveEntity(CATALOGS.contracts, available);
-  if (!ctrSet) return {};
+  if (!ctrSet) return { published: !!reg, side: p.side };
   const contract = await conn.client.getEntity(
     `${ctrSet}(${odataGuid(p.contractRef)})${buildQuery({
       select: [
@@ -140,9 +142,9 @@ export async function settlementAccountsFor(
     })}`,
   );
   const side = p.side ?? settlementSideOf(contract["ВидДоговора"]);
-  if (!side) return { side };
   const currencyCode = await currencyCodeOf(conn, norm(contract["ВалютаВзаиморасчетов_Key"]));
   const kind = contractSettlementKind(contract, currencyCode, conn.behavior.regulatedCurrencyCode ?? "643");
+  if (!reg || !side) return { published: !!reg, side, kind };
   const orgKey = p.orgKey ?? norm(contract["Организация_Key"]);
   const counterpartyRef = norm(contract["Owner_Key"]);
   const anyOf = (field: string, ref: string | undefined) =>
@@ -163,6 +165,7 @@ export async function settlementAccountsFor(
     500,
   );
   return {
+    published: true,
     side,
     kind,
     choice: pickSettlementAccounts(rows, { orgKey, counterpartyRef, contractRef: p.contractRef, kind }, side),
