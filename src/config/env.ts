@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AccountingSchema, type AccountingConfig } from "./accounting.js";
 import { homedir } from "node:os";
 import { resolve, join } from "node:path";
 
@@ -23,6 +24,7 @@ export interface ConnectionConfig {
   password: string;
   /** Разрешена ли запись в эту базу (POST/PATCH). По умолчанию false. */
   writable: boolean;
+  accounting?: AccountingConfig;
 }
 
 export interface Behavior {
@@ -75,7 +77,20 @@ const BehaviorSchema = z.object({
   READ_ONLY: z.enum(["true", "false"]).default("true"),
 });
 
+const nonblank = (value: string | undefined): string | undefined => value?.trim() || undefined;
+const JsonAccountingSchema = z.preprocess((value, ctx) => {
+  if (typeof value !== "string") return value;
+  if (!value.trim()) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    ctx.addIssue({ code: "custom", message: "must be valid accounting JSON" });
+    return z.NEVER;
+  }
+}, AccountingSchema.optional());
+
 const ConnSchema = z.object({
+  accounting: JsonAccountingSchema,
   name: z.string().min(1),
   label: z.string().min(1).optional(),
   baseUrl: z.string().url("должен быть валидным URL").transform(normalizeUrl),
@@ -102,6 +117,7 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       username: env[`ODATA_DB_${tag}_USERNAME`],
       password: env[`ODATA_DB_${tag}_PASSWORD`],
       writable: env[`ODATA_DB_${tag}_WRITABLE`],
+      accounting: nonblank(env[`ODATA_DB_${tag}_ACCOUNTING_CONFIG`]) ?? nonblank(env.ODATA_ACCOUNTING_CONFIG),
     });
   }
 
@@ -114,6 +130,7 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       username: env.ODATA_USERNAME,
       password: env.ODATA_PASSWORD,
       writable: env.ODATA_WRITABLE,
+      accounting: nonblank(env.ODATA_ACCOUNTING_CONFIG),
     });
   }
 

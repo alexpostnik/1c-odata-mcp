@@ -4,6 +4,8 @@ import { ODataError, fromHttpStatus } from "./errors.js";
 import type { ODataCollection, ODataEntity } from "../types/odata.js";
 import { currentWriteOperationId, currentWriteRequestHash } from "./write-operation-context.js";
 import { WriteOperationJournal, type OperationCheck } from "./write-journal.js";
+import { loadMetadata } from "./metadata.js";
+import type { MetadataMap } from "../types/odata.js";
 import { uuidV1 } from "./uuid-v1.js";
 
 /** HTTP-методы только для чтения; остальные (POST/PATCH) считаются записью и гейтуются. */
@@ -11,6 +13,7 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
 
 export class ODataClient {
   private readonly authHeader: string;
+  private metaPromise: Promise<MetadataMap> | undefined;
   private journal: WriteOperationJournal | undefined;
 
   constructor(
@@ -19,6 +22,14 @@ export class ODataClient {
   ) {
     const token = Buffer.from(`${conn.username}:${conn.password}`).toString("base64");
     this.authHeader = `Basic ${token}`;
+  }
+
+  getMetadata(): Promise<MetadataMap> {
+    this.metaPromise ??= loadMetadata(this).catch((error) => {
+      this.metaPromise = undefined;
+      throw error;
+    });
+    return this.metaPromise;
   }
 
   /** Журнал операций записи создаётся при первом обращении: чтению и read-only он не нужен. */

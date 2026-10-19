@@ -1,7 +1,13 @@
+import {
+  accountingChart,
+  accountingRegister,
+  defaultAccountCodes,
+  type AccountDefault,
+} from "../config/accounting.js";
 import type { Connection } from "../context.js";
 import { fetchAll } from "./pagination.js";
 import { and, cmp, odataGuid, odataString, or } from "./query.js";
-import { CATALOGS, REGISTERS, resolveEntity } from "../config/mapping.js";
+import { CATALOGS, resolveEntity } from "../config/mapping.js";
 import { ensurePublished, requireEntity } from "./publication.js";
 import { buildQuery } from "./query.js";
 import {
@@ -22,8 +28,6 @@ import { ODataError } from "./errors.js";
  * с контрагентом/номенклатурой в ExtDimension1.
  */
 
-const CHART_CANDIDATES = ["ChartOfAccounts_Хозрасчетный"] as const;
-
 export interface Account {
   key: string;
   code: string;
@@ -32,7 +36,7 @@ export interface Account {
 
 /** Возвращает счета, код которых начинается с одного из префиксов (напр. "62", "41"). */
 export async function resolveAccounts(conn: Connection, prefixes: readonly string[]): Promise<Account[]> {
-  const chart = await requireEntity(conn, CHART_CANDIDATES, "План счетов «Хозрасчётный»");
+  const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
   const filter = or(...prefixes.map((p) => `startswith(Code, ${odataString(p)})`));
   const { rows } = await fetchAll(
     conn.client,
@@ -57,18 +61,43 @@ export async function accountsByCode(
   conn: Connection,
   codes: readonly string[],
 ): Promise<Map<string, string>> {
+  codes = [...new Set(codes)];
   const result = new Map<string, string>();
   if (codes.length === 0) return result;
-  const chart = await requireEntity(conn, CHART_CANDIDATES, "План счетов «Хозрасчётный»");
-  const filter = or(...codes.map((c) => cmp("Code", "eq", odataString(c))));
-  const { rows } = await fetchAll(
-    conn.client,
-    chart,
-    { filter, select: ["Ref_Key", "Code"] },
-    codes.length,
-    codes.length,
+  const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
+  for (let i = 0; i < codes.length; i += ACCOUNT_FILTER_BATCH) {
+    const batch = codes.slice(i, i + ACCOUNT_FILTER_BATCH);
+    const filter = or(...batch.map((c) => cmp("Code", "eq", odataString(c))));
+    const { rows } = await fetchAll(
+      conn.client,
+      chart,
+      { filter, select: ["Ref_Key", "Code"] },
+      batch.length,
+      batch.length,
+    );
+    for (const r of rows) result.set(String(r["Code"]), String(r["Ref_Key"]));
+  }
+  return result;
+}
+
+/** Счета по умолчанию только для нужных групп; общая точка для будущего поиска настройки расчётов. */
+export async function resolveDefaultAccounts(
+  conn: Connection,
+  groups: readonly AccountDefault[],
+): Promise<Map<AccountDefault, string | undefined>> {
+  const candidates = [...new Set(groups)].map(
+    (group) => [group, defaultAccountCodes(conn.cfg, group)] as const,
   );
-  for (const r of rows) result.set(String(r["Code"]), String(r["Ref_Key"]));
+  const refs = await accountsByCode(conn, [...new Set(candidates.flatMap(([, codes]) => [...codes]))]);
+  const result = new Map<AccountDefault, string | undefined>();
+  for (const [group, codes] of candidates) {
+    const ref = codes.map((code) => refs.get(code)).find((value) => value !== undefined);
+    if (!ref && conn.cfg?.accounting?.strictDefaults)
+      throw new InputError(
+        `No published account matches accounting.defaults.${group}; verify this database's account codes.`,
+      );
+    result.set(group, ref);
+  }
   return result;
 }
 
@@ -170,7 +199,7 @@ export async function balanceByAccounts(
   asOf?: string,
 ): Promise<ODataEntity[]> {
   if (accountKeys.length === 0) return [];
-  const reg = await requireEntity(conn, REGISTERS.accounting, "Регистр бухгалтерии «Хозрасчётный»");
+  const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
   const filter =
     and(
       or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))),
@@ -313,7 +342,7 @@ export async function turnoversByAccounts(
   orgKey?: string,
 ): Promise<{ rows: ODataEntity[]; meta: ScanMeta }> {
   if (accountKeys.length === 0) return { rows: [], meta: emptyMeta() };
-  const reg = await requireEntity(conn, REGISTERS.accounting, "Регистр бухгалтерии «Хозрасчётный»");
+  const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
   const path = balanceAndTurnoversPath(reg, from, to);
   const cap = conn.behavior.analyticsMaxRows;
   const period = `${from}..${to}`;
@@ -495,7 +524,7 @@ const propNames = (e: EntityMeta | undefined): Set<string> =>
  * не нашлось — ошибка с ИМЕНАМИ полей кандидатов (значений в ней нет).
  */
 export async function resolvePostingsSource(conn: Connection): Promise<PostingsSource> {
-  const reg = await requireEntity(conn, REGISTERS.accounting, "Регистр бухгалтерии «Хозрасчётный»");
+  const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
   const meta = await conn.getMetadata();
   const needed = [REGISTER_RECORDS.recorder, ...Object.values(REGISTER_RECORDS.required)];
   const report: string[] = [];
@@ -695,7 +724,7 @@ export async function accountsByRef(conn: Connection, keys: Iterable<string>): P
   const unique = [...new Set([...keys].filter((k) => k && k !== EMPTY_GUID))];
   const result = new Map<string, Account>();
   if (unique.length === 0) return result;
-  const chart = await requireEntity(conn, CHART_CANDIDATES, "План счетов «Хозрасчётный»");
+  const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
   for (let i = 0; i < unique.length; i += ACCOUNT_FILTER_BATCH) {
     const batch = unique.slice(i, i + ACCOUNT_FILTER_BATCH);
     const { rows } = await fetchAll(
