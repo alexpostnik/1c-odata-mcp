@@ -94,7 +94,7 @@ export async function resolveDefaultAccounts(
     const ref = codes.map((code) => refs.get(code)).find((value) => value !== undefined);
     if (!ref && conn.cfg?.accounting?.strictDefaults)
       throw new InputError(
-        `No published account matches accounting.defaults.${group}; verify this database's account codes.`,
+        `В плане счетов нет счёта из accounting.defaults.${group} — проверьте коды счетов этой базы.`,
       );
     result.set(group, ref);
   }

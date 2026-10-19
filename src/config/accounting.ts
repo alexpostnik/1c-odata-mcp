@@ -65,7 +65,9 @@ export function accountPrefixes(
   const configured = cfg?.accounting?.prefixes?.[group];
   if (configured) return configured;
   if (cfg?.accounting?.strictDefaults)
-    throw new InputError(`Configure accounting.prefixes.${group} for this database.`);
+    throw new InputError(
+      `Задайте accounting.prefixes.${group} в настройке плана счетов этой базы (ODATA_ACCOUNTING_CONFIG).`,
+    );
   return ACCOUNT_PREFIX[group];
 }
 export function defaultAccountCodes(cfg: ConnectionConfig, group: AccountDefault): readonly string[] {
@@ -73,7 +75,7 @@ export function defaultAccountCodes(cfg: ConnectionConfig, group: AccountDefault
   if (configured) return configured;
   if (cfg?.accounting?.strictDefaults)
     throw new InputError(
-      `Configure accounting.defaults.${group} for this database; Russian account defaults are disabled by strictDefaults.`,
+      `Задайте accounting.defaults.${group} в настройке плана счетов этой базы (ODATA_ACCOUNTING_CONFIG): при strictDefaults счета БП РФ по умолчанию не подставляются.`,
     );
   return RU_DEFAULTS[group];
 }

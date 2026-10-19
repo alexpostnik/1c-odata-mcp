@@ -84,7 +84,7 @@ const JsonAccountingSchema = z.preprocess((value, ctx) => {
   try {
     return JSON.parse(value);
   } catch {
-    ctx.addIssue({ code: "custom", message: "must be valid accounting JSON" });
+    ctx.addIssue({ code: "custom", message: "должна быть корректным JSON настройки плана счетов" });
     return z.NEVER;
   }
 }, AccountingSchema.optional());
