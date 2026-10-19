@@ -191,13 +191,12 @@ describe("счета расчётов в документе — из настр�
     expect(url).toContain(`Договор_Key eq guid'${E}'`);
   });
 
-  it("оплата: счета ставятся и в строки расшифровки по этому договору", async () => {
+  it("оплата: счета ставятся только в строки расшифровки по этому договору", async () => {
     const { conn } = connWith(withSpecial);
     const r = await withSettlementAccounts(conn, PAY, {
       ВидОперации: "ОплатаПокупателя",
       Организация_Key: ORG,
       ДоговорКонтрагента_Key: CTR,
-      СчетУчетаРасчетовСКонтрагентом_Key: A["62.01"],
       РасшифровкаПлатежа: [
         {
           ДоговорКонтрагента_Key: CTR,
@@ -209,6 +208,111 @@ describe("счета расчётов в документе — из настр�
     const row = (r.payload["РасшифровкаПлатежа"] as Record<string, unknown>[])[0]!;
     expect(row["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["76.09"]);
     expect(row["СчетУчетаРасчетовПоАвансам_Key"]).toBe(A["76.02"]);
+    expect(r.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
+  });
+
+  it.each([
+    [PAY, "ОплатаПокупателя", "customer"],
+    ["Document_СписаниеСРасчетногоСчета", "ОплатаПоставщику", "supplier"],
+    ["Document_ПриходныйКассовыйОрдер", "ОплатаПокупателя", "customer"],
+    ["Document_РасходныйКассовыйОрдер", "ОплатаПоставщику", "supplier"],
+  ] as const)("%s: настройка заполняет строки, не создавая шапку", async (set, op, side) => {
+    const { conn } = connWith(GENERAL);
+    // В метаданных каждой денежной сущности шапка существует: это не основание её заполнять.
+    const c = conn as unknown as {
+      getMetadata: () => Promise<{ entities: Map<string, { properties: { name: string }[] }> }>;
+    };
+    const meta = await c.getMetadata();
+    meta.entities.set(set, meta.entities.get(PAY)!);
+    c.getMetadata = async () => meta;
+    const row = { ДоговорКонтрагента_Key: CTR, СуммаПлатежа: 1500 };
+    const r = await withSettlementAccounts(conn, set, {
+      Организация_Key: ORG,
+      ДоговорКонтрагента_Key: CTR,
+      ВидОперации: op,
+      РасшифровкаПлатежа: [row],
+    });
+    expect(r.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
+    expect(r.payload["РасшифровкаПлатежа"]).toMatchObject([
+      {
+        СчетУчетаРасчетовСКонтрагентом_Key: A[side === "customer" ? "62.01" : "60.01"],
+        СчетУчетаРасчетовПоАвансам_Key: A[side === "customer" ? "62.02" : "60.02"],
+      },
+    ]);
+    expect(row).toEqual({ ДоговорКонтрагента_Key: CTR, СуммаПлатежа: 1500 });
+  });
+
+  it("строгие значения без договора заполняют строку, не добавляя шапку", async () => {
+    const { conn } = connWith(undefined);
+    const c = conn as unknown as { cfg: object };
+    c.cfg = {
+      name: "default",
+      accounting: {
+        strictDefaults: true,
+        defaults: { receivable: ["62.01"], receivableAdvance: ["62.02"] },
+      },
+    };
+    const r = await withSettlementAccounts(conn, PAY, {
+      ВидОперации: "ОплатаПокупателя",
+      РасшифровкаПлатежа: [{ СуммаПлатежа: 10 }],
+    });
+    expect(r.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
+    expect(r.payload["РасшифровкаПлатежа"]).toMatchObject([
+      {
+        СчетУчетаРасчетовСКонтрагентом_Key: A["62.01"],
+        СчетУчетаРасчетовПоАвансам_Key: A["62.02"],
+      },
+    ]);
+  });
+
+  it("явные суммы и чужая строка сохраняются, явная шапка не переписывается", async () => {
+    const { conn } = connWith(withSpecial);
+    const other = { ДоговорКонтрагента_Key: E, СчетУчетаРасчетовСКонтрагентом_Key: A["60.01"] };
+    const r = await withSettlementAccounts(conn, PAY, {
+      ВидОперации: "ОплатаПокупателя",
+      ДоговорКонтрагента_Key: CTR,
+      СчетУчетаРасчетовСКонтрагентом_Key: A["60.01"],
+      РасшифровкаПлатежа: [
+        {
+          ДоговорКонтрагента_Key: CTR,
+          СуммаПлатежа: 1500,
+          СуммаВзаиморасчетов: 123,
+          КурсВзаиморасчетов: 2,
+          КратностьВзаиморасчетов: 10,
+        },
+        other,
+      ],
+    });
+    expect(r.payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["60.01"]);
+    expect(r.payload["РасшифровкаПлатежа"]).toMatchObject([
+      {
+        СчетУчетаРасчетовСКонтрагентом_Key: A["76.09"],
+        СуммаВзаиморасчетов: 123,
+        КурсВзаиморасчетов: 2,
+        КратностьВзаиморасчетов: 10,
+      },
+      other,
+    ]);
+  });
+
+  it.each(["ПеречислениеНалога", "ПеречислениеЗП", "ПереводНаДругойСчет", "ПрочееСписание"])(
+    "%s: шапка без платёжной расшифровки остаётся доступной",
+    async (op) => {
+      const { conn } = connWith(withSpecial);
+      const r = await withSettlementAccounts(conn, PAY, {
+        ВидОперации: op,
+        ДоговорКонтрагента_Key: CTR,
+      });
+      expect(r.payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["76.09"]);
+    },
+  );
+
+  it("не денежный документ с расшифровкой сохраняет заполнение шапки", async () => {
+    const { conn } = connWith(withSpecial);
+    const r = await withSettlementAccounts(conn, ACT, {
+      ДоговорКонтрагента_Key: CTR,
+      РасшифровкаПлатежа: [{ ДоговорКонтрагента_Key: CTR }],
+    });
     expect(r.payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["76.09"]);
   });
 
@@ -233,6 +337,7 @@ describe("счета расчётов в документе — из настр�
     const { conn } = connWith(GENERAL, "840");
     const r = await withSettlementAccounts(conn, PAY, payment);
     const row = (r.payload["РасшифровкаПлатежа"] as Record<string, unknown>[])[0]!;
+    expect(r.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
     expect(row["СуммаВзаиморасчетов"]).toBeUndefined();
     expect(row["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["62.21"]);
     expect(r.notes.join(" ")).toContain("курс MCP не заполняет");
