@@ -17,17 +17,30 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
     "ChartOfAccounts_Test",
     "Document_РеализацияТоваровУслуг",
     "Document_ПоступлениеНаРасчетныйСчет",
+    "Document_СписаниеСРасчетногоСчета",
+    "Document_ПриходныйКассовыйОрдер",
+    "Document_РасходныйКассовыйОрдер",
     "Document_ПоступлениеТоваровУслуг",
     "Catalog_Организации",
-    ...(settlement
-      ? ["InformationRegister_СчетаУчетаРасчетовСКонтрагентами", "Catalog_ДоговорыКонтрагентов"]
-      : []),
+    "Catalog_ДоговорыКонтрагентов",
+    "Catalog_Валюты",
+    ...(settlement ? ["InformationRegister_СчетаУчетаРасчетовСКонтрагентами"] : []),
     ...(register ? ["InformationRegister_СчетаУчетаНоменклатуры"] : []),
   ];
   vi.spyOn(conn, "available").mockResolvedValue(new Set(sets));
   vi.spyOn(conn, "getMetadata").mockResolvedValue({
     entities: new Map(
-      sets.map((entitySet) => [entitySet, { properties: [{ name: "СчетУчетаРасчетовСКонтрагентом_Key" }] }]),
+      sets.flatMap((entitySet) => [
+        [entitySet, { properties: [{ name: "СчетУчетаРасчетовСКонтрагентом_Key" }] }],
+        [
+          `${entitySet}_РасшифровкаПлатежа`,
+          {
+            properties: ["СуммаВзаиморасчетов", "КурсВзаиморасчетов", "КратностьВзаиморасчетов"].map(
+              (name) => ({ name }),
+            ),
+          },
+        ],
+      ]),
     ),
   } as never);
   vi.spyOn(conn.client, "prepareCreate").mockResolvedValue(undefined as never);
@@ -35,6 +48,8 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
     Ref_Key: id,
     Description: "Synthetic",
     ВидДоговора: "СПокупателем",
+    ВалютаВзаиморасчетов_Key: id,
+    Code: "643",
     Owner_Key: id,
   });
   const reads = vi.spyOn(conn.client, "getCollection").mockImplementation(async (path) => {
@@ -57,6 +72,7 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
         { Ref_Key: id, Code: "62.1" },
         { Ref_Key: id, Code: "62.2" },
         { Ref_Key: special, Code: "76.09" },
+        ...["62.01", "62.02", "60.01", "60.02"].map((Code) => ({ Ref_Key: id, Code })),
       ],
     };
   });
@@ -160,6 +176,7 @@ describe("accounting creation flows", () => {
         {},
       );
       expect(r.isError, JSON.stringify(r)).not.toBe(true);
+      expect(r.structuredContent?.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
       expect(r.structuredContent?.payload?.РасшифровкаПлатежа).toMatchObject([
         {
           СчетУчетаРасчетовСКонтрагентом_Key: part === "settle" ? special : id,
@@ -183,27 +200,76 @@ describe("accounting creation flows", () => {
     );
     expect(r.isError).toBe(true);
   });
-  it("uses configured payment operation kind and settlement defaults", async () => {
-    const { tools } = fixture({
-      ...strict,
-      defaults: { receivable: ["62.1"], receivableAdvance: ["62.2"] },
-      operationKinds: { customerPayment: "ConfiguredPayment" },
-    });
-    const r = await tools["write.money.create_payment"]!.handler(
+  it.each([false, true])(
+    "custom payment operation with register=%s keeps settlement in rows",
+    async (published) => {
+      const { tools } = fixture(
+        {
+          ...strict,
+          defaults: published ? {} : { receivable: ["62.1"], receivableAdvance: ["62.2"] },
+          operationKinds: { customerPayment: "ConfiguredPayment" },
+        },
+        false,
+        published ? "both" : undefined,
+      );
+      for (const operationKind of [undefined, "ExplicitPayment"]) {
+        const r = await tools["write.money.create_payment"]!.handler(
+          {
+            organization: id,
+            counterpartyRef: id,
+            contractRef: id,
+            amount: 1,
+            orgBankAccount: id,
+            operationKind,
+            confirm: false,
+          },
+          {},
+        );
+        expect(r.isError, JSON.stringify(r)).not.toBe(true);
+        expect(r.structuredContent?.payload?.ВидОперации).toBe(operationKind ?? "ConfiguredPayment");
+        expect(r.structuredContent?.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
+        expect(r.structuredContent?.payload?.РасшифровкаПлатежа).toMatchObject([
+          {
+            СчетУчетаРасчетовСКонтрагентом_Key: published ? special : id,
+            СчетУчетаРасчетовПоАвансам_Key: published ? special : id,
+          },
+        ]);
+      }
+    },
+  );
+});
+
+describe("счета оплат по банку и кассе — только в расшифровке", () => {
+  it.each([
+    ["create_payment", "ОплатаПокупателя"],
+    ["create_bank_writeoff", "ОплатаПоставщику"],
+    ["create_cash_receipt", "ОплатаПокупателя"],
+    ["create_cash_payment", "ОплатаПоставщику"],
+  ])("%s: конструктор не дублирует счёт в шапку без регистра", async (tool, operationKind) => {
+    const { tools } = fixture({ chart: "ChartOfAccounts_Test" });
+    const r = await tools[`write.money.${tool}`]!.handler(
       {
         organization: id,
         counterpartyRef: id,
         contractRef: id,
-        amount: 1,
+        amount: 125,
         orgBankAccount: id,
+        operationKind,
         confirm: false,
       },
       {},
     );
     expect(r.isError, JSON.stringify(r)).not.toBe(true);
-    expect(r.structuredContent?.payload?.ВидОперации).toBe("ConfiguredPayment");
+    expect(r.structuredContent?.payload).not.toHaveProperty("СчетУчетаРасчетовСКонтрагентом_Key");
     expect(r.structuredContent?.payload?.РасшифровкаПлатежа).toMatchObject([
-      { СчетУчетаРасчетовСКонтрагентом_Key: id, СчетУчетаРасчетовПоАвансам_Key: id },
+      {
+        СчетУчетаРасчетовСКонтрагентом_Key: id,
+        СчетУчетаРасчетовПоАвансам_Key: id,
+        СуммаПлатежа: 125,
+        СуммаВзаиморасчетов: 125,
+        КурсВзаиморасчетов: 1,
+        КратностьВзаиморасчетов: 1,
+      },
     ]);
   });
 });

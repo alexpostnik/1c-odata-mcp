@@ -1065,6 +1065,12 @@ export async function withDefaultContract(
 const SETTLE_FIELD = "СчетУчетаРасчетовСКонтрагентом_Key";
 const ADVANCE_FIELD = "СчетУчетаРасчетовПоАвансам_Key";
 const PAYMENT_ROWS = "РасшифровкаПлатежа";
+const MONEY_DOCUMENTS: ReadonlySet<string> = new Set([
+  ...DOCUMENTS.bankIn,
+  ...DOCUMENTS.bankOut,
+  ...DOCUMENTS.cashIn,
+  ...DOCUMENTS.cashOut,
+]);
 const LEVEL_TEXT = {
   договор: "настройки договора",
   контрагент: "настройки контрагента",
@@ -1140,12 +1146,20 @@ export async function withSettlementAccounts(
   payload: Record<string, unknown>,
   side: SettlementSide | undefined = documentSettlementSide(entitySet, payload),
 ): Promise<{ payload: Record<string, unknown>; notes: string[] }> {
+  // Для оплаты по договору счета нужны в расшифровке, а не в шапке (#39).
+  // Явную шапку сохраняем; отсутствие поля в payload не заменяем наличием в metadata.
+  const rowSettlement =
+    MONEY_DOCUMENTS.has(entitySet) &&
+    side !== undefined &&
+    Array.isArray(payload[PAYMENT_ROWS]) &&
+    payload[PAYMENT_ROWS].length > 0;
   const contractRef = payload["ДоговорКонтрагента_Key"];
   if (typeof contractRef !== "string" || !contractRef || contractRef === EMPTY_REF) {
     if (!conn.cfg?.accounting?.strictDefaults) return { payload, notes: [] };
     const hasHeader =
-      (await conn.getMetadata()).entities.get(entitySet)?.properties.some((p) => p.name === SETTLE_FIELD) ??
-      false;
+      !rowSettlement &&
+      ((await conn.getMetadata()).entities.get(entitySet)?.properties.some((p) => p.name === SETTLE_FIELD) ??
+        false);
     const fallback = await strictSettlementDefaults(conn, payload, side, hasHeader);
     return {
       payload: fallback.payload,
@@ -1158,7 +1172,7 @@ export async function withSettlementAccounts(
     (await conn.getMetadata()).entities.get(entitySet)?.properties.map((p) => p.name) ?? [],
   );
   let rows = Array.isArray(payload[PAYMENT_ROWS]) ? (payload[PAYMENT_ROWS] as Record<string, unknown>[]) : [];
-  const hasHeader = props.has(SETTLE_FIELD);
+  const hasHeader = !rowSettlement && props.has(SETTLE_FIELD);
   if (!hasHeader && rows.length === 0) return { payload, notes: [] };
 
   const codesOf = async (...refs: Array<unknown>) => {
@@ -3236,7 +3250,6 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           ...(cpSet ? { Контрагент_Type: `StandardODATA.${cpSet}` } : {}),
           ДоговорКонтрагента_Key: contractRef,
           СуммаДокумента: amount,
-          СчетУчетаРасчетовСКонтрагентом_Key: settle,
           РасшифровкаПлатежа: [
             clean({
               LineNumber: 1,
@@ -3357,7 +3370,6 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           НазначениеПлатежа: purposeText,
           СтатьяДвиженияДенежныхСредств_Key: cashflowItemRef,
           Комментарий: comment,
-          СчетУчетаРасчетовСКонтрагентом_Key: bd?.settle,
           ...(bd ? { РасшифровкаПлатежа: [bd.row] } : {}),
         });
         return createOrPreview(conn, set, payload, confirm);
@@ -3407,7 +3419,6 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
       Основание: a.basis,
       СтатьяДвиженияДенежныхСредств_Key: a.cashflowItemRef,
       Комментарий: a.comment,
-      СчетУчетаРасчетовСКонтрагентом_Key: bd?.settle,
       ...(bd ? { РасшифровкаПлатежа: [bd.row] } : {}),
     });
   };
