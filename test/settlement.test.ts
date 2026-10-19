@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createServer } from "../src/mcp/server.js";
 import {
   contractSettlementKind,
   pickSettlementAccounts,
@@ -278,5 +279,67 @@ describe("счета расчётов в документе — из настр�
         { ДоговорКонтрагента_Key: CTR },
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("copy_document: счета расчётов — как в исходном документе", () => {
+  type Handler = (
+    args: Record<string, unknown>,
+    extra: Record<string, unknown>,
+  ) => Promise<{
+    structuredContent?: Record<string, unknown>;
+  }>;
+  const source = {
+    Ref_Key: "50000000-0000-4000-8000-000000000000",
+    Number: "0000-000010",
+    Организация_Key: ORG,
+    Контрагент_Key: CP,
+    ДоговорКонтрагента_Key: CTR,
+    ВидОперации: "Услуги",
+    // Бухгалтер поставил в исходном документе особый счёт вручную.
+    СчетУчетаРасчетовСКонтрагентом_Key: A["76.09"],
+    СчетУчетаРасчетовПоАвансам_Key: A["76.02"],
+    Услуги: [{ LineNumber: 1, Сумма: 1, Количество: 1, Цена: 1 }],
+  };
+  const copyTool = (registerRows: unknown[]) => {
+    const { conn } = connWith(registerRows);
+    const c = conn as unknown as {
+      cfg: Record<string, unknown>;
+      behavior: Record<string, unknown>;
+      available: () => Promise<Set<string>>;
+      client: Record<string, unknown>;
+    };
+    c.cfg = { name: "default", writable: true };
+    c.behavior = { pageSize: 100, writeOperationMarker: false };
+    const avail = c.available;
+    c.available = async () => new Set([...(await avail()), ACT]);
+    const getEntity = c.client["getEntity"] as (p: string) => Promise<unknown>;
+    c.client["getEntity"] = async (p: string) => (p.startsWith(ACT) ? { ...source } : getEntity(p));
+    c.client["prepareCreate"] = vi.fn(async () => undefined);
+    const server = createServer({ db: () => conn } as never) as unknown as {
+      _registeredTools: Record<string, { handler: Handler }>;
+    };
+    return server._registeredTools["write.document.copy_document"]!.handler;
+  };
+  // Общая настройка в регистре — 62.01/62.02: если бы копия её применила, счёт 76.09 потерялся бы.
+  const generalOnly = GENERAL;
+
+  it("копия сохраняет счета исходного документа и говорит об этом", async () => {
+    const r = await copyTool(generalOnly)({ database: "default", entitySet: ACT, ref: source.Ref_Key }, {});
+    const sc = r.structuredContent!;
+    const payload = sc["payload"] as Record<string, unknown>;
+    expect(payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["76.09"]);
+    expect(payload["СчетУчетаРасчетовПоАвансам_Key"]).toBe(A["76.02"]);
+    expect((sc["notes"] as string[]).join(" ")).toContain("как в исходном документе");
+  });
+
+  it("в копии сменили договор — счета берутся из настройки нового договора", async () => {
+    const other = "77777777-7777-4777-8777-777777777777";
+    const r = await copyTool(generalOnly)(
+      { database: "default", entitySet: ACT, ref: source.Ref_Key, fields: { ДоговорКонтрагента_Key: other } },
+      {},
+    );
+    const payload = r.structuredContent!["payload"] as Record<string, unknown>;
+    expect(payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["62.01"]);
   });
 });

@@ -1290,9 +1290,13 @@ async function createOrPreview(
   payload: Record<string, unknown>,
   confirm: boolean,
   notes?: string[],
+  /** keepSettlement — счета расчётов уже заданы (копия документа): настройку договора не применять. */
+  opts?: { keepSettlement?: boolean },
 ) {
   const contract = await withDefaultContract(conn, entitySet, payload);
-  const settlement = await withSettlementAccounts(conn, entitySet, contract.payload);
+  const settlement = opts?.keepSettlement
+    ? { payload: contract.payload, notes: [] }
+    : await withSettlementAccounts(conn, entitySet, contract.payload);
   payload = await withOperationMarker(conn, entitySet, settlement.payload);
   const allNotes = [...(notes ?? []), ...contract.notes, ...settlement.notes];
   const extra = allNotes.length ? { notes: allNotes } : {};
@@ -2893,7 +2897,25 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         }
         // Реквизиты шапки применяем последними — явное указание важнее пересчёта.
         Object.assign(payload, fields ?? {});
-        return createOrPreview(conn, entitySet, payload, confirm);
+        // Копия сохраняет счета расчётов исходного документа (бухгалтер мог поставить их вручную).
+        // Настройку договора применяем, только если в fields сменили договор и счета не заданы явно.
+        const has = (k: string) => !!fields && Object.hasOwn(fields, k);
+        const contractChanged =
+          has("ДоговорКонтрагента_Key") &&
+          fields?.["ДоговорКонтрагента_Key"] !== source["ДоговорКонтрагента_Key"];
+        const keepSettlement = !contractChanged || has(SETTLE_FIELD) || has(ADVANCE_FIELD);
+        return createOrPreview(
+          conn,
+          entitySet,
+          payload,
+          confirm,
+          keepSettlement && Object.hasOwn(payload, SETTLE_FIELD)
+            ? [
+                "Счета расчётов — как в исходном документе: при копировании настройка договора не применяется.",
+              ]
+            : undefined,
+          { keepSettlement },
+        );
       }),
   );
 
