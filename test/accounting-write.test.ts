@@ -3,8 +3,9 @@ import { parseConfig } from "../src/config/env.js";
 import { createServer } from "../src/mcp/server.js";
 import { Connection } from "../src/context.js";
 const id = "11111111-1111-4111-8111-111111111111";
+const special = "22222222-2222-4222-8222-222222222222";
 const line = { nomenclatureRef: id, quantity: 1, price: 1, vatRate: "БезНДС" };
-function fixture(config: object, register = false) {
+function fixture(config: object, register = false, settlement?: "both" | "settle" | "advance") {
   const parsed = parseConfig({
     ODATA_BASE_URL: "https://example.invalid/odata/",
     ODATA_USERNAME: "u",
@@ -18,19 +19,44 @@ function fixture(config: object, register = false) {
     "Document_ПоступлениеНаРасчетныйСчет",
     "Document_ПоступлениеТоваровУслуг",
     "Catalog_Организации",
+    ...(settlement
+      ? ["InformationRegister_СчетаУчетаРасчетовСКонтрагентами", "Catalog_ДоговорыКонтрагентов"]
+      : []),
     ...(register ? ["InformationRegister_СчетаУчетаНоменклатуры"] : []),
   ];
   vi.spyOn(conn, "available").mockResolvedValue(new Set(sets));
+  vi.spyOn(conn, "getMetadata").mockResolvedValue({
+    entities: new Map(
+      sets.map((entitySet) => [entitySet, { properties: [{ name: "СчетУчетаРасчетовСКонтрагентом_Key" }] }]),
+    ),
+  } as never);
   vi.spyOn(conn.client, "prepareCreate").mockResolvedValue(undefined as never);
-  vi.spyOn(conn.client, "getEntity").mockResolvedValue({ Ref_Key: id, Description: "Synthetic" });
+  vi.spyOn(conn.client, "getEntity").mockResolvedValue({
+    Ref_Key: id,
+    Description: "Synthetic",
+    ВидДоговора: "СПокупателем",
+    Owner_Key: id,
+  });
   const reads = vi.spyOn(conn.client, "getCollection").mockImplementation(async (path) => {
     if (path.startsWith("Catalog_Организации")) return { value: [{ Ref_Key: id, Description: "Synthetic" }] };
+    if (path.startsWith("InformationRegister_СчетаУчетаРасчетовСКонтрагентами"))
+      return {
+        value: [
+          {
+            Договор_Key: id,
+            Контрагент_Key: id,
+            ...(settlement !== "advance" ? { СчетУчетаРасчетовСПокупателем_Key: special } : {}),
+            ...(settlement !== "settle" ? { СчетУчетаАвансовПолученных_Key: special } : {}),
+          },
+        ],
+      };
     if (path.startsWith("InformationRegister_"))
       return { value: [{ СчетДоходовОтРеализации_Key: id, СчетРасходовОтРеализации_Key: id }] };
     return {
       value: [
         { Ref_Key: id, Code: "62.1" },
         { Ref_Key: id, Code: "62.2" },
+        { Ref_Key: special, Code: "76.09" },
       ],
     };
   });
@@ -110,6 +136,52 @@ describe("accounting creation flows", () => {
       (await act({ operationKind: "Explicit", incomeAccount: id, expenseAccount: id })).structuredContent
         ?.payload?.ВидОперации,
     ).toBe("Explicit");
+  });
+  it("uses a published settlement choice before demanding strict settlement defaults in create_act", async () => {
+    const { act } = fixture({ ...strict, defaults: {} }, false, "both");
+    const r = await act({ incomeAccount: id, expenseAccount: id });
+    expect(r.isError, JSON.stringify(r)).not.toBe(true);
+    expect(r.structuredContent?.payload?.СчетУчетаРасчетовСКонтрагентом_Key).toBe(special);
+  });
+  it.each(["settle", "advance"] as const)(
+    "requires only the missing %s counterpart default after a partial settlement choice",
+    async (part) => {
+      const defaults = part === "settle" ? { receivableAdvance: ["62.2"] } : { receivable: ["62.1"] };
+      const { tools } = fixture({ ...strict, defaults }, false, part);
+      const r = await tools["write.money.create_payment"]!.handler(
+        {
+          organization: id,
+          counterpartyRef: id,
+          contractRef: id,
+          amount: 1,
+          orgBankAccount: id,
+          confirm: false,
+        },
+        {},
+      );
+      expect(r.isError, JSON.stringify(r)).not.toBe(true);
+      expect(r.structuredContent?.payload?.РасшифровкаПлатежа).toMatchObject([
+        {
+          СчетУчетаРасчетовСКонтрагентом_Key: part === "settle" ? special : id,
+          СчетУчетаРасчетовПоАвансам_Key: part === "advance" ? special : id,
+        },
+      ]);
+    },
+  );
+  it("refuses a partial settlement choice when its missing advance has no configured fallback", async () => {
+    const { tools } = fixture({ ...strict, defaults: {} }, false, "settle");
+    const r = await tools["write.money.create_payment"]!.handler(
+      {
+        organization: id,
+        counterpartyRef: id,
+        contractRef: id,
+        amount: 1,
+        orgBankAccount: id,
+        confirm: false,
+      },
+      {},
+    );
+    expect(r.isError).toBe(true);
   });
   it("uses configured payment operation kind and settlement defaults", async () => {
     const { tools } = fixture({

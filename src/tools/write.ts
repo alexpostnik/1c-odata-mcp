@@ -456,7 +456,9 @@ async function goodsAccounts(
           ...lines.flatMap((l) => [l.incomeAccount, l.expenseAccount]),
         ]);
   const ref = (v: string | undefined): string | undefined => overrides.get(v?.trim() ?? "");
-  const needed = new Set<AccountDefault>([kind === "purchase" ? "payable" : "receivable"]);
+  const needed = new Set<AccountDefault>(
+    conn.cfg?.accounting?.strictDefaults ? [] : [kind === "purchase" ? "payable" : "receivable"],
+  );
   for (const l of lines) {
     const a = accMap.get(l.nomenclatureRef);
     if (kind !== "service" && !a?.goods) needed.add("goods");
@@ -1083,6 +1085,49 @@ function documentSettlementSide(
   return undefined;
 }
 
+/** В строгом режиме defaults нужны лишь после более приоритетной настройки расчётов. */
+async function strictSettlementDefaults(
+  conn: Connection,
+  payload: Record<string, unknown>,
+  side: SettlementSide | undefined,
+  hasHeader: boolean,
+  choice?: { settle?: string | undefined; advance?: string | undefined },
+): Promise<{ payload: Record<string, unknown>; used: boolean }> {
+  if (!conn.cfg?.accounting?.strictDefaults || !side) return { payload, used: false };
+  const settleGroup = side === "customer" ? "receivable" : "payable";
+  const advanceGroup = side === "customer" ? "receivableAdvance" : "payableAdvance";
+  const rows = Array.isArray(payload[PAYMENT_ROWS])
+    ? (payload[PAYMENT_ROWS] as Record<string, unknown>[])
+    : [];
+  const matching = rows.filter((r) => r["ДоговорКонтрагента_Key"] === payload["ДоговорКонтрагента_Key"]);
+  const missing = new Set<AccountDefault>();
+  if (
+    !choice?.settle &&
+    ((hasHeader && !refOrUndefined(payload[SETTLE_FIELD])) ||
+      matching.some((r) => !refOrUndefined(r[SETTLE_FIELD])))
+  )
+    missing.add(settleGroup);
+  if (!choice?.advance && matching.some((r) => !refOrUndefined(r[ADVANCE_FIELD]))) missing.add(advanceGroup);
+  const defaults = await resolveDefaultAccounts(conn, [...missing]);
+  const fill = (target: Record<string, unknown>, advance: boolean) =>
+    clean({
+      ...target,
+      ...(!choice?.settle && !refOrUndefined(target[SETTLE_FIELD])
+        ? { [SETTLE_FIELD]: defaults.get(settleGroup) }
+        : {}),
+      ...(advance && !choice?.advance && !refOrUndefined(target[ADVANCE_FIELD])
+        ? { [ADVANCE_FIELD]: defaults.get(advanceGroup) }
+        : {}),
+    });
+  return {
+    payload: {
+      ...(hasHeader ? fill(payload, false) : payload),
+      ...(rows.length ? { [PAYMENT_ROWS]: rows.map((r) => (matching.includes(r) ? fill(r, true) : r)) } : {}),
+    },
+    used: missing.size > 0,
+  };
+}
+
 /**
  * Счета расчётов и авансов из регистра «Счета учёта расчётов с контрагентами» (#38). 1С через OData
  * настройку договора не применяет, поэтому подставляем сами: самая частная запись по договору →
@@ -1093,16 +1138,26 @@ export async function withSettlementAccounts(
   conn: Connection,
   entitySet: string,
   payload: Record<string, unknown>,
+  side: SettlementSide | undefined = documentSettlementSide(entitySet, payload),
 ): Promise<{ payload: Record<string, unknown>; notes: string[] }> {
   const contractRef = payload["ДоговорКонтрагента_Key"];
-  if (typeof contractRef !== "string" || !contractRef || contractRef === EMPTY_REF)
-    return { payload, notes: [] };
+  if (typeof contractRef !== "string" || !contractRef || contractRef === EMPTY_REF) {
+    if (!conn.cfg?.accounting?.strictDefaults) return { payload, notes: [] };
+    const hasHeader =
+      (await conn.getMetadata()).entities.get(entitySet)?.properties.some((p) => p.name === SETTLE_FIELD) ??
+      false;
+    const fallback = await strictSettlementDefaults(conn, payload, side, hasHeader);
+    return {
+      payload: fallback.payload,
+      notes: fallback.used
+        ? ["Счёт расчётов — по настроенным значениям по умолчанию; договор не выбран."]
+        : [],
+    };
+  }
   const props = new Set(
     (await conn.getMetadata()).entities.get(entitySet)?.properties.map((p) => p.name) ?? [],
   );
-  const rows = Array.isArray(payload[PAYMENT_ROWS])
-    ? (payload[PAYMENT_ROWS] as Record<string, unknown>[])
-    : [];
+  let rows = Array.isArray(payload[PAYMENT_ROWS]) ? (payload[PAYMENT_ROWS] as Record<string, unknown>[]) : [];
   const hasHeader = props.has(SETTLE_FIELD);
   if (!hasHeader && rows.length === 0) return { payload, notes: [] };
 
@@ -1111,18 +1166,21 @@ export async function withSettlementAccounts(
     const accounts = await accountsByRef(conn, keys);
     return keys.map((k) => accounts.get(k)?.code ?? "?").join(" / ");
   };
-  const current = [
-    payload[SETTLE_FIELD] ?? rows[0]?.[SETTLE_FIELD],
-    payload[ADVANCE_FIELD] ?? rows[0]?.[ADVANCE_FIELD],
-  ];
 
   const orgKey = typeof payload["Организация_Key"] === "string" ? payload["Организация_Key"] : undefined;
   const found = await settlementAccountsFor(conn, {
     orgKey,
     contractRef,
-    side: documentSettlementSide(entitySet, payload),
+    side,
   });
   const choice = found.published && found.side ? found.choice : undefined;
+  const fallback = await strictSettlementDefaults(conn, payload, found.side, hasHeader, choice);
+  payload = fallback.payload;
+  if (Array.isArray(payload[PAYMENT_ROWS])) rows = payload[PAYMENT_ROWS] as Record<string, unknown>[];
+  const current = [
+    payload[SETTLE_FIELD] ?? rows[0]?.[SETTLE_FIELD],
+    payload[ADVANCE_FIELD] ?? rows[0]?.[ADVANCE_FIELD],
+  ];
   const notes: string[] = [];
   if (choice) {
     notes.push(
@@ -1139,6 +1197,8 @@ export async function withSettlementAccounts(
             : "вид договора не «с покупателем» и не «с поставщиком» — настройка не подбирается."),
     );
   }
+  if (choice && fallback.used)
+    notes.push("Недостающие в настройке счета расчётов/авансов — по настроенным значениям по умолчанию.");
   const apply = (target: Record<string, unknown>, settleKey: boolean, advanceKey: boolean) =>
     choice
       ? {
@@ -1275,12 +1335,12 @@ async function createOrPreview(
   confirm: boolean,
   notes?: string[],
   /** keepSettlement — счета расчётов уже заданы (копия документа): настройку договора не применять. */
-  opts?: { keepSettlement?: boolean },
+  opts?: { keepSettlement?: boolean; settlementSide?: SettlementSide },
 ) {
   const contract = await withDefaultContract(conn, entitySet, payload);
   const settlement = opts?.keepSettlement
     ? { payload: contract.payload, notes: [] }
-    : await withSettlementAccounts(conn, entitySet, contract.payload);
+    : await withSettlementAccounts(conn, entitySet, contract.payload, opts?.settlementSide);
   payload = await withOperationMarker(conn, entitySet, settlement.payload);
   const allNotes = [...(notes ?? []), ...contract.notes, ...settlement.notes];
   const extra = allNotes.length ? { notes: allNotes } : {};
@@ -3160,7 +3220,9 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         const set = await requireEntity(conn, DOCUMENTS.bankIn, "Документ «Поступление на расчётный счёт»");
         const org = await resolveOrg(conn, organization);
         const bank = await resolveOrgBankAccount(conn, org.key, orgBankAccount);
-        const codes = await resolveDefaultAccounts(conn, ["receivable", "receivableAdvance"]);
+        const codes = conn.cfg?.accounting?.strictDefaults
+          ? new Map<AccountDefault, string | undefined>()
+          : await resolveDefaultAccounts(conn, ["receivable", "receivableAdvance"]);
         const settle = codes.get("receivable");
         const advance = codes.get("receivableAdvance");
         const cpSet = resolveEntity(CATALOGS.counterparties, await conn.available());
@@ -3187,7 +3249,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             }),
           ],
         });
-        return createOrPreview(conn, set, payload, confirm);
+        return createOrPreview(conn, set, payload, confirm, undefined, { settlementSide: "customer" });
       }),
   );
 
@@ -3207,10 +3269,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
     const supplier = /Поставщик/i.test(operationKind);
     const customer = /Покупател/i.test(operationKind);
     if (!contractRef || (!supplier && !customer)) return undefined;
-    const codes = await resolveDefaultAccounts(
-      conn,
-      supplier ? ["payable", "payableAdvance"] : ["receivable", "receivableAdvance"],
-    );
+    const codes = conn.cfg?.accounting?.strictDefaults
+      ? new Map<AccountDefault, string | undefined>()
+      : await resolveDefaultAccounts(
+          conn,
+          supplier ? ["payable", "payableAdvance"] : ["receivable", "receivableAdvance"],
+        );
     const settle = codes.get(supplier ? "payable" : "receivable");
     const advance = codes.get(supplier ? "payableAdvance" : "receivableAdvance");
     return {

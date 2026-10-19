@@ -6626,6 +6626,12 @@
             "description": "Дата YYYY-MM-DD (по умолчанию сегодня)",
             "type": "string"
           },
+          "operationKind": {
+            "description": "Вид операции этой конфигурации; важнее accounting.operationKinds.salesAct",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
           "sumIncludesVat": {
             "default": true,
             "description": "Сумма включает НДС",
@@ -6984,6 +6990,12 @@
           "contractRef": {
             "type": "string",
             "description": "Ref_Key договора"
+          },
+          "operationKind": {
+            "description": "Вид операции оплаты покупателя; важнее accounting.operationKinds.customerPayment",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
           "amount": {
             "type": "number",
