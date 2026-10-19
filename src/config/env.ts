@@ -40,6 +40,11 @@ export interface Behavior {
    * сверка идёт по назначенному Ref_Key; метка — только для тех, кому нужна видимая в 1С привязка.
    */
   writeOperationMarker: boolean;
+  /**
+   * Код валюты регламентированного учёта (по справочнику «Валюты»): по нему договор относится к виду
+   * расчётов «в валюте регламентированного учёта» при подборе счетов расчётов. По умолчанию 643 (рубль).
+   */
+  regulatedCurrencyCode?: string;
 }
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
@@ -61,6 +66,11 @@ const BehaviorSchema = z.object({
   ODATA_ANALYTICS_MAX_ROWS: z.coerce.number().int().positive().max(1_000_000).default(200_000),
   ODATA_WRITE_JOURNAL_DIR: z.string().min(1).optional(),
   ODATA_WRITE_OPERATION_MARKER: z.enum(["true", "false"]).default("false"),
+  // Пустое значение (обычное в шаблонах .env) = «не задано», а не ошибка старта.
+  ODATA_REGULATED_CURRENCY_CODE: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().default("643"),
+  ),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   READ_ONLY: z.enum(["true", "false"]).default("true"),
 });
@@ -172,6 +182,7 @@ export function parseConfig(env: Env): RuntimeConfig {
       analyticsMaxRows: b.ODATA_ANALYTICS_MAX_ROWS,
       readOnly: b.READ_ONLY === "true",
       writeOperationMarker: b.ODATA_WRITE_OPERATION_MARKER === "true",
+      regulatedCurrencyCode: b.ODATA_REGULATED_CURRENCY_CODE,
       writeJournalDir: resolve(
         b.ODATA_WRITE_JOURNAL_DIR ?? join(homedir(), ".1c-odata-mcp", "write-journal"),
       ),

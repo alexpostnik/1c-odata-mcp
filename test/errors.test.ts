@@ -41,6 +41,20 @@ describe("fromHttpStatus — классификация HTTP-ошибок OData"
     });
     expect(fromHttpStatus(500, "url", body).message).toContain("Не удалось записать");
   });
+  // Тексты ответов 1С сняты с живой базы (БП 3.0).
+  const odata404 = (value: string) =>
+    JSON.stringify({ "odata.error": { code: "-1", message: { lang: "ru", value } } });
+  it("404 «Сущность не найдена» — набор не опубликован: подсказка про «Состав»", () => {
+    const e = fromHttpStatus(404, "url", odata404("Сущность 'InformationRegister_Х' не найдена"));
+    expect(e.kind).toBe("not_found");
+    expect(e.message).toContain("Состав");
+  });
+  it("404 «Экземпляр сущности не найден» — записи нет: без подсказки про «Состав»", () => {
+    const e = fromHttpStatus(404, "url", odata404("Экземпляр сущности не найден"));
+    expect(e.kind).toBe("not_found");
+    expect(e.message).toContain("записи с таким ключом нет");
+    expect(e.message).not.toContain("Состав");
+  });
 });
 
 describe("guard — ошибка ввода отделена от сбоя сервера", () => {

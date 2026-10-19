@@ -5,7 +5,13 @@ import { ok, fail, guard, databaseField, organizationField } from "./_shared.js"
 import { CATALOGS, DOCUMENTS, resolveEntity } from "../config/mapping.js";
 import { resolveOrgOrDefault } from "../odata/orgs.js";
 import { ensurePublished, requireEntity } from "../odata/publication.js";
-import { accountsByCode, nomenclatureAccounts, type NomAccounts } from "../odata/accounting.js";
+import {
+  accountsByCode,
+  accountsByRef,
+  nomenclatureAccounts,
+  type NomAccounts,
+} from "../odata/accounting.js";
+import { settlementAccountsFor, type SettlementSide } from "../odata/settlement-accounts.js";
 import {
   contactKindsForCounterparties,
   resolveBankByBik,
@@ -1070,6 +1076,132 @@ export async function withDefaultContract(
   };
 }
 
+const SETTLE_FIELD = "СчетУчетаРасчетовСКонтрагентом_Key";
+const ADVANCE_FIELD = "СчетУчетаРасчетовПоАвансам_Key";
+const PAYMENT_ROWS = "РасшифровкаПлатежа";
+const LEVEL_TEXT = {
+  договор: "настройки договора",
+  контрагент: "настройки контрагента",
+  организация: "настройки организации",
+  общая: "общей настройки",
+} as const;
+
+/** Сторона расчётов документа: по виду документа, для денежных — по виду операции. */
+function documentSettlementSide(
+  entitySet: string,
+  payload: Record<string, unknown>,
+): SettlementSide | undefined {
+  const kind = CONTRACT_KIND_BY_DOC.get(entitySet);
+  if (kind) return kind === "СПокупателем" ? "customer" : "supplier";
+  const op = typeof payload["ВидОперации"] === "string" ? payload["ВидОперации"] : "";
+  if (/Покупател/i.test(op)) return "customer";
+  if (/Поставщик/i.test(op)) return "supplier";
+  return undefined;
+}
+
+/**
+ * Счета расчётов и авансов из регистра «Счета учёта расчётов с контрагентами» (#38). 1С через OData
+ * настройку договора не применяет, поэтому подставляем сами: самая частная запись по договору →
+ * контрагенту → организации с учётом вида расчётов. Регистр не опубликован или подходящей записи нет —
+ * остаются счета по умолчанию, и предпросмотр говорит об этом прямо.
+ */
+export async function withSettlementAccounts(
+  conn: Connection,
+  entitySet: string,
+  payload: Record<string, unknown>,
+): Promise<{ payload: Record<string, unknown>; notes: string[] }> {
+  const contractRef = payload["ДоговорКонтрагента_Key"];
+  if (typeof contractRef !== "string" || !contractRef || contractRef === EMPTY_REF)
+    return { payload, notes: [] };
+  const props = new Set(
+    (await conn.getMetadata()).entities.get(entitySet)?.properties.map((p) => p.name) ?? [],
+  );
+  const rows = Array.isArray(payload[PAYMENT_ROWS])
+    ? (payload[PAYMENT_ROWS] as Record<string, unknown>[])
+    : [];
+  const hasHeader = props.has(SETTLE_FIELD);
+  if (!hasHeader && rows.length === 0) return { payload, notes: [] };
+
+  const codesOf = async (...refs: Array<unknown>) => {
+    const keys = refs.filter((r): r is string => typeof r === "string" && !!r);
+    const accounts = await accountsByRef(conn, keys);
+    return keys.map((k) => accounts.get(k)?.code ?? "?").join(" / ");
+  };
+  const current = [
+    payload[SETTLE_FIELD] ?? rows[0]?.[SETTLE_FIELD],
+    payload[ADVANCE_FIELD] ?? rows[0]?.[ADVANCE_FIELD],
+  ];
+
+  const orgKey = typeof payload["Организация_Key"] === "string" ? payload["Организация_Key"] : undefined;
+  const found = await settlementAccountsFor(conn, {
+    orgKey,
+    contractRef,
+    side: documentSettlementSide(entitySet, payload),
+  });
+  if (!found) {
+    return {
+      payload,
+      notes: [
+        `Счета расчётов — по умолчанию (${await codesOf(...current)}): регистр «Счета учёта расчётов с ` +
+          "контрагентами» не опубликован в OData, поэтому особая настройка договора не учтена.",
+      ],
+    };
+  }
+  const choice = found.choice;
+  if (!found.side || !choice) {
+    return {
+      payload,
+      notes: [
+        `Счета расчётов — по умолчанию (${await codesOf(...current)}): ` +
+          (found.side
+            ? "в регистре «Счета учёта расчётов с контрагентами» нет подходящей записи."
+            : "вид договора не «с покупателем» и не «с поставщиком» — настройка не подбирается."),
+      ],
+    };
+  }
+  const apply = (target: Record<string, unknown>, settleKey: boolean, advanceKey: boolean) => ({
+    ...target,
+    ...(settleKey && choice.settle ? { [SETTLE_FIELD]: choice.settle } : {}),
+    ...(advanceKey && choice.advance ? { [ADVANCE_FIELD]: choice.advance } : {}),
+  });
+  let next: Record<string, unknown> = apply(payload, hasHeader, props.has(ADVANCE_FIELD) && !rows.length);
+  if (rows.length) {
+    next = {
+      ...next,
+      [PAYMENT_ROWS]: rows.map((r) =>
+        r["ДоговорКонтрагента_Key"] === contractRef ? apply(r, true, true) : r,
+      ),
+    };
+  }
+  return {
+    payload: next,
+    notes: [
+      `Счета расчётов ${await codesOf(choice.settle, choice.advance)} — из ${LEVEL_TEXT[choice.level]} ` +
+        "(регистр «Счета учёта расчётов с контрагентами»).",
+    ],
+  };
+}
+
+/** После записи: счёт расчётов пуст — 1С проведёт документ без проводок по расчётам, молча. */
+export function emptySettlementWarning(
+  created: ODataEntity,
+  payload: Record<string, unknown>,
+): string | undefined {
+  // Без договора расчётов с контрагентом нет (налог, зарплата, прочее списание) — пустой счёт законен.
+  const contract = payload["ДоговорКонтрагента_Key"];
+  if (typeof contract !== "string" || !contract || contract === EMPTY_REF) return undefined;
+  const empty = (v: unknown) => v === EMPTY_REF || v === "";
+  const rows = Array.isArray(created[PAYMENT_ROWS]) ? (created[PAYMENT_ROWS] as ODataEntity[]) : [];
+  const headerEmpty =
+    Object.hasOwn(created, SETTLE_FIELD) && empty(created[SETTLE_FIELD]) && rows.length === 0;
+  const rowEmpty = rows.some((r) => Object.hasOwn(r, SETTLE_FIELD) && empty(r[SETTLE_FIELD]));
+  if (!headerEmpty && !rowEmpty) return undefined;
+  return (
+    "ВНИМАНИЕ: в созданном документе пуст счёт расчётов с контрагентом — при проведении 1С не сформирует " +
+    "проводки по расчётам. Заполните счёт (write.entity.update_entity) до проведения."
+  );
+}
+
 /**
  * Перед проведением: документ с контрагентом, но без договора 1С (БП 3.0) не проводит, причём падает
  * невнятной ошибкой модуля прослеживаемости. Говорим причину заранее, понятным текстом.
@@ -1130,8 +1262,9 @@ async function createOrPreview(
   notes?: string[],
 ) {
   const contract = await withDefaultContract(conn, entitySet, payload);
-  payload = await withOperationMarker(conn, entitySet, contract.payload);
-  const allNotes = [...(notes ?? []), ...contract.notes];
+  const settlement = await withSettlementAccounts(conn, entitySet, contract.payload);
+  payload = await withOperationMarker(conn, entitySet, settlement.payload);
+  const allNotes = [...(notes ?? []), ...contract.notes, ...settlement.notes];
   const extra = allNotes.length ? { notes: allNotes } : {};
   if (!confirm) {
     await conn.client.prepareCreate(entitySet, payload);
@@ -1153,6 +1286,9 @@ async function createOrPreview(
   } catch (e) {
     throw await withEnumValues(conn, e);
   }
+  const warning = emptySettlementWarning(created, payload);
+  if (warning) allNotes.push(warning);
+  const createdExtra = allNotes.length ? { notes: allNotes } : {};
   return ok({
     created: true,
     ...(created["_operation_replayed"] === true
@@ -1166,7 +1302,7 @@ async function createOrPreview(
     ref: created["Ref_Key"],
     code: created["Code"],
     description: created["Description"],
-    ...extra,
+    ...createdExtra,
   });
 }
 

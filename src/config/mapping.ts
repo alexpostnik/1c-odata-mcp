@@ -55,6 +55,8 @@ export const REGISTERS = {
     "InformationRegister_ОтветственныеЛицаОрганизаций",
     "InformationRegister_ОтветственныеЛицаОрганизации",
   ],
+  /** Настройка счетов расчётов и авансов: организация + контрагент + договор + вид расчётов. */
+  settlementAccounts: ["InformationRegister_СчетаУчетаРасчетовСКонтрагентами"],
 } as const;
 
 /**
