@@ -447,11 +447,14 @@ async function goodsAccounts(
     lines.map((l) => l.nomenclatureRef),
     {},
   );
-  const overrides = await resolveAccountOverrides(conn, [
-    docAccounts?.income,
-    docAccounts?.expense,
-    ...lines.flatMap((l) => [l.incomeAccount, l.expenseAccount]),
-  ]);
+  const overrides =
+    kind === "purchase"
+      ? new Map<string, string>()
+      : await resolveAccountOverrides(conn, [
+          docAccounts?.income,
+          docAccounts?.expense,
+          ...lines.flatMap((l) => [l.incomeAccount, l.expenseAccount]),
+        ]);
   const ref = (v: string | undefined): string | undefined => overrides.get(v?.trim() ?? "");
   const needed = new Set<AccountDefault>([kind === "purchase" ? "payable" : "receivable"]);
   for (const l of lines) {

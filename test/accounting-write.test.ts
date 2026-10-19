@@ -16,6 +16,7 @@ function fixture(config: object, register = false) {
     "ChartOfAccounts_Test",
     "Document_РеализацияТоваровУслуг",
     "Document_ПоступлениеНаРасчетныйСчет",
+    "Document_ПоступлениеТоваровУслуг",
     "Catalog_Организации",
     ...(register ? ["InformationRegister_СчетаУчетаНоменклатуры"] : []),
   ];
@@ -86,6 +87,22 @@ describe("accounting creation flows", () => {
   it("rejects a missing actually needed mapping before preparing a write", async () => {
     const { act } = fixture(strict);
     expect((await act()).isError).toBe(true);
+  });
+  it("requires purchase goods but no incoming VAT or sales-account mappings for a no-VAT purchase", async () => {
+    const { tools } = fixture({ ...strict, defaults: { goods: ["62.1"], payable: ["62.1"] } });
+    const r = await tools["write.purchase.create_purchase"]!.handler(
+      {
+        organization: id,
+        counterpartyRef: id,
+        contractRef: id,
+        lines: [{ ...line, incomeAccount: "unused" }],
+        sumIncludesVat: true,
+        confirm: false,
+      },
+      {},
+    );
+    expect(r.isError, JSON.stringify(r)).not.toBe(true);
+    expect(r.structuredContent?.payload?.Товары).toMatchObject([{ СчетУчета_Key: id }]);
   });
   it("explicit operation kind wins over the base setting", async () => {
     const { act } = fixture({ ...strict, operationKinds: { salesAct: "Configured" } });
