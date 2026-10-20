@@ -23,7 +23,7 @@ const parentRef = z
 const createSchema = z.object({ name: z.string().trim().min(1).max(200), parentRef });
 const moveSchema = z.object({
   ref: exactRef,
-  subjectKind: z.enum(["counterparty", "group"]),
+  subjectKind: z.literal("counterparty"),
   parentRef,
   expectedDataVersion: z
     .string()
@@ -123,9 +123,9 @@ export function registerCounterpartyGroupTools(server: McpServer, ctx: ServerCon
   server.registerTool(
     "write.counterparty.set_group",
     {
-      title: "Указать группу контрагента или вложенной группы",
+      title: "Указать группу отдельного контрагента",
       description:
-        "Меняет только Parent_Key точного контрагента/группы. parentRef — точная группа или пустой GUID для корня. Проверяет IsFolder, отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
+        "Меняет только Parent_Key отдельного контрагента (subjectKind=counterparty, IsFolder=false). Перемещение самих групп запрещено: безопасность глубины их потомков не проверяется. parentRef — точная группа или пустой GUID для корня. Проверяет отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
       inputSchema: { database: databaseField, ...moveSchema.shape, confirm: z.boolean().default(false) },
       outputSchema: patchResultSchema,
     },
@@ -134,7 +134,7 @@ export function registerCounterpartyGroupTools(server: McpServer, ctx: ServerCon
         const p = moveSchema.parse(args);
         const conn = ctx.db(args.database);
         const set = await counterpartyCatalog(conn);
-        const subject = await readCounterparty(conn, set, p.ref, p.subjectKind === "group");
+        const subject = await readCounterparty(conn, set, p.ref, false);
         const ancestors = await validateParent(conn, p.parentRef);
         if (ancestors.includes(p.ref))
           throw new InputError("Нельзя переместить группу в себя или своего потомка.");
