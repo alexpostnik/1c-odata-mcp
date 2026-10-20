@@ -76,7 +76,7 @@ export async function readSavedSettlementSettings(
   const entitySet = resolveEntity(REGISTERS.settlementAccounts, new Set(metadata.entities.keys()));
   if (!entitySet)
     throw new InputError(
-      "Регистр сохранённых счетов расчётов не опубликован; настройка не читается и не записывается.",
+      "Регистр сохранённых счетов расчётов отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
     );
   const meta = metadata.entities.get(entitySet)!;
   const props = new Map(meta.properties.map((v) => [v.name, v.type]));
@@ -198,18 +198,28 @@ export async function saveSettlementSettings(
   }
   const result = await conn.client.writeRecordOnce(snapshot.entitySet, operation, async () => {
     await conn.client.request(path, method, payload, headers);
-    const record = await conn.client.getEntity(`${snapshot.recordPath}?$format=json`);
-    assertRecordValues(record, { ...snapshot.key, ...patch });
-    if (snapshot.record)
-      assertRecordValues(
-        record,
-        Object.fromEntries(
-          Object.entries(snapshot.record).filter(
-            ([name]) => props.has(name) && name !== "DataVersion" && !(name in patch),
+    // A failed verification cannot turn an already successful mutation into a rejection.
+    try {
+      const record = await conn.client.getEntity(`${snapshot.recordPath}?$format=json`);
+      assertRecordValues(record, { ...snapshot.key, ...patch });
+      if (snapshot.record)
+        assertRecordValues(
+          record,
+          Object.fromEntries(
+            Object.entries(snapshot.record).filter(
+              ([name]) => props.has(name) && name !== "DataVersion" && !(name in patch),
+            ),
           ),
-        ),
-      );
-    return { ...record, RecordPath: snapshot.recordPath };
+        );
+      return { ...record, RecordPath: snapshot.recordPath };
+    } catch (cause) {
+      throw new ODataError({
+        kind: "unknown",
+        message:
+          "После запроса записи контрольное чтение настройки не подтвердило результат; требуется ручная сверка, повторная запись не разрешена.",
+        cause,
+      });
+    }
   });
   return {
     updated: true,
