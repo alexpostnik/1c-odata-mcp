@@ -79,11 +79,14 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
     РасчетыВУсловныхЕдиницах: false,
   };
   let corruptReadback = false;
+  let readbackError: ODataError | undefined;
+  let writeError: ODataError | undefined;
   const writes: Array<{ path: string; method: string; body: unknown; headers: unknown }> = [];
   vi.spyOn(conn.client, "request").mockImplementation(
     async (path: string, method = "GET", body?: unknown, headers?: unknown) => {
       if (method !== "GET") {
         writes.push({ path, method, body, headers });
+        if (writeError) throw writeError;
         row = { ...row, ...(body as object), DataVersion: "v2" };
         if (corruptReadback) row[resources[2]!] = OTHER;
         return {} as never;
@@ -93,6 +96,7 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
       if (path.startsWith("ChartOfAccounts_"))
         return { value: [{ Ref_Key: ACCOUNT, Code: "66.2", Description: "Synthetic" }] } as never;
       if (path.startsWith(REG)) {
+        if (writes.length && readbackError) throw readbackError;
         if (!row) throw new ODataError({ kind: "not_found", message: "Absent" });
         return { ...row } as never;
       }
@@ -133,6 +137,14 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
     meta,
     entities,
     writes,
+    status: (operationId: unknown) =>
+      tools["write.operation.status"]!.handler({ database: "default", operationId }, {}),
+    failReadback: (error: ODataError) => {
+      readbackError = error;
+    },
+    failWrite: (error: ODataError) => {
+      writeError = error;
+    },
     setRow: (r: ODataEntity | undefined) => {
       row = r;
     },
@@ -212,7 +224,12 @@ describe("exact contract saved settlement settings", () => {
   it("blocks missing register and extra compound key instead of broad writes", async () => {
     const f = await fixture();
     f.entities.delete(REG);
-    expect((await f.run()).isError).toBe(true);
+    const missing = await f.run();
+    expect(missing.isError).toBe(true);
+    expect(missing.content).toContainEqual({
+      type: "text",
+      text: "Регистр сохранённых счетов расчётов отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
+    });
     const g = await fixture();
     g.meta.keys.push("Unknown");
     expect((await g.run()).isError).toBe(true);
@@ -273,6 +290,71 @@ describe("exact contract saved settlement settings", () => {
     expect(f.writes).toHaveLength(1);
     const entry = await f.conn.client.operationEntry(data(p).operationId as string);
     expect(entry?.state).toBe("outcome_unknown");
+  });
+  it.each(
+    (["create", "update"] as const).flatMap((mode) =>
+      (["auth", "not_found", "bad_request"] as const).map((kind) => ({ mode, kind })),
+    ),
+  )(
+    "keeps successful $mode with $kind readback failure unknown and blocks replay",
+    async ({ mode, kind }) => {
+      const f = await fixture(mode === "update" ? saved() : undefined);
+      const input = { mode, ...(mode === "update" ? { expectedDataVersion: "v1" } : {}) };
+      const preview = await f.run(input);
+      expect(preview.isError).toBeFalsy();
+      const operationId = data(preview).operationId;
+      const originalError = new ODataError({ kind, message: "Synthetic post-write readback failure" });
+      f.failReadback(originalError);
+      const execute = f.conn.client.writeRecordOnce.bind(f.conn.client);
+      let failure: unknown;
+      vi.spyOn(f.conn.client, "writeRecordOnce").mockImplementation(async (...args) => {
+        try {
+          return await execute(...args);
+        } catch (error) {
+          failure = error;
+          throw error;
+        }
+      });
+
+      const result = await f.run({ ...input, confirm: true, operationId });
+      expect(result.isError).toBe(true);
+      expect(f.writes).toHaveLength(1);
+      expect(f.writes[0]!.method).toBe(mode === "create" ? "POST" : "PATCH");
+      expect(await f.conn.client.operationEntry(operationId as string)).toMatchObject({
+        state: "outcome_unknown",
+        errorKind: "unknown",
+      });
+      expect(failure).toBeInstanceOf(ODataError);
+      expect((failure as ODataError).cause).toBeInstanceOf(ODataError);
+      const verificationError = (failure as ODataError).cause as ODataError;
+      expect(verificationError.kind).toBe("unknown");
+      expect(verificationError.cause).toBe(originalError);
+      const status = await f.status(operationId);
+      expect(data(status).status).toBe("unverifiable");
+      expect((await f.run({ ...input, confirm: true, operationId })).isError).toBe(true);
+      expect(f.writes).toHaveLength(1);
+    },
+  );
+  it.each(
+    (["create", "update"] as const).flatMap((mode) =>
+      (["auth", "not_found", "bad_request"] as const).map((kind) => ({ mode, kind })),
+    ),
+  )("keeps $kind rejection from the $mode request definitive", async ({ mode, kind }) => {
+    const f = await fixture(mode === "update" ? saved() : undefined);
+    const input = { mode, ...(mode === "update" ? { expectedDataVersion: "v1" } : {}) };
+    const preview = await f.run(input);
+    expect(preview.isError).toBeFalsy();
+    const operationId = data(preview).operationId;
+    f.failWrite(new ODataError({ kind, message: "Synthetic mutation rejection" }));
+
+    expect((await f.run({ ...input, confirm: true, operationId })).isError).toBe(true);
+    expect(await f.conn.client.operationEntry(operationId as string)).toMatchObject({
+      state: "rejected",
+      errorKind: kind,
+    });
+    expect(data(await f.status(operationId)).status).toBe("rejected");
+    expect((await f.run({ ...input, confirm: true, operationId })).isError).toBe(true);
+    expect(f.writes).toHaveLength(1);
   });
   it.each([{ readOnly: true }, { writable: false }])("honors existing write gates %j", async (options) => {
     const f = await fixture(undefined, options);
