@@ -1,3 +1,4 @@
+import { registerCounterpartyGroupTools } from "../tools/counterparty-groups.js";
 import { registerSettlementSettingsTools } from "../tools/settlement-settings.js";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -46,6 +47,9 @@ const INSTRUCTIONS =
  */
 const JOURNALED_UPDATE_TOOLS = new Set([
   "write.accounting.set_contract_settlement_settings",
+  "write.accounting.set_settlement_settings",
+  "write.counterparty.create_group",
+  "write.counterparty.set_group",
   "write.document.add_document_line",
   "write.document.remove_document_line",
 ]);
@@ -157,6 +161,7 @@ export function createServer(ctx: ServerContext): McpServer {
   registerAuditTools(server, ctx);
   registerWriteTools(server, ctx);
   registerSettlementSettingsTools(server, ctx);
+  registerCounterpartyGroupTools(server, ctx);
 
   return server;
 }

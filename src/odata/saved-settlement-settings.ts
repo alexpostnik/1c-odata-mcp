@@ -8,12 +8,7 @@ import { ODataError } from "./errors.js";
 import { odataGuid, odataString } from "./query.js";
 import { contractSettlementKind } from "./settlement-accounts.js";
 
-const EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
-const exactRef = z
-  .string()
-  .uuid()
-  .transform((v) => v.toLowerCase())
-  .refine((v) => v !== EMPTY_GUID, "Пустая ссылка (для всех) запрещена.");
+import { EMPTY_GUID, exactRef, counterpartyCatalog, readCounterparty } from "./counterparty-hierarchy.js";
 export const savedSettlementScope = {
   organizationRef: exactRef,
   counterpartyRef: exactRef,
@@ -33,8 +28,19 @@ export const savedSettlementAccounts = z
   })
   .strict()
   .refine((v) => Object.values(v).some((ref) => ref !== undefined), "Укажите хотя бы один ресурс счетов.");
-const scopeSchema = z.object(savedSettlementScope);
-const writeSchema = scopeSchema.extend({
+export const generalSettlementScope = {
+  ...savedSettlementScope,
+  scope: z.enum(["contract", "counterparty", "group"]),
+  contractRef: exactRef.optional(),
+};
+const scopeSchema = z.object(generalSettlementScope).superRefine((p, ctx) => {
+  if ((p.scope === "contract") !== (p.contractRef !== undefined))
+    ctx.addIssue({
+      code: "custom",
+      message: "Для scope=contract нужен договор; для counterparty/group договор должен отсутствовать.",
+    });
+});
+const writeSchema = scopeSchema.safeExtend({
   mode: z.enum(["create", "update"]),
   accounts: savedSettlementAccounts,
   expectedDataVersion: z
@@ -63,7 +69,8 @@ export interface SavedSettlementSnapshot {
   key: Record<string, string>;
   found: boolean;
   record?: ODataEntity;
-  contractKind: unknown;
+  contractKind?: unknown;
+  scope: "contract" | "counterparty" | "group";
 }
 
 /** Reads only the exact contract record; inherited organization/global defaults are never returned. */
@@ -91,40 +98,57 @@ export async function readSavedSettlementSettings(
       "Неподдерживаемая схема регистра: нужен независимый непериодический регистр с точным ключом организация/контрагент/договор/вид расчётов.",
     );
   }
-  const contracts = resolveEntity(CATALOGS.contracts, new Set(metadata.entities.keys()));
-  if (!contracts) throw new InputError("Договоры не опубликованы: нельзя проверить владельца и организацию.");
-  const contract = await conn.client.getEntity(`${contracts}(${odataGuid(p.contractRef)})?$format=json`);
+  const organizations = resolveEntity(CATALOGS.organizations, new Set(metadata.entities.keys()));
+  if (!organizations)
+    throw new InputError("Организации не опубликованы: точную организацию нельзя проверить.");
+  const org = await conn.client.getEntity(`${organizations}(${odataGuid(p.organizationRef)})?$format=json`);
   if (
-    contract.DeletionMark === true ||
-    contract.IsFolder === true ||
-    String(contract.Owner_Key).toLowerCase() !== p.counterpartyRef ||
-    String(contract.Организация_Key).toLowerCase() !== p.organizationRef
-  ) {
-    throw new InputError(
-      "Договор не принадлежит указанным контрагенту и организации либо недоступен для настройки.",
+    String(org.Ref_Key).toLowerCase() !== p.organizationRef ||
+    org.DeletionMark !== false ||
+    org.IsFolder === true
+  )
+    throw new InputError("Указанная организация отсутствует или помечена на удаление.");
+  const counterparties = await counterpartyCatalog(conn);
+  await readCounterparty(conn, counterparties, p.counterpartyRef, p.scope === "group");
+  let contractKind: unknown;
+  if (p.scope === "contract") {
+    const contracts = resolveEntity(CATALOGS.contracts, new Set(metadata.entities.keys()));
+    if (!contracts)
+      throw new InputError("Договоры не опубликованы: нельзя проверить владельца и организацию.");
+    const contract = await conn.client.getEntity(`${contracts}(${odataGuid(p.contractRef!)})?$format=json`);
+    if (
+      contract.DeletionMark === true ||
+      contract.IsFolder === true ||
+      String(contract.Owner_Key).toLowerCase() !== p.counterpartyRef ||
+      String(contract.Организация_Key).toLowerCase() !== p.organizationRef
+    ) {
+      throw new InputError(
+        "Договор не принадлежит указанным контрагенту и организации либо недоступен для настройки.",
+      );
+    }
+    const currencies = resolveEntity(CATALOGS.currencies, new Set(metadata.entities.keys()));
+    if (
+      !currencies ||
+      typeof contract.ВалютаВзаиморасчетов_Key !== "string" ||
+      contract.ВалютаВзаиморасчетов_Key === EMPTY_GUID
+    )
+      throw new InputError("Не установлена валюта договора: вид расчётов нельзя проверить.");
+    const currency = await conn.client.getEntity(
+      `${currencies}(${odataGuid(contract.ВалютаВзаиморасчетов_Key)})?$format=json&$select=Code`,
     );
+    if (typeof currency.Code !== "string" || !currency.Code.trim())
+      throw new InputError("Код валюты договора неизвестен: вид расчётов нельзя проверить.");
+    if (
+      p.settlementKind !==
+      contractSettlementKind(contract, currency.Code, conn.behavior.regulatedCurrencyCode ?? "643")
+    )
+      throw new InputError("Вид расчётов не совпадает с валютой и условиями договора.");
+    contractKind = contract.ВидДоговора;
   }
-  const currencies = resolveEntity(CATALOGS.currencies, new Set(metadata.entities.keys()));
-  if (
-    !currencies ||
-    typeof contract.ВалютаВзаиморасчетов_Key !== "string" ||
-    contract.ВалютаВзаиморасчетов_Key === EMPTY_GUID
-  )
-    throw new InputError("Не установлена валюта договора: вид расчётов нельзя проверить.");
-  const currency = await conn.client.getEntity(
-    `${currencies}(${odataGuid(contract.ВалютаВзаиморасчетов_Key)})?$format=json&$select=Code`,
-  );
-  if (typeof currency.Code !== "string" || !currency.Code.trim())
-    throw new InputError("Код валюты договора неизвестен: вид расчётов нельзя проверить.");
-  if (
-    p.settlementKind !==
-    contractSettlementKind(contract, currency.Code, conn.behavior.regulatedCurrencyCode ?? "643")
-  )
-    throw new InputError("Вид расчётов не совпадает с валютой и условиями договора.");
   const key = {
     Организация_Key: p.organizationRef,
     Контрагент_Key: p.counterpartyRef,
-    Договор_Key: p.contractRef,
+    Договор_Key: p.contractRef ?? EMPTY_GUID,
     ВидРасчетовПоДоговору: p.settlementKind,
   };
   const recordPath = `${entitySet}(${meta.keys.map((name) => `${name}=${KEY_TYPES[name] === "Edm.Guid" ? odataGuid(key[name as keyof typeof key]) : odataString(key[name as keyof typeof key])}`).join(",")})`;
@@ -141,7 +165,8 @@ export async function readSavedSettlementSettings(
     key,
     found: !!record,
     ...(record ? { record } : {}),
-    contractKind: contract.ВидДоговора,
+    contractKind,
+    scope: p.scope,
   };
 }
 

@@ -64,6 +64,18 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
   };
   const entities = new Map([
     [REG, meta],
+    [
+      "Catalog_Контрагенты",
+      {
+        ...meta,
+        properties: ["Ref_Key", "Parent_Key", "IsFolder", "DeletionMark"].map((name) => ({
+          name,
+          type: name.endsWith("_Key") ? "Edm.Guid" : "Edm.Boolean",
+          nullable: false,
+        })),
+      },
+    ],
+    ["Catalog_Организации", meta],
     ...["Catalog_ДоговорыКонтрагентов", "Catalog_Валюты", "ChartOfAccounts_Хозрасчетный"].map(
       (name) => [name, { ...meta, entitySet: name }] as const,
     ),
@@ -78,6 +90,8 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
     ВалютаВзаиморасчетов_Key: CURRENCY,
     РасчетыВУсловныхЕдиницах: false,
   };
+  let subject = { Ref_Key: CP, IsFolder: false, DeletionMark: false, Parent_Key: EMPTY };
+  let organization = { Ref_Key: ORG, DeletionMark: false };
   let corruptReadback = false;
   let readbackError: ODataError | undefined;
   let writeError: ODataError | undefined;
@@ -91,6 +105,8 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
         if (corruptReadback) row[resources[2]!] = OTHER;
         return {} as never;
       }
+      if (path.startsWith("Catalog_Контрагенты")) return subject as never;
+      if (path.startsWith("Catalog_Организации")) return organization as never;
       if (path.startsWith("Catalog_Договоры")) return contract as never;
       if (path.startsWith("Catalog_Валюты")) return { Code: "933" } as never;
       if (path.startsWith("ChartOfAccounts_"))
@@ -108,12 +124,16 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
       _registeredTools: Record<string, { handler: (args: object, extra: object) => Promise<CallToolResult> }>;
     }
   )._registeredTools;
-  const run = async (args: object = {}, read = false) => {
+  const run = async (args: object = {}, read = false, generic = false) => {
     const tool =
       tools[
-        read
-          ? "read.accounting.get_contract_settlement_settings"
-          : "write.accounting.set_contract_settlement_settings"
+        generic
+          ? read
+            ? "read.accounting.get_settlement_settings"
+            : "write.accounting.set_settlement_settings"
+          : read
+            ? "read.accounting.get_contract_settlement_settings"
+            : "write.accounting.set_contract_settlement_settings"
       ];
     expect(tool, "dedicated exact saved-settings tool must be registered").toBeDefined();
     return tool!.handler(
@@ -133,6 +153,12 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
   };
   return {
     run,
+    setSubject: (v: Partial<typeof subject>) => {
+      subject = { ...subject, ...v };
+    },
+    setOrganization: (v: Partial<typeof organization>) => {
+      organization = { ...organization, ...v };
+    },
     conn,
     meta,
     entities,
@@ -429,5 +455,67 @@ describe("exact contract saved settlement settings", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("counterparty and group saved settlement scope", () => {
+  it.each(["counterparty", "group"])(
+    "creates %s defaults with empty contract and exact organization/subject",
+    async (scope) => {
+      const f = await fixture();
+      f.setSubject({ IsFolder: scope === "group" });
+      const args = { scope, contractRef: undefined };
+      const preview = await f.run(args, false, true);
+      expect(preview.isError).toBeFalsy();
+      expect(data(preview).payload).toEqual({ ...key, Договор_Key: EMPTY, [resources[2]!]: ACCOUNT });
+      const result = await f.run(
+        { ...args, confirm: true, operationId: data(preview).operationId },
+        false,
+        true,
+      );
+      expect(result.isError).toBeFalsy();
+      expect(f.writes).toHaveLength(1);
+    },
+  );
+  it.each([
+    { scope: "group", contractRef: undefined },
+    { scope: "counterparty", contractRef: CTR },
+    { scope: "contract", contractRef: undefined },
+    { scope: "group", contractRef: undefined, organizationRef: EMPTY },
+    { scope: "counterparty", contractRef: undefined, counterpartyRef: EMPTY },
+  ])("rejects inconsistent or wildcard scope %j", async (args) => {
+    const f = await fixture();
+    expect((await f.run(args, false, true)).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it("requires generic tool explicit scope and keeps legacy tool contract-only", async () => {
+    const f = await fixture();
+    expect((await f.run({ contractRef: undefined }, false, true)).isError).toBe(true);
+    expect((await f.run({ scope: "group", contractRef: undefined })).isError).toBe(true);
+  });
+  it.each(["subject", "organization"])("rejects deleted %s before write", async (which) => {
+    const f = await fixture();
+    if (which === "subject") f.setSubject({ DeletionMark: true });
+    else f.setOrganization({ DeletionMark: true });
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it("updates group resources with CAS and preserves unspecified fields", async () => {
+    const f = await fixture({ ...saved(), Договор_Key: EMPTY });
+    f.setSubject({ IsFolder: true });
+    const args = { scope: "group", contractRef: undefined, mode: "update", expectedDataVersion: "v1" };
+    const preview = await f.run(args, false, true);
+    const result = await f.run(
+      { ...args, confirm: true, operationId: data(preview).operationId },
+      false,
+      true,
+    );
+    expect(result.isError).toBeFalsy();
+    expect(f.writes[0]).toMatchObject({
+      method: "PATCH",
+      headers: { "If-Match": "v1" },
+      body: { [resources[2]!]: ACCOUNT },
+    });
+    expect(data(result).record).toMatchObject({ СчетПрочихРасчетов_Key: OTHER });
   });
 });

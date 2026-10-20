@@ -23,6 +23,7 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
     "Document_ПоступлениеТоваровУслуг",
     "Catalog_Организации",
     "Catalog_ДоговорыКонтрагентов",
+    "Catalog_Контрагенты",
     "Catalog_Валюты",
     ...(settlement ? ["InformationRegister_СчетаУчетаРасчетовСКонтрагентами"] : []),
     ...(register ? ["InformationRegister_СчетаУчетаНоменклатуры"] : []),
@@ -31,7 +32,18 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
   vi.spyOn(conn, "getMetadata").mockResolvedValue({
     entities: new Map(
       sets.flatMap((entitySet) => [
-        [entitySet, { properties: [{ name: "СчетУчетаРасчетовСКонтрагентом_Key" }] }],
+        [
+          entitySet,
+          {
+            properties:
+              entitySet === "Catalog_Контрагенты"
+                ? ["Ref_Key", "Parent_Key", "IsFolder", "DeletionMark"].map((name) => ({
+                    name,
+                    type: name.endsWith("_Key") ? "Edm.Guid" : "Edm.Boolean",
+                  }))
+                : [{ name: "СчетУчетаРасчетовСКонтрагентом_Key" }],
+          },
+        ],
         [
           `${entitySet}_РасшифровкаПлатежа`,
           {
@@ -51,6 +63,9 @@ function fixture(config: object, register = false, settlement?: "both" | "settle
     ВалютаВзаиморасчетов_Key: id,
     Code: "643",
     Owner_Key: id,
+    Parent_Key: "00000000-0000-0000-0000-000000000000",
+    IsFolder: false,
+    DeletionMark: false,
   });
   const reads = vi.spyOn(conn.client, "getCollection").mockImplementation(async (path) => {
     if (path.startsWith("Catalog_Организации")) return { value: [{ Ref_Key: id, Description: "Synthetic" }] };

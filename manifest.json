@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.8.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 62 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 66 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -446,7 +446,7 @@
     {
       "name": "read.counterparty.find_counterparty",
       "title": "Поиск контрагента",
-      "description": "Ищет контрагентов по части названия или по ИНН. Возвращает список совпадений с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов). Пример: «найди контрагента Ромашка» или «контрагент с ИНН 7701234567».",
+      "description": "Ищет контрагентов по части названия или по ИНН; subjectKind=group ищет группы в том же справочнике, all — оба вида. По умолчанию только контрагенты. Возвращает Parent_Key как parentRef и DataVersion как dataVersion для безопасного изменения группы. Возвращает список совпадений с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов). Пример: «найди контрагента Ромашка» или «контрагент с ИНН 7701234567».",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -458,6 +458,15 @@
             "type": "string",
             "minLength": 1,
             "description": "Часть названия или ИНН контрагента"
+          },
+          "subjectKind": {
+            "default": "counterparty",
+            "type": "string",
+            "enum": [
+              "counterparty",
+              "group",
+              "all"
+            ]
           },
           "limit": {
             "default": 20,
@@ -499,6 +508,15 @@
                   "type": "string"
                 },
                 "isFolder": {
+                  "type": "boolean"
+                },
+                "parentRef": {
+                  "type": "string"
+                },
+                "dataVersion": {
+                  "type": "string"
+                },
+                "deletionMark": {
                   "type": "boolean"
                 }
               },
@@ -575,6 +593,15 @@
             "type": "string"
           },
           "isFolder": {
+            "type": "boolean"
+          },
+          "parentRef": {
+            "type": "string"
+          },
+          "dataVersion": {
+            "type": "string"
+          },
+          "deletionMark": {
             "type": "boolean"
           }
         },
@@ -8157,8 +8184,8 @@
     },
     {
       "name": "read.accounting.get_contract_settlement_settings",
-      "title": "Прочитать сохранённые счета договора",
-      "description": "Читает точную настройку независимого регистра по организации, владельцу, договору и виду расчётов. Общие настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию.",
+      "title": "Прочитать точную настройку счетов расчётов",
+      "description": "Читает точную настройку независимого регистра. scope=contract требует договор; counterparty/group означает контрагента или группу в том же поле Контрагент_Key без договора. Организация и вид расчётов обязательны. Унаследованные настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию. Старое имя get_contract_settlement_settings поддерживает только договор.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8229,14 +8256,23 @@
             },
             "additionalProperties": {}
           },
-          "contractKind": {}
+          "contractKind": {},
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
         },
         "required": [
           "database",
           "entitySet",
           "recordPath",
           "found",
-          "key"
+          "key",
+          "scope"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false
@@ -8248,8 +8284,8 @@
     },
     {
       "name": "write.accounting.set_contract_settlement_settings",
-      "title": "Сохранить счета точного договора",
-      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Владелец и организация договора обязаны совпадать. Глобальные настройки и удаление недоступны. Договор Прочее не получает автоматическое толкование займа/расхода; сохранение ресурсов этого не меняет.",
+      "title": "Сохранить точную настройку счетов расчётов",
+      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8334,6 +8370,477 @@
           "settlementKind",
           "mode",
           "accounts"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_settlement_settings",
+      "title": "Прочитать точную настройку счетов расчётов",
+      "description": "Читает точную настройку независимого регистра. scope=contract требует договор; counterparty/group означает контрагента или группу в том же поле Контрагент_Key без договора. Организация и вид расчётов обязательны. Унаследованные настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию. Старое имя get_contract_settlement_settings поддерживает только договор.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "settlementKind",
+          "scope"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "recordPath": {
+            "type": "string"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "record": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "contractKind": {},
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "entitySet",
+          "recordPath",
+          "found",
+          "key",
+          "scope"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.accounting.set_settlement_settings",
+      "title": "Сохранить точную настройку счетов расчётов",
+      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "accounts": {
+            "type": "object",
+            "properties": {
+              "customerSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "customerAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "expectedDataVersion": {
+            "type": "string"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "settlementKind",
+          "scope",
+          "mode",
+          "accounts"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.counterparty.create_group",
+      "title": "Создать группу контрагентов",
+      "description": "Создаёт только явно названную группу контрагентов в указанной группе parentRef; пустой GUID parentRef означает корень. Проверяет родителя и иерархию, сначала предпросмотр, затем confirm с тем же operationId и контрольное чтение. Не создаёт произвольные бизнес-группы без поручения владельца.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "parentRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "name",
+          "parentRef"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.counterparty.set_group",
+      "title": "Указать группу контрагента или вложенной группы",
+      "description": "Меняет только Parent_Key точного контрагента/группы. parentRef — точная группа или пустой GUID для корня. Проверяет IsFolder, отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "subjectKind": {
+            "type": "string",
+            "enum": [
+              "counterparty",
+              "group"
+            ]
+          },
+          "parentRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expectedDataVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "ref",
+          "subjectKind",
+          "parentRef",
+          "expectedDataVersion"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
       },

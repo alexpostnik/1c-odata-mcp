@@ -8,53 +8,73 @@ import {
   saveSettlementSettings,
   savedSettlementAccounts,
   savedSettlementScope,
+  generalSettlementScope,
 } from "../odata/saved-settlement-settings.js";
 
 export function registerSettlementSettingsTools(server: McpServer, ctx: ServerContext): void {
-  server.registerTool(
-    "read.accounting.get_contract_settlement_settings",
-    {
-      title: "Прочитать сохранённые счета договора",
-      description:
-        "Читает точную настройку независимого регистра по организации, владельцу, договору и виду расчётов. Общие настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию.",
-      inputSchema: { database: databaseField, ...savedSettlementScope },
-      outputSchema: z.object({
-        database: z.string(),
-        entitySet: z.string(),
-        recordPath: z.string(),
-        found: z.boolean(),
-        key: z.record(z.string(), z.string()),
-        record: z.record(z.string(), z.unknown()).optional(),
-        contractKind: z.unknown().optional(),
-      }),
-    },
-    (args) =>
-      guard("read.accounting.get_contract_settlement_settings", async () =>
-        ok({
-          database: ctx.db(args.database).cfg.name,
-          ...(await readSavedSettlementSettings(ctx.db(args.database), args)),
+  for (const legacy of [true, false]) {
+    const readName = legacy
+      ? "read.accounting.get_contract_settlement_settings"
+      : "read.accounting.get_settlement_settings";
+    const writeName = legacy
+      ? "write.accounting.set_contract_settlement_settings"
+      : "write.accounting.set_settlement_settings";
+    const scope = legacy ? savedSettlementScope : generalSettlementScope;
+    server.registerTool(
+      readName,
+      {
+        title: "Прочитать точную настройку счетов расчётов",
+        description:
+          "Читает точную настройку независимого регистра. scope=contract требует договор; counterparty/group означает контрагента или группу в том же поле Контрагент_Key без договора. Организация и вид расчётов обязательны. Унаследованные настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию. Старое имя get_contract_settlement_settings поддерживает только договор.",
+        inputSchema: { database: databaseField, ...scope },
+        outputSchema: z.object({
+          database: z.string(),
+          entitySet: z.string(),
+          recordPath: z.string(),
+          found: z.boolean(),
+          key: z.record(z.string(), z.string()),
+          record: z.record(z.string(), z.unknown()).optional(),
+          contractKind: z.unknown().optional(),
+          scope: z.enum(["contract", "counterparty", "group"]),
         }),
-      ),
-  );
-  server.registerTool(
-    "write.accounting.set_contract_settlement_settings",
-    {
-      title: "Сохранить счета точного договора",
-      description:
-        "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Владелец и организация договора обязаны совпадать. Глобальные настройки и удаление недоступны. Договор Прочее не получает автоматическое толкование займа/расхода; сохранение ресурсов этого не меняет.",
-      inputSchema: {
-        database: databaseField,
-        ...savedSettlementScope,
-        mode: z.enum(["create", "update"]),
-        accounts: savedSettlementAccounts,
-        expectedDataVersion: z.string().optional(),
-        confirm: z.boolean().default(false),
       },
-      outputSchema: patchResultSchema,
-    },
-    (args) =>
-      guard("write.accounting.set_contract_settlement_settings", async () =>
-        ok(await saveSettlementSettings(ctx.db(args.database), args, args.confirm)),
-      ),
-  );
+      (args: { database?: string; confirm?: boolean } & Record<string, unknown>) =>
+        guard(readName, async () =>
+          ok({
+            database: ctx.db(args.database).cfg.name,
+            ...(await readSavedSettlementSettings(
+              ctx.db(args.database),
+              legacy ? { ...args, scope: "contract" } : args,
+            )),
+          }),
+        ),
+    );
+    server.registerTool(
+      writeName,
+      {
+        title: "Сохранить точную настройку счетов расчётов",
+        description:
+          "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
+        inputSchema: {
+          database: databaseField,
+          ...scope,
+          mode: z.enum(["create", "update"]),
+          accounts: savedSettlementAccounts,
+          expectedDataVersion: z.string().optional(),
+          confirm: z.boolean().default(false),
+        },
+        outputSchema: patchResultSchema,
+      },
+      (args: { database?: string; confirm?: boolean } & Record<string, unknown>) =>
+        guard(writeName, async () =>
+          ok(
+            await saveSettlementSettings(
+              ctx.db(args.database),
+              legacy ? { ...args, scope: "contract" } : args,
+              args.confirm ?? false,
+            ),
+          ),
+        ),
+    );
+  }
 }

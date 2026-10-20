@@ -1074,6 +1074,7 @@ const MONEY_DOCUMENTS: ReadonlySet<string> = new Set([
 const LEVEL_TEXT = {
   договор: "настройки договора",
   контрагент: "настройки контрагента",
+  группа: "настройки группы",
   организация: "настройки организации",
   общая: "общей настройки",
 } as const;
@@ -1200,6 +1201,7 @@ export async function withSettlementAccounts(
     notes.push(
       `Счета расчётов ${await codesOf(choice.settle, choice.advance)} — из ${LEVEL_TEXT[choice.level]} ` +
         "(регистр «Счета учёта расчётов с контрагентами»).",
+      `Источник каждого счёта (правило MCP): ${JSON.stringify(choice.provenance)}`,
     );
   } else {
     notes.push(
