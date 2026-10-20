@@ -72,7 +72,12 @@ export class ODataClient {
    * Низкоуровневый запрос с таймаутом и retry.
    * Возвращает распарсенный JSON указанного типа.
    */
-  async request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async request<T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<T> {
     this.assertWritable(method);
     const url = this.url(path);
     // Тело пишущих запросов повторять небезопасно (не идемпотентно) — без retry.
@@ -91,6 +96,7 @@ export class ODataClient {
             Authorization: this.authHeader,
             Accept: "application/json",
             ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+            ...headers,
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
           signal: controller.signal,
@@ -225,6 +231,20 @@ export class ODataClient {
     const requestHash = currentWriteRequestHash();
     if (!requestHash) throw new Error("Для подтверждённой записи отсутствует отпечаток предпросмотра.");
     return this.writeJournal.execute(operationId, entitySet, key, requestHash, send, check);
+  }
+
+  /** Journaled independent-register write; verification remains inside the durable operation. */
+  async writeRecordOnce<T extends ODataEntity>(
+    entitySet: string,
+    operation: Record<string, unknown>,
+    sendAndVerify: () => Promise<T>,
+  ): Promise<T> {
+    this.assertWritable("POST/PATCH");
+    const operationId = currentWriteOperationId();
+    const requestHash = currentWriteRequestHash();
+    if (!operationId || !requestHash)
+      throw new Error("Для записи настройки нужен operationId из предпросмотра.");
+    return this.writeJournal.execute(operationId, entitySet, operation, requestHash, sendAndVerify);
   }
 
   /** Итог уже подтверждённой операции (для повтора до повторного чтения 1С); undefined — не подтверждалась. */

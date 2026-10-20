@@ -3,6 +3,12 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [семантическому версионированию](https://semver.org/lang/ru/).
 
+## Unreleased
+
+- Exact contract-scoped saved-settlement read/create/update tools: strict independent-register metadata, preview-confirm journal, DataVersion/If-Match for updates and verified readback. Live configuration and concurrent-create behavior remain unverified.
+- Contract creation compares currency with configured regulated currency instead of hardcoded643; unknown explicit currency codes are rejected.
+- Contracts of kind `Other` receive no new automatic supplier/customer interpretation.
+
 ## [Не выпущено]
 
 ## [0.8.0] — 2026-10-20

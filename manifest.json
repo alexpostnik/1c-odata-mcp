@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.8.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 60 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 62 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -8094,6 +8094,246 @@
         "required": [
           "ref",
           "folder"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_contract_settlement_settings",
+      "title": "Прочитать сохранённые счета договора",
+      "description": "Читает точную настройку независимого регистра по организации, владельцу, договору и виду расчётов. Общие настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "contractRef",
+          "settlementKind"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "recordPath": {
+            "type": "string"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "record": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "contractKind": {}
+        },
+        "required": [
+          "database",
+          "entitySet",
+          "recordPath",
+          "found",
+          "key"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.accounting.set_contract_settlement_settings",
+      "title": "Сохранить счета точного договора",
+      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Владелец и организация договора обязаны совпадать. Глобальные настройки и удаление недоступны. Договор Прочее не получает автоматическое толкование займа/расхода; сохранение ресурсов этого не меняет.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "accounts": {
+            "type": "object",
+            "properties": {
+              "customerSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "customerAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "expectedDataVersion": {
+            "type": "string"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "contractRef",
+          "settlementKind",
+          "mode",
+          "accounts"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
       },

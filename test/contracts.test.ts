@@ -127,3 +127,46 @@ describe("ошибка значения перечисления — с допу
     expect(await withEnumValues(conn, new Error("другое"))).toBeInstanceOf(Error);
   });
 });
+
+describe("create_contract regulated currency", () => {
+  const preview = async (code: string | undefined, regulatedCurrencyCode = "933") => {
+    const connection = {
+      cfg: { name: "default", writable: true },
+      behavior: { regulatedCurrencyCode, writeOperationMarker: false },
+      available: async () =>
+        new Set(["Catalog_ДоговорыКонтрагентов", "Catalog_Организации", "Catalog_Валюты"]),
+      client: {
+        prepareCreate: vi.fn(),
+        getCollection: async (path: string) => ({
+          value: path.startsWith("Catalog_Валюты")
+            ? [{ Ref_Key: cp, ...(code ? { Code: code } : {}) }]
+            : [{ Ref_Key: org, Description: "Synthetic" }],
+        }),
+      },
+    };
+    const tools = (
+      createServer({ db: () => connection } as never) as unknown as {
+        _registeredTools: Record<
+          string,
+          { handler: (args: object, extra: object) => Promise<CallToolResult> }
+        >;
+      }
+    )._registeredTools;
+    return tools["write.catalog.create_contract"]!.handler(
+      { organization: "Synthetic", counterpartyRef: cp, kind: "Прочее", currency: "BYN", confirm: false },
+      {},
+    );
+  };
+  it("treats configured regulated933 as domestic, instead of hardcoded643", async () => {
+    const result = await preview("933");
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ payload: { Валютный: false } });
+  });
+  it("retains default643 comparison and marks foreign currencies", async () => {
+    expect((await preview("643", "643")).structuredContent).toMatchObject({ payload: { Валютный: false } });
+    expect((await preview("840")).structuredContent).toMatchObject({ payload: { Валютный: true } });
+  });
+  it("refuses an explicit currency with unknown code instead of marking foreign", async () => {
+    expect((await preview(undefined)).isError).toBe(true);
+  });
+});

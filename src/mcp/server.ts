@@ -1,3 +1,4 @@
+import { registerSettlementSettingsTools } from "../tools/settlement-settings.js";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -43,7 +44,8 @@ const INSTRUCTIONS =
  * Правки документа, которые нельзя слепо повторять: инструмент перечитывает документ, и повтор
  * добавил бы ещё строку или удалил соседнюю. Как и создание, защищены operationId и журналом.
  */
-const LINE_OPERATION_TOOLS = new Set([
+const JOURNALED_UPDATE_TOOLS = new Set([
+  "write.accounting.set_contract_settlement_settings",
   "write.document.add_document_line",
   "write.document.remove_document_line",
 ]);
@@ -82,7 +84,7 @@ export function createServer(ctx: ServerContext): McpServer {
       },
     };
     const isCreateTool = name.startsWith("write.") && config.outputSchema === createResultSchema;
-    if (!isCreateTool && !LINE_OPERATION_TOOLS.has(name)) return original(name, annotatedConfig, cb);
+    if (!isCreateTool && !JOURNALED_UPDATE_TOOLS.has(name)) return original(name, annotatedConfig, cb);
 
     const inputSchema = {
       ...(config.inputSchema as Record<string, unknown>),
@@ -114,6 +116,7 @@ export function createServer(ctx: ServerContext): McpServer {
               database: conn.cfg.name,
               entitySet: settled.entitySet,
               ref: settled.result["Ref_Key"],
+              ...(settled.result["RecordPath"] ? { recordPath: settled.result["RecordPath"] } : {}),
               ...(settled.result["Code"] ? { code: settled.result["Code"] } : {}),
               operationId,
             });
@@ -153,6 +156,7 @@ export function createServer(ctx: ServerContext): McpServer {
   registerOrganizationTools(server, ctx);
   registerAuditTools(server, ctx);
   registerWriteTools(server, ctx);
+  registerSettlementSettingsTools(server, ctx);
 
   return server;
 }

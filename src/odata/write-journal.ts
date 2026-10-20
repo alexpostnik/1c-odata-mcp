@@ -507,7 +507,7 @@ function canonicalize(value: unknown): unknown {
 
 function resultSummary(result: ODataEntity): Record<string, string> {
   const summary: Record<string, string> = {};
-  for (const key of ["Ref_Key", "Code", "Number"] as const) {
+  for (const key of ["Ref_Key", "Code", "Number", "RecordPath"] as const) {
     const value = result[key];
     if (typeof value === "string") summary[key] = value;
   }

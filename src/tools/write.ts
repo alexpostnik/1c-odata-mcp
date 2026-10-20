@@ -1547,6 +1547,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             status: "succeeded",
             ref: entry.result?.["Ref_Key"],
             number: entry.result?.["Number"],
+            ...(entry.result?.["RecordPath"] ? { recordPath: entry.result["RecordPath"] } : {}),
           });
         }
         if (entry.state === "prepared") {
@@ -1563,6 +1564,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             note: "1С отклонила запись; объект не создан. Нужен новый предпросмотр.",
           });
         }
+        if (entry.entitySet.startsWith("InformationRegister_"))
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note: "Исход записи настройки неизвестен. Сверьте точный составной ключ и ресурсы вручную; повторная отправка заблокирована.",
+          });
         const ageSec = Math.round((Date.now() - Date.parse(entry.updatedAt)) / 1000);
         // Правка строк документа — сверяем по числу строк до/после записи.
         if (entry.check?.kind === "lineCount") {
@@ -1864,7 +1871,9 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
               priceType,
             )
           : undefined;
-        const foreign = cur ? cur.code !== "643" : undefined; // 643 = рубль
+        if (cur && !cur.code?.trim())
+          throw new InputError("Код выбранной валюты неизвестен: нельзя определить валютность договора.");
+        const foreign = cur ? cur.code!.trim() !== (conn.behavior.regulatedCurrencyCode ?? "643") : undefined;
         const num = number ?? "б/н";
 
         const payload = clean({
