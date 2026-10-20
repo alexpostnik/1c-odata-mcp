@@ -1,11 +1,14 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Connection } from "../src/context.js";
 import { parseConfig } from "../src/config/env.js";
 import { createServer } from "../src/mcp/server.js";
 import { ODataError } from "../src/odata/errors.js";
+import { counterpartyAncestors } from "../src/odata/counterparty-hierarchy.js";
 const CP = "11111111-1111-4111-8111-111111111111";
 const G = "22222222-2222-4222-8222-222222222222";
 const E = "00000000-0000-0000-0000-000000000000";
@@ -86,8 +89,9 @@ async function fixture() {
     });
     return {} as never;
   });
+  const server = createServer({ db: () => conn } as never);
   const tools = (
-    createServer({ db: () => conn } as never) as unknown as {
+    server as unknown as {
       _registeredTools: Record<
         string,
         {
@@ -106,6 +110,8 @@ async function fixture() {
   };
   return {
     run,
+    server,
+    conn,
     writes,
     rows,
     properties,
@@ -118,6 +124,38 @@ async function fixture() {
   };
 }
 describe("explicit counterparty group operations", () => {
+  it.each(["group", "counterparty"])(
+    "rejects relocating a group before preview even with subjectKind=%s through MCP",
+    async (subjectKind) => {
+      const f = await fixture();
+      f.rows.get(CP)!.Parent_Key = G;
+      let parent = E;
+      for (let i = 0; i < 32; i++) {
+        const ref = `${String(i).padStart(8, "0")}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`;
+        f.rows.set(ref, { Ref_Key: ref, Parent_Key: parent, IsFolder: true, DeletionMark: false });
+        parent = ref;
+      }
+      const prepare = vi.spyOn(f.conn.client, "prepareCreate");
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "group-regression", version: "1" });
+      await f.server.connect(serverTransport);
+      await client.connect(clientTransport);
+      try {
+        const result = await client.callTool({
+          name: "write.counterparty.set_group",
+          arguments: { ref: G, subjectKind, parentRef: parent, expectedDataVersion: "g1" },
+        });
+        expect(result.isError).toBe(true);
+        expect(prepare).not.toHaveBeenCalled();
+        expect(f.writes).toEqual([]);
+        expect(f.rows.get(G)!.Parent_Key).toBe(E);
+        expect((await counterpartyAncestors(f.conn, CP)).groupRefs).toEqual([G]);
+      } finally {
+        await client.close();
+        await f.server.close();
+      }
+    },
+  );
   it.each([31, 32])("checks new child depth with parent having %i ancestors", async (count) => {
     const f = await fixture();
     let previous = G;
