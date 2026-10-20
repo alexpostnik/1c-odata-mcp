@@ -1,6 +1,6 @@
 {
   "name": "1c-odata-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "MCP server for 1C:Enterprise (1С) over OData. Ask your accounting database in natural language — debtors, sales, taxes, cash flow, account turnover, postings — from any MCP client (Claude, Cursor, VS Code, local models…). 60 tools, run with npx, nothing installed inside 1C; read-only by default with opt-in (gated) write.",
   "type": "module",
   "bin": {
@@ -76,7 +76,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2",
+    "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5"
   }
 }

@@ -3043,7 +3043,10 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           .min(1)
           .max(100)
           .optional()
-          .describe("Вид операции этой конфигурации; важнее accounting.operationKinds.salesAct"),
+          .describe(
+            "Вид операции (ВидОперации). Обычно НЕ задавайте: по умолчанию «Услуги» или значение из настройки базы " +
+              "(ODATA_ACCOUNTING_CONFIG, operationKinds.salesAct). Нужен, только если в конфигурации другое значение — не угадывайте.",
+          ),
         sumIncludesVat: z.boolean().default(true).describe("Сумма включает НДС"),
         incomeAccount: incomeAccountField.describe(
           "Счёт доходов для ВСЕХ строк (напр. «90.01.2»); счёт в строке важнее",
@@ -3210,7 +3213,10 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           .min(1)
           .max(100)
           .optional()
-          .describe("Вид операции оплаты покупателя; важнее accounting.operationKinds.customerPayment"),
+          .describe(
+            "Вид операции (ВидОперации). Обычно НЕ задавайте: по умолчанию «ОплатаПокупателя» или значение из настройки " +
+              "базы (ODATA_ACCOUNTING_CONFIG, operationKinds.customerPayment). Нужен, только если в конфигурации другое значение — не угадывайте.",
+          ),
         amount: z.number().positive().describe("Сумма оплаты"),
         orgBankAccount: orgBankAccountField,
         date: z.string().optional().describe("Дата YYYY-MM-DD (по умолчанию сегодня)"),

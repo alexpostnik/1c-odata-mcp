@@ -5,6 +5,13 @@
 
 ## [Не выпущено]
 
+## [0.8.0] — 2026-10-20
+
+Настраиваемый план счетов и виды операций — для конфигураций, отличных от БП РФ (например,
+белорусской). Счета оплат по договору — только в строках расшифровки, как в документах 1С. Без
+настройки поведение прежнее. Обе доработки — от [@alexpostnik](https://github.com/alexpostnik) (PR
+#41, #42).
+
 ### Добавлено
 
 - **Настраиваемый план счетов и виды операций** (`ODATA_ACCOUNTING_CONFIG`, `ODATA_DB_<ИМЯ>_ACCOUNTING_CONFIG`) — план счетов и регистр бухгалтерии, коды счетов по умолчанию, аналитические префиксы, виды операций акта и оплаты; `strictDefaults` отключает российские счета по умолчанию. Без настройки поведение прежнее (проверено сверкой документов на двух базах). Описание — `docs/ACCOUNTING.md`. Автор — **[@alexpostnik](https://github.com/alexpostnik)** (PR #41).
@@ -16,6 +23,8 @@
 ### Прочее
 
 - Публикация на Smithery прекращена: площадка больше не даёт обновлять серверы, карточка там осталась на 0.6.1. Значок убран из README; инструкция по сборке `.mcpb` — в `docs/BUILDING-MCPB.md`.
+- Документация: `docs/ACCOUNTING.md` — для белорусской базы `ODATA_REGULATED_CURRENCY_CODE=933`; README — ограничения по конфигурациям и оплатам.
+- Зависимости: typescript-eslint 8.72.0; `npm audit` — 0 уязвимостей.
 
 ## [0.7.0] — 2026-10-19
 
@@ -576,7 +585,8 @@ POST-тестом (create → read → mark) на реальной базе — 
   коды плана счетов); вежливый фоллбэк при отсутствии объекта в «Составе OData».
 - npm-пакет с запуском через `npx 1c-odata-mcp`.
 
-[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.7.0...HEAD
+[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.5.0...v0.6.0
