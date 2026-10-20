@@ -8794,8 +8794,8 @@
     },
     {
       "name": "write.counterparty.set_group",
-      "title": "Указать группу контрагента или вложенной группы",
-      "description": "Меняет только Parent_Key точного контрагента/группы. parentRef — точная группа или пустой GUID для корня. Проверяет IsFolder, отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
+      "title": "Указать группу отдельного контрагента",
+      "description": "Меняет только Parent_Key отдельного контрагента (subjectKind=counterparty, IsFolder=false). Перемещение самих групп запрещено: безопасность глубины их потомков не проверяется. parentRef — точная группа или пустой GUID для корня. Проверяет отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8810,10 +8810,7 @@
           },
           "subjectKind": {
             "type": "string",
-            "enum": [
-              "counterparty",
-              "group"
-            ]
+            "const": "counterparty"
           },
           "parentRef": {
             "type": "string",
