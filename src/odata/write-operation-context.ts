@@ -37,6 +37,19 @@ export function fingerprintWriteInput(toolName: string, input: Record<string, un
     .digest("hex");
 }
 
+/** Отпечаток выбранных полей записи: ссылки _Key сравниваются без учёта регистра, как при readback. */
+export function fingerprintRecordFields(record: Record<string, unknown>, fields: readonly string[]): string {
+  return fingerprintWriteInput(
+    "recordValues",
+    Object.fromEntries(
+      fields.map((field) => {
+        const value = record[field];
+        return [field, field.endsWith("_Key") && typeof value === "string" ? value.toLowerCase() : value];
+      }),
+    ),
+  );
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => canonicalize(item));
   if (value && typeof value === "object") {

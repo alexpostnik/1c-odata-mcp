@@ -29,6 +29,7 @@ export const bankSettlementInput = {
 };
 const CONTRACT = "ДоговорКонтрагента_Key",
   ACCOUNT = "СчетУчетаРасчетовСКонтрагентом_Key",
+  ADVANCE = "СчетУчетаРасчетовПоАвансам_Key",
   ROWS = "РасшифровкаПлатежа";
 const bankSets: ReadonlySet<string> = new Set([...DOCUMENTS.bankIn, ...DOCUMENTS.bankOut]);
 const same = (a: unknown, b: unknown) =>
@@ -77,12 +78,14 @@ async function verifyAfter(
   send: () => Promise<unknown>,
   read: () => Promise<ODataEntity>,
   expected: ODataEntity,
+  project: (record: ODataEntity) => ODataEntity = (record) => record,
 ): Promise<ODataEntity> {
   await send();
   try {
     const actual = await read();
+    const protectedActual = project(actual);
     for (const [field, value] of Object.entries(expected))
-      if (!same(actual[field], value)) throw new Error(`Поле ${field} не подтверждено`);
+      if (!same(protectedActual[field], value)) throw new Error(`Поле ${field} не подтверждено`);
     if (typeof actual.DataVersion !== "string" || !actual.DataVersion)
       throw new Error("Версия результата неизвестна");
     return actual;
@@ -94,6 +97,23 @@ async function verifyAfter(
       cause,
     });
   }
+}
+// Contract-dependent rate/settlement totals may be recalculated by 1C. Payment amounts,
+// tax, cash-flow and expense analytics remain protected, including every other row field.
+const recalculatedRowFields = new Set([
+  "КурсВзаиморасчетов",
+  "КратностьВзаиморасчетов",
+  "СуммаВзаиморасчетов",
+]);
+function protectedSettlementResult(record: ODataEntity): ODataEntity {
+  // No header recalculation is established: preserve every observed published business field.
+  // The caller projects metadata first; DataVersion alone is expected to change.
+  const result = Object.fromEntries(Object.entries(record).filter(([field]) => field !== "DataVersion"));
+  if (Array.isArray(record[ROWS]))
+    result[ROWS] = (record[ROWS] as ODataEntity[]).map((row) =>
+      Object.fromEntries(Object.entries(row).filter(([field]) => !recalculatedRowFields.has(field))),
+    );
+  return result;
 }
 /** Applies the saved contract/account; explicit CP may fill only a zero GUID. Other fields stay intact. */
 export async function applyBankSettlementSettings(
@@ -113,15 +133,23 @@ export async function applyBankSettlementSettings(
     [CONTRACT]: "Edm.Guid",
     [ACCOUNT]: "Edm.Guid",
     Организация_Key: "Edm.Guid",
-    Контрагент_Key: "Edm.Guid",
     ВалютаДокумента_Key: "Edm.Guid",
     ВидОперации: "Edm.String",
   });
   const org = exactRef.parse(doc.Организация_Key),
     currency = exactRef.parse(doc.ВалютаДокумента_Key);
+  // Resolve the published representation; never guess a composite reference's type.
+  const props = new Map(meta.properties.map((field) => [field.name, field.type]));
+  const cpField = props.get("Контрагент_Key") === "Edm.Guid" ? "Контрагент_Key" : "Контрагент";
+  if (cpField === "Контрагент") {
+    requireTypes(meta, { Контрагент: "Edm.String", Контрагент_Type: "Edm.String" });
+    const cpSet = resolveEntity(CATALOGS.counterparties, new Set((await conn.getMetadata()).entities.keys()));
+    if (!cpSet || doc.Контрагент_Type !== `StandardODATA.${cpSet}`)
+      throw new InputError("Составная ссылка контрагента имеет неизвестный или неподдержанный тип.");
+  }
   // Only an observed zero GUID is empty; missing, null or malformed values remain unknown.
-  const fillCounterparty = doc.Контрагент_Key === EMPTY_GUID;
-  const cp = fillCounterparty ? p.counterpartyRef : exactRef.parse(doc.Контрагент_Key);
+  const fillCounterparty = doc[cpField] === EMPTY_GUID;
+  const cp = fillCounterparty ? p.counterpartyRef : exactRef.parse(doc[cpField]);
   if (!cp)
     throw new InputError(
       "Контрагент документа пуст: требуется явный counterpartyRef; подбор по договору запрещён.",
@@ -151,12 +179,15 @@ export async function applyBankSettlementSettings(
     contract.DeletionMark !== false ||
     contract.IsFolder !== false ||
     String(contract.Owner_Key).toLowerCase() !== cp ||
-    String(contract.Организация_Key).toLowerCase() !== org ||
-    String(contract.ВалютаВзаиморасчетов_Key).toLowerCase() !== currency
+    String(contract.Организация_Key).toLowerCase() !== org
   )
     throw new InputError(
       "Договор удалён, является группой или не совпадает по владельцу/организации/валюте документа.",
     );
+  if (contract.РасчетыВУсловныхЕдиницах === true)
+    throw new InputError("Расчёты в условных единицах этим инструментом не поддерживаются.");
+  if (String(contract.ВалютаВзаиморасчетов_Key).toLowerCase() !== currency)
+    throw new InputError("Валюта договора не совпадает с валютой документа.");
   const side = settlementSideOf(contract.ВидДоговора);
   if ((side && side !== p.side) || (!side && contract.ВидДоговора !== "Прочее"))
     throw new InputError("Сторона расчётов не соответствует виду договора.");
@@ -164,11 +195,11 @@ export async function applyBankSettlementSettings(
   const incoming = (DOCUMENTS.bankIn as readonly string[]).includes(p.entitySet);
   if (
     (incoming && ["ОплатаПоставщику", "ПрочееСписание"].includes(operation)) ||
-    (!incoming && ["ОплатаОтПокупателя", "ПрочееПоступление"].includes(operation))
+    (!incoming && ["ОплатаПокупателя", "ПрочееПоступление"].includes(operation))
   )
     throw new InputError("Вид операции не соответствует направлению банковского документа.");
   if (
-    !/^(ОплатаПоставщику|ОплатаОтПокупателя|РасчетыПоКредитамИЗаймам|ПрочееСписание|ПрочееПоступление)$/.test(
+    !/^(ОплатаПоставщику|ОплатаПокупателя|РасчетыПоКредитамИЗаймам|ПрочееСписание|ПрочееПоступление)$/.test(
       operation,
     ) ||
     (/Поставщик/.test(operation) && p.side !== "supplier") ||
@@ -181,6 +212,7 @@ export async function applyBankSettlementSettings(
     { contract },
   );
   const accountRef = exactRef.parse(resolution.choice?.settle);
+  const advanceRef = resolution.choice?.advance ? exactRef.parse(resolution.choice.advance) : undefined;
   const chart = resolveEntity(accountingChart(conn.cfg), available);
   if (!chart) throw new InputError("План счетов не опубликован.");
   requireTypes(md.entities.get(chart), {
@@ -189,20 +221,25 @@ export async function applyBankSettlementSettings(
     DeletionMark: "Edm.Boolean",
     ЗапретитьИспользоватьВПроводках: "Edm.Boolean",
   });
-  const account = await conn.client.getEntity(`${chart}(${odataGuid(accountRef)})?$format=json`);
-  if (
-    String(account.Ref_Key).toLowerCase() !== accountRef ||
-    account.DeletionMark !== false ||
-    account.IsFolder === true ||
-    account.ЗапретитьИспользоватьВПроводках !== false ||
-    typeof account.Code !== "string" ||
-    !account.Code
-  )
-    throw new InputError("Выбранный счёт отсутствует, удалён или запрещён для проводок.");
+  const accounts = [];
+  for (const ref of new Set([accountRef, ...(advanceRef ? [advanceRef] : [])])) {
+    const account = await conn.client.getEntity(`${chart}(${odataGuid(ref)})?$format=json`);
+    if (
+      String(account.Ref_Key).toLowerCase() !== ref ||
+      account.DeletionMark !== false ||
+      account.IsFolder === true ||
+      account.ЗапретитьИспользоватьВПроводках !== false ||
+      typeof account.Code !== "string" ||
+      !account.Code
+    )
+      throw new InputError("Выбранный счёт отсутствует, удалён или запрещён для проводок.");
+    accounts.push(account);
+  }
   const payload: ODataEntity = {
     [CONTRACT]: p.contractRef,
     [ACCOUNT]: accountRef,
-    ...(fillCounterparty ? { Контрагент_Key: cp } : {}),
+    ...(fillCounterparty ? { [cpField]: cp } : {}),
+    ...(advanceRef && props.get(ADVANCE) === "Edm.Guid" ? { [ADVANCE]: advanceRef } : {}),
   };
   if (!meta.properties.some((p) => p.name === ROWS))
     throw new InputError("Расшифровка платежа не опубликована; изменение запрещено.");
@@ -224,7 +261,21 @@ export async function applyBankSettlementSettings(
       throw new InputError(
         "Строка не соответствует договору шапки или содержит неопубликованные поля; изменение запрещено.",
       );
-    payload[ROWS] = [{ ...r, [CONTRACT]: p.contractRef, [ACCOUNT]: accountRef }];
+    const rowHasAdvance = rowMeta!.properties.some(
+      (field) => field.name === ADVANCE && field.type === "Edm.Guid",
+    );
+    if (rowHasAdvance && !advanceRef && /^(ОплатаПокупателя|ОплатаПоставщику)$/.test(operation))
+      throw new InputError(
+        "Счёт авансов не найден: смена договора не должна сохранять счёт прежнего договора.",
+      );
+    payload[ROWS] = [
+      {
+        ...r,
+        [CONTRACT]: p.contractRef,
+        [ACCOUNT]: accountRef,
+        ...(rowHasAdvance && advanceRef ? { [ADVANCE]: advanceRef } : {}),
+      },
+    ];
   }
   const headers = { "If-Match": p.expectedDataVersion };
   const prepared = {
@@ -236,7 +287,8 @@ export async function applyBankSettlementSettings(
     observedDocument: published(doc, meta),
     observedContract: contract,
     ...(observedCounterparty ? { observedCounterparty } : {}),
-    account,
+    account: accounts[0],
+    accounts,
   };
   if (!confirm) {
     await conn.client.prepareCreate(p.entitySet, prepared, { withRefKey: false });
@@ -249,7 +301,8 @@ export async function applyBankSettlementSettings(
       verifyAfter(
         () => conn.client.request(path, "PATCH", payload, headers),
         () => conn.client.getEntity(path),
-        { ...published(doc, meta), ...payload },
+        protectedSettlementResult({ ...published(doc, meta), ...payload }),
+        protectedSettlementResult,
       ),
     { kind: "documentState", ref: p.ref },
   );

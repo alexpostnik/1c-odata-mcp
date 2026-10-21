@@ -44,6 +44,17 @@ describe("fromHttpStatus — классификация HTTP-ошибок OData"
   // Тексты ответов 1С сняты с живой базы (БП 3.0).
   const odata404 = (value: string) =>
     JSON.stringify({ "odata.error": { code: "-1", message: { lang: "ru", value } } });
+  it("500 «Нарушение прав доступа!» — нет прав в 1С: однозначный отказ, не повторяется", () => {
+    // Снято с живой базы: запись регистра пользователем OData без прав на него.
+    const e = fromHttpStatus(500, "url", odata404("Нарушение прав доступа!"));
+    expect(e.kind).toBe("auth");
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain("Нет прав в 1С");
+    expect(e.message).toContain("Нарушение прав доступа!");
+  });
+  it("прочие 500 остаются сбоем сервера", () => {
+    expect(fromHttpStatus(500, "url", odata404("Не удалось записать")).kind).toBe("server");
+  });
   it("404 «Сущность не найдена» — набор не опубликован: подсказка про «Состав»", () => {
     const e = fromHttpStatus(404, "url", odata404("Сущность 'InformationRegister_Х' не найдена"));
     expect(e.kind).toBe("not_found");

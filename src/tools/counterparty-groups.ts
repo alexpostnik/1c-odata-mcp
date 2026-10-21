@@ -58,27 +58,34 @@ async function writeGroupOperation(
     await conn.client.prepareCreate(set, operation, { withRefKey: false });
     return { dryRun: true, database: conn.cfg.name, entitySet: set, recordPath, ...operation };
   }
-  const record = await conn.client.writeRecordOnce(set, operation, async () => {
-    await conn.client.request(path, method, payload, headers);
-    try {
-      const actual = await conn.client.getEntity(`${recordPath}?$format=json`);
-      for (const [name, value] of Object.entries(expected)) {
-        const equal =
-          name.endsWith("_Key") && typeof value === "string"
-            ? String(actual[name]).toLowerCase() === value.toLowerCase()
-            : JSON.stringify(actual[name]) === JSON.stringify(value);
-        if (!equal) throw new Error(`Field mismatch: ${name}`);
+  const record = await conn.client.writeRecordOnce(
+    set,
+    operation,
+    async () => {
+      await conn.client.request(path, method, payload, headers);
+      try {
+        const actual = await conn.client.getEntity(`${recordPath}?$format=json`);
+        for (const [name, value] of Object.entries(expected)) {
+          const equal =
+            name.endsWith("_Key") && typeof value === "string"
+              ? String(actual[name]).toLowerCase() === value.toLowerCase()
+              : JSON.stringify(actual[name]) === JSON.stringify(value);
+          if (!equal) throw new Error(`Field mismatch: ${name}`);
+        }
+        return { ...actual, RecordPath: recordPath };
+      } catch (cause) {
+        throw new ODataError({
+          kind: "unknown",
+          message:
+            "Контрольное чтение группы/принадлежности не подтвердило результат; повторная запись запрещена, требуется ручная сверка.",
+          cause,
+        });
       }
-      return { ...actual, RecordPath: recordPath };
-    } catch (cause) {
-      throw new ODataError({
-        kind: "unknown",
-        message:
-          "Контрольное чтение группы/принадлежности не подтвердило результат; повторная запись запрещена, требуется ручная сверка.",
-        cause,
-      });
-    }
-  });
+    },
+    method === "POST"
+      ? { kind: "createdRef", ref: String(payload.Ref_Key) }
+      : { kind: "manual", target: "counterpartyGroup" },
+  );
   return { updated: true, verified: true, database: conn.cfg.name, entitySet: set, recordPath, record };
 }
 

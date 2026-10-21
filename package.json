@@ -35,7 +35,8 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "npm run build && node --eval \"require('fs').rmSync('dist/scripts',{recursive:true,force:true})\"",
     "manifest": "npm run build && node dist/scripts/gen-manifest.js",
-    "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js"
+    "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js",
+    "snapshot:metadata": "npm run build && node --env-file=.env dist/scripts/snapshot-metadata.js"
   },
   "keywords": [
     "mcp",

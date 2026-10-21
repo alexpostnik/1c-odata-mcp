@@ -4,7 +4,7 @@ import type { ODataEntity } from "../types/odata.js";
 import { fetchAll } from "./pagination.js";
 import { and, cmp, odataGuid, or, buildQuery } from "./query.js";
 import { InputError } from "../errors.js";
-import { counterpartyAncestors } from "./counterparty-hierarchy.js";
+import { counterpartyAncestors, EMPTY_GUID } from "./counterparty-hierarchy.js";
 
 /**
  * Счета расчётов и авансов с контрагентом из регистра «Счета учёта расчётов с контрагентами».
@@ -15,7 +15,6 @@ import { counterpartyAncestors } from "./counterparty-hierarchy.js";
  * с учётом вида расчётов договора. Native порядок вложенных групп не подтверждён.
  */
 
-const EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
 const norm = (g: unknown): string | undefined => {
   const s = typeof g === "string" ? g.toLowerCase() : "";
   return s && s !== EMPTY_GUID ? s : undefined;
@@ -201,9 +200,11 @@ export async function settlementAccountsFor(
   if (!reg || !side) return { published: !!reg, side, kind };
   const orgKey = p.orgKey ?? norm(contract["Организация_Key"]);
   const counterpartyRef = norm(contract["Owner_Key"]);
-  if (!counterpartyRef)
+  if (mutation && !counterpartyRef)
     throw new InputError("Владелец договора неизвестен: иерархию контрагента нельзя проверить.");
-  const { groupRefs } = await counterpartyAncestors(conn, counterpartyRef);
+  // Existing creation keeps its original contract/individual/organization lookup and call count.
+  // Only the explicitly requested mutation follows the current group hierarchy.
+  const groupRefs = mutation ? (await counterpartyAncestors(conn, counterpartyRef!)).groupRefs : [];
   const anyOf = (field: string, ref: string | undefined) =>
     ref
       ? or(cmp(field, "eq", odataGuid(ref)), cmp(field, "eq", odataGuid(EMPTY_GUID)))
@@ -214,14 +215,14 @@ export async function settlementAccountsFor(
     {
       filter: and(
         `(${anyOf("Договор_Key", p.contractRef)})`,
-        `(${or(...[counterpartyRef, ...groupRefs, EMPTY_GUID].map((ref) => cmp("Контрагент_Key", "eq", odataGuid(ref))))})`,
+        `(${or(...[...(counterpartyRef ? [counterpartyRef] : []), ...groupRefs, EMPTY_GUID].map((ref) => cmp("Контрагент_Key", "eq", odataGuid(ref))))})`,
         `(${anyOf("Организация_Key", orgKey)})`,
       ),
     },
     conn.behavior.pageSize,
     500,
   );
-  if (truncated)
+  if (mutation && truncated)
     throw new InputError("Список настроек счетов усечён лимитом 500; выбор из неполных данных запрещён.");
   return {
     published: true,

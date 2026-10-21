@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +35,14 @@ afterEach(async () => {
 
 async function fixture(
   existing?: ODataEntity,
-  options: { readOnly?: boolean; writable?: boolean; versionless?: boolean } = {},
+  options: {
+    readOnly?: boolean;
+    writable?: boolean;
+    versionless?: boolean;
+    currencyCode?: string;
+    perBaseCurrency?: string;
+    globalCurrency?: string;
+  } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), "settings-test-"));
   dirs.push(dir);
@@ -45,11 +53,19 @@ async function fixture(
     READ_ONLY: String(options.readOnly ?? false),
     ODATA_WRITABLE: String(options.writable ?? true),
     WRITE_JOURNAL_DIR: dir,
-    ODATA_REGULATED_CURRENCY_CODE: "933",
+    ODATA_REGULATED_CURRENCY_CODE: options.globalCurrency ?? "933",
+    ...(options.perBaseCurrency
+      ? {
+          ODATA_DB_DEFAULT_BASE_URL: "https://example.invalid/odata/",
+          ODATA_DB_DEFAULT_USERNAME: "synthetic",
+          ODATA_DB_DEFAULT_PASSWORD: "synthetic",
+          ODATA_DB_DEFAULT_REGULATED_CURRENCY_CODE: options.perBaseCurrency,
+        }
+      : {}),
   });
   const conn = new Connection(
     { ...cfg.connections[0]!, writable: options.writable ?? true },
-    { ...cfg.behavior, regulatedCurrencyCode: "933", writeJournalDir: dir },
+    { ...cfg.behavior, writeJournalDir: dir },
   );
   const props = [
     ...dimensions,
@@ -116,7 +132,7 @@ async function fixture(
       if (path.startsWith("Catalog_Контрагенты")) return subject as never;
       if (path.startsWith("Catalog_Организации")) return organization as never;
       if (path.startsWith("Catalog_Договоры")) return contract as never;
-      if (path.startsWith("Catalog_Валюты")) return { Code: "933" } as never;
+      if (path.startsWith("Catalog_Валюты")) return { Code: options.currencyCode ?? "933" } as never;
       if (path.startsWith("ChartOfAccounts_"))
         return { value: [{ Ref_Key: ACCOUNT, Code: "66.2", Description: "Synthetic" }] } as never;
       if (path.startsWith(REG)) {
@@ -200,6 +216,18 @@ const saved = () => ({
 });
 
 describe("exact contract saved settlement settings", () => {
+  it("reads regulated BYN933 and RUB643 settings in the same process without changing global fallback", async () => {
+    const by = await fixture(saved(), { globalCurrency: "643", perBaseCurrency: "933", currencyCode: "933" });
+    const ru = await fixture(saved(), { globalCurrency: "643", currencyCode: "643" });
+    for (const f of [by, ru]) {
+      const result = await f.run({}, true);
+      expect(result.isError, JSON.stringify(result)).toBeFalsy();
+      expect(data(result).found).toBe(true);
+      expect(f.writes).toEqual([]);
+    }
+    expect(by.conn.behavior.regulatedCurrencyCode).toBe("933");
+    expect(ru.conn.behavior.regulatedCurrencyCode).toBe("643");
+  });
   it("reads exact compound-key row without inherited defaults", async () => {
     const f = await fixture(saved());
     const r = await f.run({}, true);
@@ -681,4 +709,62 @@ describe("saved settings without metadata DataVersion", () => {
     );
     expect(f.writes).toEqual([]);
   });
+});
+
+it("actual Belarus register schema requires honest singleWriter update without If-Match", async () => {
+  const f = await fixture({ ...key, [resources[0]!]: OTHER, [resources[2]!]: OTHER }, { versionless: true });
+  const schema = JSON.parse(
+    readFileSync(new URL("./fixtures/metadata/belarus-2.1.json", import.meta.url), "utf8"),
+  ) as { entities: Array<{ entitySet: string; keys: string[]; properties: EntityMeta["properties"] }> };
+  const actual = schema.entities.find((e) => e.entitySet === REG)!;
+  f.entities.set(REG, { ...f.meta, ...actual });
+  const blocked = await f.run({ mode: "update" });
+  expect(blocked.isError).toBe(true);
+  const p = await f.run({ mode: "update", singleWriter: true });
+  expect(p.isError, JSON.stringify(p)).toBeFalsy();
+  expect(data(p).concurrency).toBe("singleWriter");
+  expect(
+    (await f.run({ mode: "update", singleWriter: true, confirm: true, operationId: data(p).operationId }))
+      .isError,
+  ).toBeFalsy();
+  expect(f.writes[0]?.headers).toEqual({});
+});
+
+it.each(["create", "update"] as const)(
+  "reconciles lost register %s by exact compound key and normalized values without resend",
+  async (mode) => {
+    const before = { ...saved(), СчетПрочихРасчетов_Key: "abcdefab-cdef-4abc-8def-abcdefabcdef" };
+    const f = await fixture(mode === "update" ? before : undefined);
+    const args = { mode, ...(mode === "update" ? { expectedDataVersion: "v1" } : {}) };
+    const p = await f.run(args);
+    const operationId = String(data(p).operationId);
+    f.failWrite(new ODataError({ kind: "timeout", message: "Synthetic lost response" }));
+    expect((await f.run({ ...args, confirm: true, operationId })).isError).toBe(true);
+    const expected = {
+      ...(mode === "update"
+        ? { ...before, СчетПрочихРасчетов_Key: before.СчетПрочихРасчетов_Key.toUpperCase() }
+        : key),
+      [resources[2]!]: ACCOUNT,
+    };
+    f.setRow(expected);
+    const status = await f.status(operationId);
+    expect(data(status).status).toBe("found_reconciled");
+    expect(data(status).recordPath).toContain("Организация_Key=guid'");
+    expect((await f.conn.client.operationEntry(operationId))?.state).toBe("succeeded");
+    expect((await f.run({ ...args, confirm: true, operationId })).isError).toBeFalsy();
+    expect(f.writes).toHaveLength(1);
+  },
+);
+it.each(["missing", "different"])("keeps %s register result held after a lost response", async (reason) => {
+  const f = await fixture();
+  const p = await f.run();
+  const operationId = String(data(p).operationId);
+  f.failWrite(new ODataError({ kind: "timeout", message: "Synthetic lost response" }));
+  await f.run({ confirm: true, operationId });
+  if (reason === "different") f.setRow({ ...key, [resources[2]!]: OTHER });
+  const status = await f.status(operationId);
+  expect(data(status).status).toBe("unverifiable");
+  expect((await f.conn.client.operationEntry(operationId))?.state).toBe("outcome_unknown");
+  expect((await f.run({ confirm: true, operationId })).isError).toBe(true);
+  expect(f.writes).toHaveLength(1);
 });

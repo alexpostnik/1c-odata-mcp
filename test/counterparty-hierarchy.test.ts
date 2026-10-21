@@ -18,6 +18,13 @@ function fixture() {
     type: name.endsWith("_Key") ? "Edm.Guid" : "Edm.Boolean",
   }));
   const entities = new Map([[CAT, { properties }]]);
+  const contract = {
+    Owner_Key: CP,
+    Организация_Key: CP,
+    ВидДоговора: "СПокупателем",
+    ВалютаВзаиморасчетов_Key: CP,
+    РасчетыВУсловныхЕдиницах: false,
+  };
   const getEntity = vi.fn(async (path: string) => {
     if (path.startsWith(CAT)) {
       const ref = path.match(/guid'([^']+)'/)![1]!;
@@ -25,7 +32,7 @@ function fixture() {
       return rows.get(ref)!;
     }
     if (path.startsWith("Catalog_Валюты")) return { Code: "643" };
-    return { Owner_Key: CP, Организация_Key: CP, ВидДоговора: "СПокупателем", ВалютаВзаиморасчетов_Key: CP };
+    return contract;
   });
   const getCollection = vi.fn(async () => ({ value: [] as object[] }));
   const conn = {
@@ -34,7 +41,7 @@ function fixture() {
     behavior: { pageSize: 100 },
     client: { getEntity, getCollection },
   } as never;
-  return { rows, properties, conn, getEntity, getCollection };
+  return { rows, properties, conn, contract, getEntity, getCollection };
 }
 describe("current bounded counterparty ancestors", () => {
   it("reads current parent each time and never caches old membership", async () => {
@@ -53,7 +60,9 @@ describe("current bounded counterparty ancestors", () => {
       if (reason === "individual parent") f.rows.get(G)!.IsFolder = false;
       if (reason === "unknown parent") delete f.rows.get(CP)!.Parent_Key;
       if (reason === "schema") f.properties.pop();
-      await expect(settlementAccountsFor(f.conn, { contractRef: CP })).rejects.toThrow();
+      await expect(
+        settlementAccountsFor(f.conn, { contractRef: CP }, { contract: f.contract }),
+      ).rejects.toThrow();
       expect(f.getCollection).not.toHaveBeenCalled();
     },
   );
@@ -71,7 +80,9 @@ describe("current bounded counterparty ancestors", () => {
   it("queries only current ancestors and refuses truncated register rows", async () => {
     const f = fixture();
     f.getCollection.mockResolvedValue({ value: Array.from({ length: 100 }, () => ({})) });
-    await expect(settlementAccountsFor(f.conn, { contractRef: CP })).rejects.toThrow("усечён");
+    await expect(
+      settlementAccountsFor(f.conn, { contractRef: CP }, { contract: f.contract }),
+    ).rejects.toThrow("усечён");
     const query = decodeURIComponent(f.getCollection.mock.calls[0]![0] ?? "");
     expect(query).toContain(G);
     expect(query).toContain(FAR);

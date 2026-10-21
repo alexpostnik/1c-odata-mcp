@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,7 @@ import { Connection } from "../src/context.js";
 import { parseConfig } from "../src/config/env.js";
 import { createServer } from "../src/mcp/server.js";
 import { ODataError } from "../src/odata/errors.js";
+import { bp30Metadata, bp30Enums } from "./helpers/metadata-snapshot.js";
 import { settlementAccountsFor } from "../src/odata/settlement-accounts.js";
 import type { EntityMeta, ODataEntity } from "../src/types/odata.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -108,6 +110,7 @@ async function fixture(entitySet = SET) {
       Договор_Key: EMPTY,
       ВидРасчетовПоДоговору: "РасчетыВВалютеРегламентированногоУчета",
       СчетУчетаРасчетовСПоставщиком_Key: ACCOUNT,
+      СчетУчетаАвансовВыданных_Key: ACCOUNT,
     },
   ];
   const meta = (
@@ -162,6 +165,7 @@ async function fixture(entitySet = SET) {
   ]);
   vi.spyOn(conn, "getMetadata").mockResolvedValue({ entities, odataVersion: "3.0" });
   let failure: "write" | "readback" | undefined;
+  let readbackChange: object = {};
   let currency: ODataEntity | Error = { Code: "933" };
   const contractReads: string[] = [];
   const writes: Array<{ path: string; method: string; body: unknown; headers: unknown }> = [];
@@ -171,7 +175,7 @@ async function fixture(entitySet = SET) {
       if (failure === "write") throw new ODataError({ kind: "timeout", message: "Synthetic timeout" });
       if (path.includes("/Unpost")) doc = { ...doc, Posted: false, DataVersion: "v2" };
       else if (path.includes("/Post")) doc = { ...doc, Posted: true, DataVersion: "v2" };
-      else doc = { ...doc, ...(body as object), DataVersion: "v2" };
+      else doc = { ...doc, ...(body as object), ...readbackChange, DataVersion: "v2" };
       return {} as never;
     }
     if (path.startsWith(entitySet)) {
@@ -234,6 +238,7 @@ async function fixture(entitySet = SET) {
     setSettings: (v: ODataEntity[]) => (settings = v),
     setCurrency: (v: typeof currency) => (currency = v),
     settings: () => settings,
+    changeOnWrite: (v: object) => (readbackChange = v),
     fail: (v: typeof failure) => (failure = v),
   };
 }
@@ -256,7 +261,14 @@ describe("existing bank inherited settlement", () => {
       DataVersion: "v2",
       [CONTRACT]: CTR,
       [ACCOUNT_FIELD]: ACCOUNT,
-      [ROWS]: [{ ...(before[ROWS] as object[])[0], [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT }],
+      [ROWS]: [
+        {
+          ...(before[ROWS] as object[])[0],
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+        },
+      ],
     });
     expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
     expect(f.writes).toHaveLength(1);
@@ -265,7 +277,12 @@ describe("existing bank inherited settlement", () => {
     const f = await fixture();
     f.setSettings([
       ...f.settings(),
-      { ...f.settings()[0], Контрагент_Key: CP, СчетУчетаРасчетовСПоставщиком_Key: OLD },
+      {
+        ...f.settings()[0],
+        Контрагент_Key: CP,
+        СчетУчетаРасчетовСПоставщиком_Key: OLD,
+        СчетУчетаАвансовВыданных_Key: OLD,
+      },
     ]);
     f.setAccount({ Ref_Key: OLD });
     expect(data(await f.run()).resolution).toMatchObject({ choice: { settle: OLD, level: "контрагент" } });
@@ -377,7 +394,14 @@ describe("explicit counterparty for an empty bank document", () => {
         Контрагент_Key: CP,
         [CONTRACT]: CTR,
         [ACCOUNT_FIELD]: ACCOUNT,
-        [ROWS]: [{ ...(before[ROWS] as object[])[0], [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT }],
+        [ROWS]: [
+          {
+            ...(before[ROWS] as object[])[0],
+            [CONTRACT]: CTR,
+            [ACCOUNT_FIELD]: ACCOUNT,
+            СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          },
+        ],
       };
       expect(data(p).payload).toEqual(expectedPayload);
       expect(f.writes).toEqual([]);
@@ -484,6 +508,7 @@ describe("explicit counterparty for an empty bank document", () => {
 describe("existing bank mutation currency evidence", () => {
   it("preserves the legacy resolver fallback when strict mutation mode is absent", async () => {
     const f = await fixture();
+    f.setSettings([{ ...f.settings()[0], Контрагент_Key: CP }]);
     f.setCurrency(new ODataError({ kind: "auth", message: "Synthetic legacy lookup failure" }));
     f.setContract({ РасчетыВУсловныхЕдиницах: undefined });
     expect(
@@ -535,7 +560,6 @@ describe("existing bank mutation currency evidence", () => {
   it.each([
     { code: " 933 ", conditional: false, kind: "РасчетыВВалютеРегламентированногоУчета" },
     { code: "840", conditional: false, kind: "РасчетыВИностраннойВалюте" },
-    { code: "840", conditional: true, kind: "РасчетыВУсловныхЕдиницах" },
   ])("previews and confirms known classification $kind", async ({ code, conditional, kind }) => {
     const f = await fixture();
     f.setCurrency({ Code: code });
@@ -553,7 +577,7 @@ describe("existing bank mutation currency evidence", () => {
     expect((await f.run()).isError).toBe(true);
     expect(f.writes).toEqual([]);
   });
-  it("requires currency code evidence even when conditional units are true", async () => {
+  it("rejects conditional units even when currency code is missing", async () => {
     const f = await fixture();
     f.setContract({ РасчетыВУсловныхЕдиницах: true });
     f.setSettings([{ ...f.settings()[0], ВидРасчетовПоДоговору: "РасчетыВУсловныхЕдиницах" }]);
@@ -633,5 +657,266 @@ describe("version guarded separate Post/Unpost", () => {
     expect((await f.conn.client.operationEntry(data(p).operationId as string))?.state).toBe(
       "outcome_unknown",
     );
+  });
+});
+
+describe("PR43 real BP30 compatibility and bounded readback", () => {
+  it.each([
+    { set: SET, operation: "ОплатаПокупателя", side: "customer", kind: "СПокупателем" },
+    {
+      set: "Document_СписаниеСРасчетногоСчета",
+      operation: "ОплатаПоставщику",
+      side: "supplier",
+      kind: "СПоставщиком",
+    },
+  ])("previews $side with actual BP30 metadata and enum", async ({ set, operation, side, kind }) => {
+    const f = await fixture(set);
+    vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+    f.setDoc({
+      Контрагент: CP,
+      Контрагент_Type: "StandardODATA.Catalog_Контрагенты",
+      ВидОперации: operation,
+      [ROWS]: [
+        {
+          LineNumber: "1",
+          [CONTRACT]: OLD,
+          [ACCOUNT_FIELD]: OLD,
+          СчетУчетаРасчетовПоАвансам_Key: OLD,
+          СуммаПлатежа: 150,
+        },
+      ],
+    });
+    f.setContract({ ВидДоговора: kind });
+    f.setSettings([
+      {
+        ...f.settings()[0],
+        СчетУчетаРасчетовСПокупателем_Key: ACCOUNT,
+        СчетУчетаАвансовПолученных_Key: ACCOUNT,
+        СчетУчетаАвансовВыданных_Key: ACCOUNT,
+      },
+    ]);
+    expect([...bp30Enums().values()].some((values) => values.has(operation))).toBe(true);
+    const p = await f.run({ side });
+    expect(p.isError, JSON.stringify(p)).toBeFalsy();
+    expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+      { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+    ]);
+    expect((await f.run({ side, confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+  });
+  it("changes both saved settlement and advance accounts in the payment row", async () => {
+    const f = await fixture();
+    f.setSettings([{ ...f.settings()[0], СчетУчетаАвансовВыданных_Key: ACCOUNT }]);
+    const p = await f.run();
+    expect(p.isError).toBeFalsy();
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+      { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+    ]);
+  });
+  it.each([CUR, OLD])(
+    "rejects every conditional-unit contract before currency/settings lookup (%s)",
+    async (contractCurrency) => {
+      const f = await fixture();
+      f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: contractCurrency });
+      f.setCurrency(new ODataError({ kind: "auth", message: "must not read currency" }));
+      const r = await f.run();
+      expect(r.isError).toBe(true);
+      expect(JSON.stringify(r)).toContain("Расчёты в условных единицах этим инструментом не поддерживаются");
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it("accepts recalculated settlement rate fields while protecting payment amount", async () => {
+    const f = await fixture();
+    const p = await f.run();
+    const row = (f.doc()[ROWS] as ODataEntity[])[0]!;
+    f.changeOnWrite({
+      [ROWS]: [
+        {
+          ...row,
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          КурсВзаиморасчетов: 2,
+          КратностьВзаиморасчетов: 1,
+          СуммаВзаиморасчетов: 75,
+        },
+      ],
+    });
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+  });
+  it.each([{ СуммаДокумента: 151 }, { НазначениеПлатежа: "changed" }, { СубконтоДт1: "lost" }])(
+    "holds changed protected business field %j",
+    async (change) => {
+      const f = await fixture();
+      const p = await f.run();
+      f.changeOnWrite(change);
+      expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
+      expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe(
+        "outcome_unknown",
+      );
+    },
+  );
+  it("legacy lookup skips hierarchy entirely even if metadata or CP state is unsuitable", async () => {
+    const f = await fixture();
+    f.entities.delete("Catalog_Контрагенты");
+    f.setCounterparty({ DeletionMark: true });
+    const get = vi.spyOn(f.conn.client, "getEntity");
+    const r = await settlementAccountsFor(f.conn, { orgKey: ORG, contractRef: CTR, side: "supplier" });
+    expect(r.kind).toBe("РасчетыВВалютеРегламентированногоУчета");
+    expect(get.mock.calls.filter(([path]) => path.startsWith("Catalog_Контрагенты"))).toHaveLength(0);
+  });
+});
+
+const belarusSchema = JSON.parse(
+  readFileSync(new URL("./fixtures/metadata/belarus-2.1.json", import.meta.url), "utf8"),
+) as {
+  entities: Array<{ entitySet: string; keys: string[]; properties: EntityMeta["properties"] }>;
+};
+describe("actual Belarus 2.1 schema (platform 8.3.25), synthetic business values", () => {
+  it.each([SET, "Document_СписаниеСРасчетногоСчета"])(
+    "keeps GUID CP and Other/loan mode for %s",
+    async (set) => {
+      const f = await fixture(set);
+      for (const entity of belarusSchema.entities) {
+        const prior = f.entities.get(entity.entitySet);
+        f.entities.set(entity.entitySet, {
+          ...prior,
+          ...entity,
+          entityType: entity.entitySet,
+          shortName: entity.entitySet,
+          navigations: [],
+          class: entity.entitySet.startsWith("Document_")
+            ? "document"
+            : entity.entitySet.startsWith("InformationRegister_")
+              ? "informationRegister"
+              : "catalog",
+        });
+      }
+      const rowMeta = f.entities.get(`${set}_${ROWS}`)!;
+      f.setDoc({
+        ВидОперации: set === SET ? "ПрочееПоступление" : "ПрочееСписание",
+        [ROWS]: [
+          (f.doc()[ROWS] as ODataEntity[]).map((row) =>
+            Object.fromEntries(
+              Object.entries(row).filter(([field]) => rowMeta.properties.some((p) => p.name === field)),
+            ),
+          )[0],
+        ],
+      });
+      const p = await f.run();
+      expect(p.isError, JSON.stringify(p)).toBeFalsy();
+      expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+        { [ACCOUNT_FIELD]: ACCOUNT, СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+      ]);
+      expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+      expect(f.doc().Контрагент_Key).toBe(CP);
+      expect(data(p).resolution).toMatchObject({
+        choice: { settle: ACCOUNT, provenance: { settle: { level: "группа" } } },
+      });
+    },
+  );
+});
+
+it("legacy lookup keeps its bounded register fallback instead of rejecting 500 rows", async () => {
+  const f = await fixture();
+  f.setSettings(Array.from({ length: 500 }, () => ({ ...f.settings()[0], Контрагент_Key: CP })));
+  expect(
+    await settlementAccountsFor(f.conn, { orgKey: ORG, contractRef: CTR, side: "supplier" }),
+  ).toMatchObject({ choice: { settle: ACCOUNT } });
+});
+it.each(["StandardODATA.Catalog_ФизическиеЛица", "", undefined])(
+  "rejects unknown composite counterparty discriminator %s",
+  async (type) => {
+    const f = await fixture();
+    vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+    f.setDoc({ Контрагент: CP, Контрагент_Type: type });
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  },
+);
+it("validates the inherited advance account as well as the settlement account", async () => {
+  const f = await fixture();
+  f.setSettings([{ ...f.settings()[0], СчетУчетаАвансовВыданных_Key: OLD }]);
+  expect((await f.run()).isError).toBe(true);
+  expect(f.writes).toEqual([]);
+});
+it("holds when server changes row payment, tax or cash-flow analytics", async () => {
+  for (const change of [{ СуммаПлатежа: 151 }, { СуммаНДС: 7 }, { СтатьяДвиженияДенежныхСредств_Key: CP }]) {
+    const f = await fixture();
+    const p = await f.run();
+    f.changeOnWrite({
+      [ROWS]: [
+        {
+          ...(f.doc()[ROWS] as ODataEntity[])[0],
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          ...change,
+        },
+      ],
+    });
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
+    expect(f.writes).toHaveLength(1);
+  }
+});
+it("fills only a zero composite counterparty of the published catalog type", async () => {
+  const f = await fixture();
+  vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+  f.setDoc({
+    Контрагент: EMPTY,
+    Контрагент_Type: "StandardODATA.Catalog_Контрагенты",
+    ВидОперации: "ПрочееПоступление",
+    [ROWS]: [],
+  });
+  const p = await f.run({ counterpartyRef: CP });
+  expect(p.isError, JSON.stringify(p)).toBeFalsy();
+  expect(data(p).payload).toMatchObject({ Контрагент: CP });
+  expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
+  expect(
+    (await f.run({ counterpartyRef: CP, confirm: true, operationId: data(p).operationId })).isError,
+  ).toBeFalsy();
+});
+
+// Real schemas publish header business fields beyond СуммаДокумента.
+describe("published header business values survive settlement PATCH", () => {
+  it.each([
+    { set: SET, field: "НДС_УСН", before: 0, after: 7 },
+    { set: SET, field: "СуммаУслуг", before: 0, after: 11 },
+    { set: "Document_СписаниеСРасчетногоСчета", field: "СуммаВПенсионный", before: 0, after: 3 },
+    { set: "Document_СписаниеСРасчетногоСчета", field: "СуммаВСоцстрах", before: 0, after: 4 },
+    { set: "Document_СписаниеСРасчетногоСчета", field: "НДСпоТС", before: false, after: true },
+  ])("holds changed $field and never resends for $set", async ({ set, field, before, after }) => {
+    const f = await fixture(set);
+    for (const entity of belarusSchema.entities) {
+      const prior = f.entities.get(entity.entitySet);
+      f.entities.set(entity.entitySet, {
+        ...prior,
+        ...entity,
+        entityType: entity.entitySet,
+        shortName: entity.entitySet,
+        navigations: [],
+        class: entity.entitySet.startsWith("Document_")
+          ? "document"
+          : entity.entitySet.startsWith("InformationRegister_")
+            ? "informationRegister"
+            : "catalog",
+      });
+    }
+    // НДСпоТС belongs to the outgoing schema.
+    const header = f.entities.get(set)!;
+    expect(header.properties.some((p) => p.name === field)).toBe(true);
+    f.setDoc({
+      [field]: before,
+      [ROWS]: [],
+      ВидОперации: set === SET ? "ПрочееПоступление" : "ПрочееСписание",
+    });
+    const preview = await f.run();
+    expect(preview.isError, JSON.stringify(preview)).toBeFalsy();
+    f.changeOnWrite({ [field]: after });
+    const args = { confirm: true, operationId: data(preview).operationId };
+    expect((await f.run(args)).isError).toBe(true);
+    expect((await f.conn.client.operationEntry(String(args.operationId)))?.state).toBe("outcome_unknown");
+    expect((await f.run(args)).isError).toBe(true);
+    expect(f.writes).toHaveLength(1);
   });
 });

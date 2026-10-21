@@ -11,11 +11,18 @@ export class Connection {
   readonly cfg: ConnectionConfig;
   readonly behavior: Behavior;
   readonly client: ODataClient;
+  readonly regulatedCurrencySource: "database" | "global" | "default";
 
   constructor(cfg: ConnectionConfig, behavior: Behavior) {
     this.cfg = cfg;
-    this.behavior = behavior;
-    this.client = new ODataClient(cfg, behavior);
+    this.behavior = {
+      ...behavior,
+      regulatedCurrencyCode: cfg.regulatedCurrencyCode ?? behavior.regulatedCurrencyCode ?? "643",
+    };
+    this.regulatedCurrencySource = cfg.regulatedCurrencyCode
+      ? "database"
+      : (behavior.regulatedCurrencySource ?? (behavior.regulatedCurrencyCode ? "global" : "default"));
+    this.client = new ODataClient(cfg, this.behavior);
   }
 
   getMetadata(): Promise<MetadataMap> {

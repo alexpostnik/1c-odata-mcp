@@ -161,6 +161,7 @@ export const healthCheckResultSchema = z
     entityCount: z.number(),
     baseUrl: z.string(),
     readOnly: z.boolean(),
+    regulatedCurrency: z.object({ code: z.string(), source: z.enum(["database", "global", "default"]) }),
     writeJournal: z
       .object({
         dir: z.string(),
