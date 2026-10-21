@@ -17,13 +17,20 @@ export type OperationState = "prepared" | "executing" | "succeeded" | "rejected"
  * Как сверить операцию, у которой нет «следа» в 1С (правка строк документа): число строк
  * табличной части до записи и ожидаемое после. Пишется в журнал перед отправкой PATCH.
  */
-export interface OperationCheck {
+interface LineCountCheck {
   kind: "lineCount";
   ref: string;
   section: string;
   before: number;
   expected: number;
 }
+
+export type OperationCheck =
+  | LineCountCheck
+  | { kind: "documentState"; ref: string }
+  | { kind: "createdRef"; ref: string }
+  | { kind: "manual"; target: "counterpartyGroup" }
+  | { kind: "registerValues"; recordPath: string; fields: string[]; expectedHash: string };
 
 export interface JournalEntry {
   version: 1;
@@ -473,7 +480,7 @@ export class WriteOperationJournal {
       kind: "unknown",
       message:
         `Результат записи operationId ${operationId} неизвестен${reason}. Повторная отправка заблокирована. ` +
-        "Проверьте документ в 1С; если он отсутствует, выполните новый dry-run с новым operationId.",
+        "Проверьте состояние операции через write.operation.status и точный объект или настройку в 1С. Новый предпросмотр допустим только после подтверждения отсутствия результата.",
       cause,
     });
   }
@@ -507,7 +514,7 @@ function canonicalize(value: unknown): unknown {
 
 function resultSummary(result: ODataEntity): Record<string, string> {
   const summary: Record<string, string> = {};
-  for (const key of ["Ref_Key", "Code", "Number"] as const) {
+  for (const key of ["Ref_Key", "Code", "Number", "RecordPath"] as const) {
     const value = result[key];
     if (typeof value === "string") summary[key] = value;
   }

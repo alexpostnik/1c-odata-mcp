@@ -25,6 +25,8 @@ export interface ConnectionConfig {
   /** Разрешена ли запись в эту базу (POST/PATCH). По умолчанию false. */
   writable: boolean;
   accounting?: AccountingConfig;
+  /** Явное значение только для этой базы; иначе используется общая настройка. */
+  regulatedCurrencyCode?: string;
 }
 
 export interface Behavior {
@@ -47,6 +49,7 @@ export interface Behavior {
    * расчётов «в валюте регламентированного учёта» при подборе счетов расчётов. По умолчанию 643 (рубль).
    */
   regulatedCurrencyCode?: string;
+  regulatedCurrencySource?: "global" | "default";
 }
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
@@ -60,6 +63,21 @@ export interface RuntimeConfig {
 
 const normalizeUrl = (u: string): string => (u.endsWith("/") ? u : `${u}/`);
 
+// Catalog Code is a string, not necessarily an ISO numeric code. Blank means unset.
+const CurrencyCodeSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(
+      (value) => [...value].every((char) => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127),
+      "не должен содержать управляющие символы",
+    )
+    .optional(),
+);
+
 const BehaviorSchema = z.object({
   ODATA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   ODATA_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
@@ -69,10 +87,7 @@ const BehaviorSchema = z.object({
   ODATA_WRITE_JOURNAL_DIR: z.string().min(1).optional(),
   ODATA_WRITE_OPERATION_MARKER: z.enum(["true", "false"]).default("false"),
   // Пустое значение (обычное в шаблонах .env) = «не задано», а не ошибка старта.
-  ODATA_REGULATED_CURRENCY_CODE: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().default("643"),
-  ),
+  ODATA_REGULATED_CURRENCY_CODE: CurrencyCodeSchema,
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   READ_ONLY: z.enum(["true", "false"]).default("true"),
 });
@@ -91,6 +106,7 @@ const JsonAccountingSchema = z.preprocess((value, ctx) => {
 
 const ConnSchema = z.object({
   accounting: JsonAccountingSchema,
+  regulatedCurrencyCode: CurrencyCodeSchema,
   name: z.string().min(1),
   label: z.string().min(1).optional(),
   baseUrl: z.string().url("должен быть валидным URL").transform(normalizeUrl),
@@ -117,6 +133,7 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       username: env[`ODATA_DB_${tag}_USERNAME`],
       password: env[`ODATA_DB_${tag}_PASSWORD`],
       writable: env[`ODATA_DB_${tag}_WRITABLE`],
+      regulatedCurrencyCode: env[`ODATA_DB_${tag}_REGULATED_CURRENCY_CODE`],
       accounting: nonblank(env[`ODATA_DB_${tag}_ACCOUNTING_CONFIG`]) ?? nonblank(env.ODATA_ACCOUNTING_CONFIG),
     });
   }
@@ -199,7 +216,8 @@ export function parseConfig(env: Env): RuntimeConfig {
       analyticsMaxRows: b.ODATA_ANALYTICS_MAX_ROWS,
       readOnly: b.READ_ONLY === "true",
       writeOperationMarker: b.ODATA_WRITE_OPERATION_MARKER === "true",
-      regulatedCurrencyCode: b.ODATA_REGULATED_CURRENCY_CODE,
+      regulatedCurrencyCode: b.ODATA_REGULATED_CURRENCY_CODE ?? "643",
+      regulatedCurrencySource: b.ODATA_REGULATED_CURRENCY_CODE ? "global" : "default",
       writeJournalDir: resolve(
         b.ODATA_WRITE_JOURNAL_DIR ?? join(homedir(), ".1c-odata-mcp", "write-journal"),
       ),

@@ -72,6 +72,10 @@ export function registerMetaTools(server: McpServer, ctx: ServerContext): void {
           entityCount: meta.entities.size,
           baseUrl: conn.cfg.baseUrl,
           readOnly: conn.behavior.readOnly,
+          regulatedCurrency: {
+            code: conn.behavior.regulatedCurrencyCode,
+            source: conn.regulatedCurrencySource,
+          },
           ...(journal
             ? {
                 writeJournal: {

@@ -13,7 +13,7 @@ const pkg = JSON.parse(read("package.json")) as { version: string; description: 
 const manifest = JSON.parse(read("manifest.json")) as {
   version: string;
   long_description: string;
-  tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown> } }>;
+  tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }>;
   prompts?: Array<{ name: string; arguments?: string[]; text: string }>;
 };
 const readme = read("README.md");
@@ -49,6 +49,25 @@ describe("документация совпадает с кодом", () => {
     const inManifest = (n: string) =>
       "operationId" in (manifest.tools.find((t) => t.name === n)!.inputSchema.properties ?? {});
     expect(names.filter(inManifest)).toEqual(names.filter(withOperationId));
+  });
+
+  it("bank settlement schema exposes optional explicit CP without an account override", () => {
+    const name = "write.document.apply_bank_settlement_settings";
+    const schema = manifest.tools.find((t) => t.name === name)!.inputSchema;
+    expect(schema.properties?.counterpartyRef).toMatchObject({ type: "string", format: "uuid" });
+    expect(schema.required).not.toContain("counterpartyRef");
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual([
+      "confirm",
+      "contractRef",
+      "counterpartyRef",
+      "database",
+      "entitySet",
+      "expectedDataVersion",
+      "operationId",
+      "ref",
+      "side",
+    ]);
+    expect(registered[name]!.inputSchema?.shape).toHaveProperty("counterpartyRef");
   });
 
   it("версия одна в package.json и manifest.json, в CHANGELOG есть её раздел", () => {

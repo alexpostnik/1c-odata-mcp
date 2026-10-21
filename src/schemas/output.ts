@@ -22,6 +22,9 @@ export const counterpartySchema = z
     kpp: z.string().optional(),
     fullName: z.string().optional(),
     isFolder: z.boolean().optional(),
+    parentRef: z.string().optional(),
+    dataVersion: z.string().optional(),
+    deletionMark: z.boolean().optional(),
   })
   .passthrough();
 
@@ -158,6 +161,7 @@ export const healthCheckResultSchema = z
     entityCount: z.number(),
     baseUrl: z.string(),
     readOnly: z.boolean(),
+    regulatedCurrency: z.object({ code: z.string(), source: z.enum(["database", "global", "default"]) }),
     writeJournal: z
       .object({
         dir: z.string(),

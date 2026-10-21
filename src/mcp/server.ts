@@ -1,3 +1,6 @@
+import { registerExistingBankSettlementTools } from "../tools/existing-bank-settlement.js";
+import { registerCounterpartyGroupTools } from "../tools/counterparty-groups.js";
+import { registerSettlementSettingsTools } from "../tools/settlement-settings.js";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -47,7 +50,13 @@ const INSTRUCTIONS =
  * Правки документа, которые нельзя слепо повторять: инструмент перечитывает документ, и повтор
  * добавил бы ещё строку или удалил соседнюю. Как и создание, защищены operationId и журналом.
  */
-const LINE_OPERATION_TOOLS = new Set([
+const JOURNALED_UPDATE_TOOLS = new Set([
+  "write.document.apply_bank_settlement_settings",
+  "write.document.post_document",
+  "write.accounting.set_contract_settlement_settings",
+  "write.accounting.set_settlement_settings",
+  "write.counterparty.create_group",
+  "write.counterparty.set_group",
   "write.document.add_document_line",
   "write.document.remove_document_line",
 ]);
@@ -86,7 +95,7 @@ export function createServer(ctx: ServerContext): McpServer {
       },
     };
     const isCreateTool = name.startsWith("write.") && config.outputSchema === createResultSchema;
-    if (!isCreateTool && !LINE_OPERATION_TOOLS.has(name)) return original(name, annotatedConfig, cb);
+    if (!isCreateTool && !JOURNALED_UPDATE_TOOLS.has(name)) return original(name, annotatedConfig, cb);
 
     const inputSchema = {
       ...(config.inputSchema as Record<string, unknown>),
@@ -97,6 +106,8 @@ export function createServer(ctx: ServerContext): McpServer {
         .describe("UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат."),
     };
     const wrapped = async (args: Record<string, unknown>, extra: unknown): Promise<CallToolResult> => {
+      if (name === "write.document.post_document" && args.expectedDataVersion === undefined)
+        return cb(args, extra);
       const operationId = typeof args.operationId === "string" ? args.operationId : undefined;
       if (args.confirm === true && !operationId) {
         return fail("Сначала выполните dry-run. При confirm=true передайте operationId из его результата.");
@@ -118,6 +129,7 @@ export function createServer(ctx: ServerContext): McpServer {
               database: conn.cfg.name,
               entitySet: settled.entitySet,
               ref: settled.result["Ref_Key"],
+              ...(settled.result["RecordPath"] ? { recordPath: settled.result["RecordPath"] } : {}),
               ...(settled.result["Code"] ? { code: settled.result["Code"] } : {}),
               operationId,
             });
@@ -160,6 +172,9 @@ export function createServer(ctx: ServerContext): McpServer {
   registerOrganizationTools(server, ctx);
   registerAuditTools(server, ctx);
   registerWriteTools(server, ctx);
+  registerExistingBankSettlementTools(server, ctx);
+  registerSettlementSettingsTools(server, ctx);
+  registerCounterpartyGroupTools(server, ctx);
   registerPrompts(server);
 
   return server;

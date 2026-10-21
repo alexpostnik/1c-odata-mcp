@@ -26,6 +26,9 @@ function toCounterparty(r: ODataEntity): Counterparty {
     kpp: r[CF.kpp] ? String(r[CF.kpp]) : undefined,
     fullName: r[CF.fullName] ? String(r[CF.fullName]) : undefined,
     isFolder: typeof r[CF.isFolder] === "boolean" ? (r[CF.isFolder] as boolean) : undefined,
+    parentRef: typeof r.Parent_Key === "string" ? r.Parent_Key : undefined,
+    dataVersion: typeof r.DataVersion === "string" ? r.DataVersion : undefined,
+    deletionMark: typeof r.DeletionMark === "boolean" ? r.DeletionMark : undefined,
   };
 }
 
@@ -89,7 +92,7 @@ export function registerCounterpartyTools(server: McpServer, ctx: ServerContext)
     {
       title: "Поиск контрагента",
       description:
-        "Ищет контрагентов по части названия или по ИНН. Возвращает список совпадений " +
+        "Ищет контрагентов по части названия или по ИНН; subjectKind=group ищет группы в том же справочнике, all — оба вида. По умолчанию только контрагенты. Возвращает Parent_Key как parentRef и DataVersion как dataVersion для безопасного изменения группы. Возвращает список совпадений " +
         "с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов), полным наименованием " +
         "и ролями по видам договоров (roles: покупатель, поставщик, комитент…; contracts — число договоров) — " +
         "помогает выбрать из однофамильцев. " +
@@ -97,29 +100,53 @@ export function registerCounterpartyTools(server: McpServer, ctx: ServerContext)
       inputSchema: {
         database: databaseField,
         query: z.string().min(1).describe("Часть названия или ИНН контрагента"),
+        subjectKind: z.enum(["counterparty", "group", "all"]).default("counterparty"),
         limit: z.number().int().positive().max(100).default(20).describe("Сколько вернуть"),
       },
       outputSchema: truncatedList(counterpartySchema),
     },
-    ({ database, query, limit }) =>
+    ({ database, query, limit, subjectKind = "counterparty" }) =>
       guard("read.counterparty.find_counterparty", async () => {
         const conn = ctx.db(database);
         const set = await counterpartySet(conn);
         const isInn = /^\d{10,12}$/.test(query.trim());
-        const filter = isInn ? cmp(CF.inn, "eq", odataString(query.trim())) : contains(CF.name, query);
+        const filter = and(
+          isInn ? cmp(CF.inn, "eq", odataString(query.trim())) : contains(CF.name, query),
+          subjectKind === "all"
+            ? undefined
+            : cmp(CF.isFolder, "eq", subjectKind === "group" ? "true" : "false"),
+        );
 
         const { rows, truncated } = await fetchAll(
           conn.client,
           set,
-          { filter, select: [CF.ref, CF.name, CF.code, CF.inn, CF.kpp, CF.fullName, CF.isFolder] },
+          {
+            filter,
+            select: [
+              CF.ref,
+              CF.name,
+              CF.code,
+              CF.inn,
+              CF.kpp,
+              CF.fullName,
+              CF.isFolder,
+              "Parent_Key",
+              "DataVersion",
+              "DeletionMark",
+            ],
+          },
           conn.behavior.pageSize,
           Math.min(limit, conn.behavior.maxRows),
         );
 
-        const found = rows.map(toCounterparty).filter((c) => !c.isFolder);
+        const found = rows
+          .map(toCounterparty)
+          .filter(
+            (c) => subjectKind === "all" || (subjectKind === "group" ? c.isFolder === true : !c.isFolder),
+          );
         const roles = await counterpartyRoles(
           conn,
-          found.map((c) => c.ref),
+          found.filter((c) => !c.isFolder).map((c) => c.ref),
         );
         const items = found.map((c) => {
           const r = roles.get(c.ref);

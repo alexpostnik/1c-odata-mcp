@@ -1,3 +1,4 @@
+import { expectedDocumentVersion, guardedDocumentAction } from "../odata/existing-bank-settlement.js";
 import { operationKind as configuredOperationKind, type AccountDefault } from "../config/accounting.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -30,7 +31,7 @@ import {
   postDocumentResultSchema,
   operationStatusSchema,
 } from "../schemas/output.js";
-import { currentWriteOperationId } from "../odata/write-operation-context.js";
+import { currentWriteOperationId, fingerprintRecordFields } from "../odata/write-operation-context.js";
 import { InputError } from "../errors.js";
 import { ODataError } from "../odata/errors.js";
 import { getDocumentPostings } from "./registers.js";
@@ -1074,6 +1075,7 @@ const MONEY_DOCUMENTS: ReadonlySet<string> = new Set([
 const LEVEL_TEXT = {
   договор: "настройки договора",
   контрагент: "настройки контрагента",
+  группа: "настройки группы",
   организация: "настройки организации",
   общая: "общей настройки",
 } as const;
@@ -1200,6 +1202,7 @@ export async function withSettlementAccounts(
     notes.push(
       `Счета расчётов ${await codesOf(choice.settle, choice.advance)} — из ${LEVEL_TEXT[choice.level]} ` +
         "(регистр «Счета учёта расчётов с контрагентами»).",
+      `Источник каждого счёта (правило MCP): ${JSON.stringify(choice.provenance)}`,
     );
   } else {
     notes.push(
@@ -1514,14 +1517,13 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
     {
       title: "Статус операции записи",
       description:
-        "Состояние операции записи по operationId из предпросмотра (создание, добавление/удаление строки " +
-        "документа). Если результат неизвестен (таймаут, сбой сети, 5xx), сверяет с 1С: созданный объект " +
-        "ищет по назначенному Ref_Key (операции 0.5.0 — по метке «[op:…]» в комментарии), правку строк — " +
-        "по числу строк документа. Нашёл — фиксирует " +
-        "успех, и повторное подтверждение вернёт результат без второго запроса; правка не дошла — закрывает " +
-        "операцию, нужен новый предпросмотр. " +
-        "Ничего не создаёт в 1С. Если объект не найден — безопасно сделать новый предпросмотр с новым id " +
-        "(но дайте 1С время: запрос мог ещё выполняться).",
+        "Состояние операции записи по operationId из предпросмотра. После потери ответа созданный объект " +
+        "сверяется по назначенной ссылке (старые операции — по метке), строки документа — по числу строк, " +
+        "настройка регистра — по точному составному ключу и отпечатку проверяемых полей. Совпадение фиксирует " +
+        "успех без повторной отправки. Для изменения группы, Post/Unpost и неподтверждённого результата " +
+        "регистра ответ unverifiable удерживает повтор и требует ручной сверки. Отсутствие объекта само по " +
+        "себе не разрешает новый запрос: он мог ещё выполняться. Новый предпросмотр допустим после " +
+        "подтверждённого not_applied либо rejected с устранённой причиной. Ничего не записывает в 1С.",
       inputSchema: {
         database: databaseField,
         operationId: z.string().uuid().describe("operationId из предпросмотра создания"),
@@ -1547,6 +1549,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             status: "succeeded",
             ref: entry.result?.["Ref_Key"],
             number: entry.result?.["Number"],
+            ...(entry.result?.["RecordPath"] ? { recordPath: entry.result["RecordPath"] } : {}),
           });
         }
         if (entry.state === "prepared") {
@@ -1560,9 +1563,72 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           return ok({
             ...common,
             status: "rejected",
-            note: "1С отклонила запись; объект не создан. Нужен новый предпросмотр.",
+            note: "1С отклонила запись. Нужен новый предпросмотр после устранения причины отказа.",
           });
         }
+        if (entry.check?.kind === "manual")
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note: "Исход изменения группы контрагента неизвестен. Сверьте Parent_Key и версию в 1С; повторная отправка удерживается.",
+          });
+        if (entry.check?.kind === "registerValues") {
+          const check = entry.check;
+          try {
+            const record = await conn.client.getEntity(`${check.recordPath}?$format=json`);
+            if (fingerprintRecordFields(record, check.fields) === check.expectedHash) {
+              await conn.client.reconcileOperation(operationId, { RecordPath: check.recordPath });
+              return ok({
+                ...common,
+                status: "found_reconciled",
+                recordPath: check.recordPath,
+                note: "Точная запись регистра и проверяемые ресурсы совпали с ожидаемыми; результат зафиксирован без повторной отправки.",
+              });
+            }
+          } catch {
+            // Missing records and failed reads cannot prove non-application of a delayed request.
+          }
+          return ok({
+            ...common,
+            status: "unverifiable",
+            recordPath: check.recordPath,
+            note: "Точная запись регистра отсутствует, отличается или не прочитана. Требуется ручная сверка; повторная отправка удерживается.",
+          });
+        }
+        if (entry.check?.kind === "createdRef") {
+          try {
+            const actual = await conn.client.getEntity(
+              `${entry.entitySet}(${odataGuid(entry.check.ref)})?$format=json`,
+            );
+            if (String(actual.Ref_Key).toLowerCase() !== entry.check.ref.toLowerCase())
+              return ok({
+                ...common,
+                status: "unverifiable",
+                note: "Прочитана другая ссылка; повтор удерживается.",
+              });
+            await conn.client.reconcileOperation(operationId, { Ref_Key: entry.check.ref });
+            return ok({ ...common, status: "found_reconciled", ref: entry.check.ref });
+          } catch (error) {
+            if (!(error instanceof ODataError && error.kind === "not_found")) throw error;
+            return ok({
+              ...common,
+              status: "unverifiable",
+              note: "Группа по назначенной ссылке пока не найдена; запрос мог ещё выполняться. Повторная запись удерживается.",
+            });
+          }
+        }
+        if (entry.check?.kind === "documentState")
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note: "Исход изменения документа неизвестен. Нужна ручная сверка версии, полей и состояния; повторная запись удерживается.",
+          });
+        if (entry.entitySet.startsWith("InformationRegister_"))
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note: "Исход записи настройки неизвестен. Сверьте точный составной ключ и ресурсы вручную; повторная отправка заблокирована.",
+          });
         const ageSec = Math.round((Date.now() - Date.parse(entry.updatedAt)) / 1000);
         // Правка строк документа — сверяем по числу строк до/после записи.
         if (entry.check?.kind === "lineCount") {
@@ -1864,7 +1930,9 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
               priceType,
             )
           : undefined;
-        const foreign = cur ? cur.code !== "643" : undefined; // 643 = рубль
+        if (cur && !cur.code?.trim())
+          throw new InputError("Код выбранной валюты неизвестен: нельзя определить валютность договора.");
+        const foreign = cur ? cur.code!.trim() !== (conn.behavior.regulatedCurrencyCode ?? "643") : undefined;
         const num = number ?? "б/н";
 
         const payload = clean({
@@ -1956,15 +2024,29 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         database: databaseField,
         entitySet: z.string().describe("Имя документа, напр. Document_СчетНаОплатуПокупателю"),
         ref: z.string().describe("Ref_Key документа (GUID)"),
+        expectedDataVersion: expectedDocumentVersion
+          .optional()
+          .describe(
+            "Точная текущая версия включает durable preview/action/readback. Post/Unpost выполняются отдельно; атомарная CAS действия не подтверждена.",
+          ),
         post: z.boolean().default(true).describe("true — провести, false — отменить проведение"),
         confirm: confirmField,
       },
       outputSchema: postDocumentResultSchema,
     },
-    ({ database, entitySet, ref, post, confirm }) =>
+    ({ database, entitySet, ref, post, confirm, expectedDataVersion }) =>
       guard("write.document.post_document", async () => {
         const conn = ctx.db(database);
         ensurePublished(await conn.available(), entitySet);
+        if (expectedDataVersion !== undefined) {
+          if (post && confirm) {
+            const missing = await missingContract(conn, entitySet, ref);
+            if (missing) return fail(missing);
+          }
+          return ok(
+            await guardedDocumentAction(conn, { entitySet, ref, post, expectedDataVersion }, confirm),
+          );
+        }
         const guid = ref.replace(/[{}']/g, "");
         const action = post ? "Post" : "Unpost";
         const path = `${entitySet}(guid'${guid}')/${action}?$format=json`;

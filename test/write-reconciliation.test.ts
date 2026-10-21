@@ -21,6 +21,38 @@ const line = { nomenclatureRef: id, quantity: 1, price: 100, vatRate: "БезН�
 const doc = { entitySet: "Document_СчетНаОплатуПокупателю", ref: id };
 const ARGS: Record<string, Record<string, unknown>> = {
   ...Object.fromEntries(CREATE_CASES),
+  "write.counterparty.create_group": { name: "Synthetic", parentRef: "00000000-0000-0000-0000-000000000000" },
+  "write.counterparty.set_group": {
+    ref: id,
+    subjectKind: "counterparty",
+    parentRef: "00000000-0000-0000-0000-000000000000",
+    expectedDataVersion: "v1",
+  },
+  "write.accounting.set_contract_settlement_settings": {
+    organizationRef: id,
+    counterpartyRef: id,
+    contractRef: id,
+    settlementKind: "РасчетыВВалютеРегламентированногоУчета",
+    mode: "create",
+    accounts: { supplierSettlement: id },
+  },
+  "write.accounting.set_settlement_settings": {
+    scope: "contract",
+    organizationRef: id,
+    counterpartyRef: id,
+    contractRef: id,
+    settlementKind: "РасчетыВВалютеРегламентированногоУчета",
+    mode: "create",
+    accounts: { supplierSettlement: id },
+  },
+  "write.document.apply_bank_settlement_settings": {
+    entitySet: "Document_СписаниеСРасчетногоСчета",
+    ref: id,
+    contractRef: id,
+    side: "supplier",
+    expectedDataVersion: "v1",
+  },
+  "write.document.post_document": { ...doc, post: true, expectedDataVersion: "v1" },
   "write.sales.create_services_act": {
     counterpartyRef: id,
     contractRef: id,
@@ -52,6 +84,44 @@ function setup() {
     ODATA_WRITABLE: "true",
     ODATA_WRITE_JOURNAL_DIR: mkdtempSync(join(tmpdir(), "1c-odata-reconcile-")),
   });
+  const originalGet = vi.mocked(conn.client.getEntity).getMockImplementation()!;
+  vi.mocked(conn.client.getEntity).mockImplementation(async (path) => {
+    if (path.startsWith("InformationRegister_СчетаУчетаРасчетовСКонтрагентами("))
+      throw new ODataError({ kind: "not_found", message: "Synthetic absent setting" });
+    const record = await originalGet(path);
+    return {
+      ...record,
+      Ref_Key: path.match(/guid'([^']+)'/)?.[1] ?? id,
+      IsFolder: false,
+      Parent_Key: "00000000-0000-0000-0000-000000000000",
+      DataVersion: "v1",
+      ВидДоговора: "Прочее",
+      РасчетыВУсловныхЕдиницах: false,
+      ЗапретитьИспользоватьВПроводках: false,
+      Контрагент: id,
+      Контрагент_Type: "StandardODATA.Catalog_Контрагенты",
+      ВидОперации: "ОплатаПоставщику",
+      ВалютаДокумента_Key: id,
+      РасшифровкаПлатежа: [],
+    };
+  });
+  const originalCollection = vi.mocked(conn.client.getCollection).getMockImplementation()!;
+  vi.mocked(conn.client.getCollection).mockImplementation(async (path) =>
+    path.startsWith("InformationRegister_СчетаУчетаРасчетовСКонтрагентами?")
+      ? {
+          value: [
+            {
+              Организация_Key: id,
+              Контрагент_Key: id,
+              Договор_Key: id,
+              ВидРасчетовПоДоговору: "РасчетыВВалютеРегламентированногоУчета",
+              СчетУчетаРасчетовСПоставщиком_Key: id,
+              СчетУчетаАвансовВыданных_Key: id,
+            },
+          ],
+        }
+      : originalCollection(path),
+  );
   // Запрос в 1С ушёл, ответ потерян: исход неизвестен, как при таймауте сети.
   vi.spyOn(conn.client, "request").mockImplementation(async (_path, method = "GET") => {
     if (method === "GET") return {} as never;

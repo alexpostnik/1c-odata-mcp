@@ -3,9 +3,24 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [семантическому версионированию](https://semver.org/lang/ru/).
 
+## Unreleased
+
+- Existing-bank settlement application accepts optional explicit `counterpartyRef` to fill only an observed zero-GUID document counterparty. It validates the actual nondeleted, nonfolder item and exact contract owner/organization/currency, rejects replacement and unknown document references, and binds the selected item to preview confirmation. Account selection still comes solely from saved settings; other headers and the sole payment row, including zero amounts, VAT and articles, are preserved. Local synthetic validation only; this change performs no live operation.
+
+- Saved settlement-account read/create/update tools for contracts, counterparties and groups: strict independent-register metadata, preview/confirmation journal and verified readback. Updates use DataVersion/If-Match when published; versionless independent-register updates require explicit `singleWriter=true` and checks between reads, without an atomic lock. Unknown write or readback outcomes hold retries pending manual reconciliation.
+- Apply inherited settlement accounts and the selected contract to existing unposted bank receipts/payments, with explicit settlement side, DataVersion/If-Match, preview/confirmation journal and readback of changed and preserved fields.
+- Separate guarded Post/Unpost operations have their own preview, journal, operation ID and state readback; posting verification is a separate read. The version is checked before the action; atomic If-Match protection for Post/Unpost is not claimed. Unknown outcomes hold dependent actions and retries.
+- Targeted TEST validation (Belarus Accounting 2.1.62.5 / platform 8.3.25.1546, versions provided by the owner): a contract-scoped account 26 setting was created and read back; group account 67.2 was selected without an account argument and applied to a loan receipt, then a separate Post and accounting-row read verified the selected contract and account. Full native 1C priority rules and concurrent-create behavior remain unverified; these checks do not establish acceptance of all accounting scenarios.
+- Contract creation compares currency with configured regulated currency instead of hardcoded643; unknown explicit currency codes are rejected.
+- Contracts of kind `Other` receive no new automatic supplier/customer interpretation.
+
 ## [Не выпущено]
 
 ### Исправлено
+
+- PR #43: применение банковских настроек поддерживает GUID-контрагента Беларуси 2.1 и составную ссылку БП 3.0, точный вид операции `ОплатаПокупателя`, обновляет найденный счёт авансов вместе со счётом расчётов и допускает пересчёт трёх зависимых реквизитов взаиморасчётов при проверке результата. Разные валюты договора в условных единицах и документа явно отклоняются; вычисление курса не реализовано.
+- Потерянный ответ создания группы сверяется по назначенной ссылке, запись регистра — по точному составному ключу и отпечатку проверяемых значений. Несовпадение, отсутствие или ошибка чтения удерживают повтор; правка принадлежности требует ручной сверки. Старые инструменты создания не обходят группы и сохраняют прежний ограниченный подбор/поведение при усечении регистра. Неизвестный результат больше не требует проверять «документ» при записи настройки регистра.
+- Добавлена схема Беларуси 2.1.62.5 / платформы 8.3.25.1546, полученная адресным read-only чтением TEST 2026-10-21 (только поля, типы и ключи, без данных). Новый код проверен локально по обеим схемам; живые записи новой версии не выполнялись.
 
 - **Отказ 1С в правах больше не «неизвестный исход».** Ответ 500 «Нарушение прав доступа!» (у пользователя OData нет прав на объект или действие) теперь — однозначный отказ с понятным текстом «Нет прав в 1С…»: операция записи помечается отклонённой, `write.operation.status` отвечает «1С отклонила запись», можно исправить права и сделать новый предпросмотр. Раньше такая запись блокировалась как «результат неизвестен, сверьте вручную».
 
