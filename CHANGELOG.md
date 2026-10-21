@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Existing-bank settlement application accepts optional explicit `counterpartyRef` to fill only an observed zero-GUID document counterparty. It validates the actual nondeleted, nonfolder item and exact contract owner/organization/currency, rejects replacement and unknown document references, and binds the selected item to preview confirmation. Account selection still comes solely from saved settings; other headers and the sole payment row, including zero amounts, VAT and articles, are preserved. Local synthetic validation only; this change performs no live operation.
+
 - Saved settlement-account read/create/update tools for contracts, counterparties and groups: strict independent-register metadata, preview/confirmation journal and verified readback. Updates use DataVersion/If-Match when published; versionless independent-register updates require explicit `singleWriter=true` and checks between reads, without an atomic lock. Unknown write or readback outcomes hold retries pending manual reconciliation.
 - Apply inherited settlement accounts and the selected contract to existing unposted bank receipts/payments, with explicit settlement side, DataVersion/If-Match, preview/confirmation journal and readback of changed and preserved fields.
 - Separate guarded Post/Unpost operations have their own preview, journal, operation ID and state readback; posting verification is a separate read. The version is checked before the action; atomic If-Match protection for Post/Unpost is not claimed. Unknown outcomes hold dependent actions and retries.
