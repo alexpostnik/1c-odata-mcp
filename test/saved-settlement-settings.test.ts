@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -681,4 +682,23 @@ describe("saved settings without metadata DataVersion", () => {
     );
     expect(f.writes).toEqual([]);
   });
+});
+
+it("actual Belarus register schema requires honest singleWriter update without If-Match", async () => {
+  const f = await fixture({ ...key, [resources[0]!]: OTHER, [resources[2]!]: OTHER }, { versionless: true });
+  const schema = JSON.parse(
+    readFileSync(new URL("./fixtures/metadata/belarus-2.1.json", import.meta.url), "utf8"),
+  ) as { entities: Array<{ entitySet: string; keys: string[]; properties: EntityMeta["properties"] }> };
+  const actual = schema.entities.find((e) => e.entitySet === REG)!;
+  f.entities.set(REG, { ...f.meta, ...actual });
+  const blocked = await f.run({ mode: "update" });
+  expect(blocked.isError).toBe(true);
+  const p = await f.run({ mode: "update", singleWriter: true });
+  expect(p.isError, JSON.stringify(p)).toBeFalsy();
+  expect(data(p).concurrency).toBe("singleWriter");
+  expect(
+    (await f.run({ mode: "update", singleWriter: true, confirm: true, operationId: data(p).operationId }))
+      .isError,
+  ).toBeFalsy();
+  expect(f.writes[0]?.headers).toEqual({});
 });

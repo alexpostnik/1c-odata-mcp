@@ -1,0 +1,1406 @@
+{
+  "provenance": {
+    "source": "Read-only TEST describe_entity, schema only; no business values",
+    "configuration": "Бухгалтерия для Беларуси 2.1.62.5",
+    "platform": "8.3.25.1546",
+    "observed_at": "2026-10-21T17:19:58.072Z"
+  },
+  "entities": [
+    {
+      "entitySet": "Document_СписаниеСРасчетногоСчета",
+      "keys": [
+        "Ref_Key"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "DataVersion",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Number",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Date",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "DeletionMark",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "Posted",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ВидОперации",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Организация_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетОрганизации_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПодразделениеОрганизации_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетБанк_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "НомерВходящегоДокумента",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДатаВходящегоДокумента",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "Контрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СуммаДокумента",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСКонтрагентом_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт1",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт2",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт3",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПодразделениеДт_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СтатьяДвиженияДенежныхСредств_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ФизЛицо_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "НазначениеПлатежа",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Ответственный_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Комментарий",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДокументОснование",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДоговорКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ВалютаДокумента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Содержание_УСН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Графа4_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа5_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа6_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа7_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "ДоходыЕНВД_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РасходыЕНВД_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "НДС_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "РучнаяНастройка_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РучнаяКорректировка",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "НеПодтвержденоВыпискойБанка",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "НалоговыйПериод",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "ПлатежнаяВедомость",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "НазначениеАванса_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "НДСпоТС",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "СуммаВПенсионный",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СуммаВСоцстрах",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт1ДляПенсионного",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаДляПенсионного_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "БанковскаяОперация",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "БанкКонтрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПО_ЭтоДопРасходы",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ПО_ТипПлатежа",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ВидВыплат",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПризнакПлатежаISO",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КатегорииНазначенияПереводовISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КодыНазначенияПлатежаISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КодыОперацийСНерезидентамиISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "НазначениеПлатежаISO",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "РасшифровкаПлатежа",
+          "type": "Collection(StandardODATA.Document_СписаниеСРасчетногоСчета_РасшифровкаПлатежа_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ПеречислениеЗаработнойПлаты",
+          "type": "Collection(StandardODATA.Document_СписаниеСРасчетногоСчета_ПеречислениеЗаработнойПлаты_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "РеквизитыКонтрагента",
+          "type": "Collection(StandardODATA.Document_СписаниеСРасчетногоСчета_РеквизитыКонтрагента_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ТаблицаЗаявленияНДС",
+          "type": "Collection(StandardODATA.Document_СписаниеСРасчетногоСчета_ТаблицаЗаявленияНДС_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт1_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт2_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт3_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДокументОснование_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПлатежнаяВедомость_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоДт1ДляПенсионного_Type",
+          "type": "Edm.String",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "Document_ПоступлениеНаРасчетныйСчет",
+      "keys": [
+        "Ref_Key"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "DataVersion",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Number",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Date",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "DeletionMark",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "Posted",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ВалютаДокумента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ВидОперации",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Графа4_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа5_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа6_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "Графа7_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "ДатаВходящегоДокумента",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "ДоговорКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ДокументОснование",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДоходыЕНВД_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "Комментарий",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Контрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КурсНаДатуПриобретенияРеализацииВалюты",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "НазначениеПлатежа",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "НДС_УСН",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "НомерВходящегоДокумента",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Организация_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Ответственный_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ОтражатьРазницуВКурсеВСоставеОперационныхРасходов",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "Патент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПодразделениеКт_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПодразделениеОрганизации_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПорядокОкругленияДЧВ",
+          "type": "Edm.Int16",
+          "nullable": true
+        },
+        {
+          "name": "ПорядокОтраженияАванса",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "РасходыЕНВД_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РучнаяКорректировка",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РучнаяНастройка_УСН",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "Содержание_УСН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СтатьяДвиженияДенежныхСредств_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт1",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт2",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт3",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СуммаДокумента",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СуммаУслуг",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СчетБанк_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетОрганизации_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСКонтрагентом_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ФизЛицо_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "БанковскаяОперация",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "БанкКонтрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПО_ТипПлатежа",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПризнакПлатежаISO",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КатегорииНазначенияПереводовISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КодыНазначенияПлатежаISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КодыОперацийСНерезидентамиISO_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "НазначениеПлатежаISO",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПО_ИННПлательщика",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "РасшифровкаПлатежа",
+          "type": "Collection(StandardODATA.Document_ПоступлениеНаРасчетныйСчет_РасшифровкаПлатежа_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "РеквизитыКонтрагента",
+          "type": "Collection(StandardODATA.Document_ПоступлениеНаРасчетныйСчет_РеквизитыКонтрагента_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ДокументОснование_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт1_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт2_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт3_Type",
+          "type": "Edm.String",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "InformationRegister_СчетаУчетаРасчетовСКонтрагентами",
+      "keys": [
+        "Организация_Key",
+        "Контрагент_Key",
+        "Договор_Key",
+        "ВидРасчетовПоДоговору"
+      ],
+      "properties": [
+        {
+          "name": "Организация_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "Контрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "Договор_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "ВидРасчетовПоДоговору",
+          "type": "Edm.String",
+          "nullable": false
+        },
+        {
+          "name": "СчетУчетаРасчетовСПоставщиком_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаАвансовВыданных_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСПокупателем_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаАвансовПолученных_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСКомитентом_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовПоТареСПоставщиком_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовПоТареСПокупателем_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаДоходовПоТаре_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасходовПоТаре_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетРасчетовПоПретензиям_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "Catalog_Контрагенты",
+      "keys": [
+        "Ref_Key"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "Predefined",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "PredefinedDataName",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "DataVersion",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Description",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Code",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Parent_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "IsFolder",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "DeletionMark",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "GLN",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ID_ЭлектронныйЗнак",
+          "type": "Edm.Int64",
+          "nullable": true
+        },
+        {
+          "name": "БИН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ВзаимозависимоеЛицо",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ГоловнойКонтрагент_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ДокументУдостоверяющийЛичность",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ДополнительнаяИнформация",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ИИН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ИНН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КодПоОКПО",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КодПоОКЮЛП",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КодФилиала",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Комментарий",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КПП",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "КрупныйПлательщикНДС",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "НаименованиеПолное",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ОбособленноеПодразделение",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ОсновноеКонтактноеЛицо_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ОсновнойБанковскийСчет_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ОсновнойДоговорКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "РезидентОффшорнойЗоны",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РезидентРБ",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РНН",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СделкаСТоварамиПоПеречню",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "СтранаРегистрации_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "УдалитьЮрФизЛицо",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ЮридическоеФизическоеЛицо",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПО_ДатаРождения",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "КонтактнаяИнформация",
+          "type": "Collection(StandardODATA.Catalog_Контрагенты_КонтактнаяИнформация_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ДополнительныеРеквизиты",
+          "type": "Collection(StandardODATA.Catalog_Контрагенты_ДополнительныеРеквизиты_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ИсторияКПП",
+          "type": "Collection(StandardODATA.Catalog_Контрагенты_ИсторияКПП_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ИсторияНаименований",
+          "type": "Collection(StandardODATA.Catalog_Контрагенты_ИсторияНаименований_RowType)",
+          "nullable": true
+        },
+        {
+          "name": "ИсторияКонтактнойИнформации",
+          "type": "Collection(StandardODATA.Catalog_Контрагенты_ИсторияКонтактнойИнформации_RowType)",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "Catalog_ДоговорыКонтрагентов",
+      "keys": [
+        "Ref_Key"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "Predefined",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "PredefinedDataName",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "DataVersion",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Description",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Code",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Owner_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Parent_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "IsFolder",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "DeletionMark",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ВалютаВзаиморасчетов_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Комментарий",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Организация_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПроцентКомиссионногоВознаграждения",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СпособРасчетаКомиссионногоВознаграждения",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ТипЦен_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ВидДоговора",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "УчетАгентскогоНДС",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ВидАгентскогоДоговора",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "РасчетыВУсловныхЕдиницах",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РеализацияНаЭкспорт",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ВидВзаиморасчетов_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "Дата",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "Номер",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СрокДействия",
+          "type": "Edm.DateTime",
+          "nullable": true
+        },
+        {
+          "name": "УстановленСрокОплаты",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "СрокОплаты",
+          "type": "Edm.Int64",
+          "nullable": true
+        },
+        {
+          "name": "НаименованиеДляСчетаФактурыНаАванс_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "ПорядокРегистрацииСчетовФактурНаАвансПоДоговору",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Валютный",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ОплатаВВалюте",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ИспользуетсяПриОбменеДанными",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ЦелевоеНазначение",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "НДСТС",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "РасчетыАккредитивом",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "И625_НеВыставлятьКонтрагенту",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ДополнительныеРеквизиты",
+          "type": "Collection(StandardODATA.Catalog_ДоговорыКонтрагентов_ДополнительныеРеквизиты_RowType)",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "Document_СписаниеСРасчетногоСчета_РасшифровкаПлатежа",
+      "keys": [
+        "Ref_Key",
+        "LineNumber"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "LineNumber",
+          "type": "Edm.Int64",
+          "nullable": false
+        },
+        {
+          "name": "ДоговорКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СпособПогашенияЗадолженности",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Сделка",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СуммаПлатежа",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "КурсВзаиморасчетов",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СуммаВзаиморасчетов",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СтавкаНДС",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СуммаНДС",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СтатьяДвиженияДенежныхСредств_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСКонтрагентом_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовПоАвансам_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КратностьВзаиморасчетов",
+          "type": "Edm.Int64",
+          "nullable": true
+        },
+        {
+          "name": "ПорядокОкругленияДЧВ",
+          "type": "Edm.Int16",
+          "nullable": true
+        },
+        {
+          "name": "Сделка_Type",
+          "type": "Edm.String",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "entitySet": "Document_ПоступлениеНаРасчетныйСчет_РасшифровкаПлатежа",
+      "keys": [
+        "Ref_Key",
+        "LineNumber"
+      ],
+      "properties": [
+        {
+          "name": "Ref_Key",
+          "type": "Edm.Guid",
+          "nullable": false
+        },
+        {
+          "name": "LineNumber",
+          "type": "Edm.Int64",
+          "nullable": false
+        },
+        {
+          "name": "ДоговорКонтрагента_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СпособПогашенияЗадолженности",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Сделка",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СуммаПлатежа",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "КурсВзаиморасчетов",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СуммаВзаиморасчетов",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СтавкаНДС",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СуммаНДС",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СчетНаОплату_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СтатьяДвиженияДенежныхСредств_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовСКонтрагентом_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СчетУчетаРасчетовПоАвансам_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт1",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт2",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт3",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "ПодразделениеКт_Key",
+          "type": "Edm.Guid",
+          "nullable": true
+        },
+        {
+          "name": "КратностьВзаиморасчетов",
+          "type": "Edm.Int64",
+          "nullable": true
+        },
+        {
+          "name": "СуммаУслуг",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "КурсНаДатуПриобретенияРеализацииВалюты",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "ВидыПродажиВалюты",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "Флаг1",
+          "type": "Edm.Boolean",
+          "nullable": true
+        },
+        {
+          "name": "ПроцентКомиссии",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "СуммаЗаВычетомКомиссии",
+          "type": "Edm.Double",
+          "nullable": true
+        },
+        {
+          "name": "ПорядокОкругленияДЧВ",
+          "type": "Edm.Int16",
+          "nullable": true
+        },
+        {
+          "name": "Сделка_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт1_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт2_Type",
+          "type": "Edm.String",
+          "nullable": true
+        },
+        {
+          "name": "СубконтоКт3_Type",
+          "type": "Edm.String",
+          "nullable": true
+        }
+      ]
+    }
+  ]
+}

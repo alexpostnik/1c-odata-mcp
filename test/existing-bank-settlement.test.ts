@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -109,6 +110,7 @@ async function fixture(entitySet = SET) {
       Договор_Key: EMPTY,
       ВидРасчетовПоДоговору: "РасчетыВВалютеРегламентированногоУчета",
       СчетУчетаРасчетовСПоставщиком_Key: ACCOUNT,
+      СчетУчетаАвансовВыданных_Key: ACCOUNT,
     },
   ];
   const meta = (
@@ -259,7 +261,14 @@ describe("existing bank inherited settlement", () => {
       DataVersion: "v2",
       [CONTRACT]: CTR,
       [ACCOUNT_FIELD]: ACCOUNT,
-      [ROWS]: [{ ...(before[ROWS] as object[])[0], [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT }],
+      [ROWS]: [
+        {
+          ...(before[ROWS] as object[])[0],
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+        },
+      ],
     });
     expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
     expect(f.writes).toHaveLength(1);
@@ -268,7 +277,12 @@ describe("existing bank inherited settlement", () => {
     const f = await fixture();
     f.setSettings([
       ...f.settings(),
-      { ...f.settings()[0], Контрагент_Key: CP, СчетУчетаРасчетовСПоставщиком_Key: OLD },
+      {
+        ...f.settings()[0],
+        Контрагент_Key: CP,
+        СчетУчетаРасчетовСПоставщиком_Key: OLD,
+        СчетУчетаАвансовВыданных_Key: OLD,
+      },
     ]);
     f.setAccount({ Ref_Key: OLD });
     expect(data(await f.run()).resolution).toMatchObject({ choice: { settle: OLD, level: "контрагент" } });
@@ -380,7 +394,14 @@ describe("explicit counterparty for an empty bank document", () => {
         Контрагент_Key: CP,
         [CONTRACT]: CTR,
         [ACCOUNT_FIELD]: ACCOUNT,
-        [ROWS]: [{ ...(before[ROWS] as object[])[0], [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT }],
+        [ROWS]: [
+          {
+            ...(before[ROWS] as object[])[0],
+            [CONTRACT]: CTR,
+            [ACCOUNT_FIELD]: ACCOUNT,
+            СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          },
+        ],
       };
       expect(data(p).payload).toEqual(expectedPayload);
       expect(f.writes).toEqual([]);
@@ -487,6 +508,7 @@ describe("explicit counterparty for an empty bank document", () => {
 describe("existing bank mutation currency evidence", () => {
   it("preserves the legacy resolver fallback when strict mutation mode is absent", async () => {
     const f = await fixture();
+    f.setSettings([{ ...f.settings()[0], Контрагент_Key: CP }]);
     f.setCurrency(new ODataError({ kind: "auth", message: "Synthetic legacy lookup failure" }));
     f.setContract({ РасчетыВУсловныхЕдиницах: undefined });
     expect(
@@ -639,32 +661,58 @@ describe("version guarded separate Post/Unpost", () => {
   });
 });
 
-
 describe("PR43 real BP30 compatibility and bounded readback", () => {
   it.each([
     { set: SET, operation: "ОплатаПокупателя", side: "customer", kind: "СПокупателем" },
-    { set: "Document_СписаниеСРасчетногоСчета", operation: "ОплатаПоставщику", side: "supplier", kind: "СПоставщиком" },
-  ])("previews $side with actual BP30 metadata and enum", async ({set, operation, side, kind}) => {
+    {
+      set: "Document_СписаниеСРасчетногоСчета",
+      operation: "ОплатаПоставщику",
+      side: "supplier",
+      kind: "СПоставщиком",
+    },
+  ])("previews $side with actual BP30 metadata and enum", async ({ set, operation, side, kind }) => {
     const f = await fixture(set);
     vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
-    f.setDoc({ Контрагент: CP, Контрагент_Type: "StandardODATA.Catalog_Контрагенты", ВидОперации: operation,
-      [ROWS]: [{ LineNumber: "1", [CONTRACT]: OLD, [ACCOUNT_FIELD]: OLD, СчетУчетаРасчетовПоАвансам_Key: OLD, СуммаПлатежа: 150 }] });
+    f.setDoc({
+      Контрагент: CP,
+      Контрагент_Type: "StandardODATA.Catalog_Контрагенты",
+      ВидОперации: operation,
+      [ROWS]: [
+        {
+          LineNumber: "1",
+          [CONTRACT]: OLD,
+          [ACCOUNT_FIELD]: OLD,
+          СчетУчетаРасчетовПоАвансам_Key: OLD,
+          СуммаПлатежа: 150,
+        },
+      ],
+    });
     f.setContract({ ВидДоговора: kind });
-    f.setSettings([{ ...f.settings()[0], СчетУчетаРасчетовСПокупателем_Key: ACCOUNT,
-      СчетУчетаАвансовПолученных_Key: ACCOUNT, СчетУчетаАвансовВыданных_Key: ACCOUNT }]);
-    expect([...bp30Enums().values()].some(values => values.has(operation))).toBe(true);
-    const p = await f.run({side});
+    f.setSettings([
+      {
+        ...f.settings()[0],
+        СчетУчетаРасчетовСПокупателем_Key: ACCOUNT,
+        СчетУчетаАвансовПолученных_Key: ACCOUNT,
+        СчетУчетаАвансовВыданных_Key: ACCOUNT,
+      },
+    ]);
+    expect([...bp30Enums().values()].some((values) => values.has(operation))).toBe(true);
+    const p = await f.run({ side });
     expect(p.isError, JSON.stringify(p)).toBeFalsy();
     expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
-    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([{ СчетУчетаРасчетовПоАвансам_Key: ACCOUNT }]);
-    expect((await f.run({side, confirm: true, operationId: data(p).operationId})).isError).toBeFalsy();
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+      { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+    ]);
+    expect((await f.run({ side, confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
   });
   it("changes both saved settlement and advance accounts in the payment row", async () => {
     const f = await fixture();
     f.setSettings([{ ...f.settings()[0], СчетУчетаАвансовВыданных_Key: ACCOUNT }]);
     const p = await f.run();
     expect(p.isError).toBeFalsy();
-    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([{ СчетУчетаРасчетовПоАвансам_Key: ACCOUNT }]);
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+      { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+    ]);
   });
   it("reports explicit unsupported cross-currency conditional units without guessing rates", async () => {
     const f = await fixture();
@@ -678,24 +726,150 @@ describe("PR43 real BP30 compatibility and bounded readback", () => {
     const f = await fixture();
     const p = await f.run();
     const row = (f.doc()[ROWS] as ODataEntity[])[0]!;
-    f.changeOnWrite({ [ROWS]: [{ ...row, [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT,
-      КурсВзаиморасчетов: 2, КратностьВзаиморасчетов: 1, СуммаВзаиморасчетов: 75 }] });
+    f.changeOnWrite({
+      [ROWS]: [
+        {
+          ...row,
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          КурсВзаиморасчетов: 2,
+          КратностьВзаиморасчетов: 1,
+          СуммаВзаиморасчетов: 75,
+        },
+      ],
+    });
     expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
   });
-  it.each([{СуммаДокумента: 151}, {НазначениеПлатежа: "changed"}, {СубконтоДт1: "lost"}])("holds changed protected business field %j", async (change) => {
-    const f = await fixture();
-    const p = await f.run();
-    f.changeOnWrite(change);
-    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
-    expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe("outcome_unknown");
-  });
+  it.each([{ СуммаДокумента: 151 }, { НазначениеПлатежа: "changed" }, { СубконтоДт1: "lost" }])(
+    "holds changed protected business field %j",
+    async (change) => {
+      const f = await fixture();
+      const p = await f.run();
+      f.changeOnWrite(change);
+      expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
+      expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe(
+        "outcome_unknown",
+      );
+    },
+  );
   it("legacy lookup skips hierarchy entirely even if metadata or CP state is unsuitable", async () => {
     const f = await fixture();
     f.entities.delete("Catalog_Контрагенты");
     f.setCounterparty({ DeletionMark: true });
     const get = vi.spyOn(f.conn.client, "getEntity");
-    const r = await settlementAccountsFor(f.conn, {orgKey: ORG, contractRef: CTR, side: "supplier"});
+    const r = await settlementAccountsFor(f.conn, { orgKey: ORG, contractRef: CTR, side: "supplier" });
     expect(r.kind).toBe("РасчетыВВалютеРегламентированногоУчета");
     expect(get.mock.calls.filter(([path]) => path.startsWith("Catalog_Контрагенты"))).toHaveLength(0);
   });
+});
+
+const belarusSchema = JSON.parse(
+  readFileSync(new URL("./fixtures/metadata/belarus-2.1.json", import.meta.url), "utf8"),
+) as {
+  entities: Array<{ entitySet: string; keys: string[]; properties: EntityMeta["properties"] }>;
+};
+describe("actual Belarus 2.1 schema (platform 8.3.25), synthetic business values", () => {
+  it.each([SET, "Document_СписаниеСРасчетногоСчета"])(
+    "keeps GUID CP and Other/loan mode for %s",
+    async (set) => {
+      const f = await fixture(set);
+      for (const entity of belarusSchema.entities) {
+        const prior = f.entities.get(entity.entitySet);
+        f.entities.set(entity.entitySet, {
+          ...prior,
+          ...entity,
+          entityType: entity.entitySet,
+          shortName: entity.entitySet,
+          navigations: [],
+          class: entity.entitySet.startsWith("Document_")
+            ? "document"
+            : entity.entitySet.startsWith("InformationRegister_")
+              ? "informationRegister"
+              : "catalog",
+        });
+      }
+      const rowMeta = f.entities.get(`${set}_${ROWS}`)!;
+      f.setDoc({
+        ВидОперации: set === SET ? "ПрочееПоступление" : "ПрочееСписание",
+        [ROWS]: [
+          (f.doc()[ROWS] as ODataEntity[]).map((row) =>
+            Object.fromEntries(
+              Object.entries(row).filter(([field]) => rowMeta.properties.some((p) => p.name === field)),
+            ),
+          )[0],
+        ],
+      });
+      const p = await f.run();
+      expect(p.isError, JSON.stringify(p)).toBeFalsy();
+      expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([
+        { [ACCOUNT_FIELD]: ACCOUNT, СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
+      ]);
+      expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+      expect(f.doc().Контрагент_Key).toBe(CP);
+      expect(data(p).resolution).toMatchObject({
+        choice: { settle: ACCOUNT, provenance: { settle: { level: "группа" } } },
+      });
+    },
+  );
+});
+
+it("legacy lookup keeps its bounded register fallback instead of rejecting 500 rows", async () => {
+  const f = await fixture();
+  f.setSettings(Array.from({ length: 500 }, () => ({ ...f.settings()[0], Контрагент_Key: CP })));
+  expect(
+    await settlementAccountsFor(f.conn, { orgKey: ORG, contractRef: CTR, side: "supplier" }),
+  ).toMatchObject({ choice: { settle: ACCOUNT } });
+});
+it.each(["StandardODATA.Catalog_ФизическиеЛица", "", undefined])(
+  "rejects unknown composite counterparty discriminator %s",
+  async (type) => {
+    const f = await fixture();
+    vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+    f.setDoc({ Контрагент: CP, Контрагент_Type: type });
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  },
+);
+it("validates the inherited advance account as well as the settlement account", async () => {
+  const f = await fixture();
+  f.setSettings([{ ...f.settings()[0], СчетУчетаАвансовВыданных_Key: OLD }]);
+  expect((await f.run()).isError).toBe(true);
+  expect(f.writes).toEqual([]);
+});
+it("holds when server changes row payment, tax or cash-flow analytics", async () => {
+  for (const change of [{ СуммаПлатежа: 151 }, { СуммаНДС: 7 }, { СтатьяДвиженияДенежныхСредств_Key: CP }]) {
+    const f = await fixture();
+    const p = await f.run();
+    f.changeOnWrite({
+      [ROWS]: [
+        {
+          ...(f.doc()[ROWS] as ODataEntity[])[0],
+          [CONTRACT]: CTR,
+          [ACCOUNT_FIELD]: ACCOUNT,
+          СчетУчетаРасчетовПоАвансам_Key: ACCOUNT,
+          ...change,
+        },
+      ],
+    });
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
+    expect(f.writes).toHaveLength(1);
+  }
+});
+it("fills only a zero composite counterparty of the published catalog type", async () => {
+  const f = await fixture();
+  vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+  f.setDoc({
+    Контрагент: EMPTY,
+    Контрагент_Type: "StandardODATA.Catalog_Контрагенты",
+    ВидОперации: "ПрочееПоступление",
+    [ROWS]: [],
+  });
+  const p = await f.run({ counterpartyRef: CP });
+  expect(p.isError, JSON.stringify(p)).toBeFalsy();
+  expect(data(p).payload).toMatchObject({ Контрагент: CP });
+  expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
+  expect(
+    (await f.run({ counterpartyRef: CP, confirm: true, operationId: data(p).operationId })).isError,
+  ).toBeFalsy();
 });

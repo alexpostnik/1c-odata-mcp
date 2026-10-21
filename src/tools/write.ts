@@ -1564,8 +1564,39 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           return ok({
             ...common,
             status: "rejected",
-            note: "1С отклонила запись; объект не создан. Нужен новый предпросмотр.",
+            note: "1С отклонила запись. Нужен новый предпросмотр после устранения причины отказа.",
           });
+        }
+        if (entry.check?.kind === "manual")
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note:
+              entry.check.target === "settlementSettings"
+                ? "Исход записи настройки регистра неизвестен. Сверьте точный составной ключ и ресурсы в 1С; повторная отправка удерживается."
+                : "Исход изменения группы контрагента неизвестен. Сверьте Parent_Key и версию в 1С; повторная отправка удерживается.",
+          });
+        if (entry.check?.kind === "createdRef") {
+          try {
+            const actual = await conn.client.getEntity(
+              `${entry.entitySet}(${odataGuid(entry.check.ref)})?$format=json`,
+            );
+            if (String(actual.Ref_Key).toLowerCase() !== entry.check.ref.toLowerCase())
+              return ok({
+                ...common,
+                status: "unverifiable",
+                note: "Прочитана другая ссылка; повтор удерживается.",
+              });
+            await conn.client.reconcileOperation(operationId, { Ref_Key: entry.check.ref });
+            return ok({ ...common, status: "found_reconciled", ref: entry.check.ref });
+          } catch (error) {
+            if (!(error instanceof ODataError && error.kind === "not_found")) throw error;
+            return ok({
+              ...common,
+              status: "unverifiable",
+              note: "Группа по назначенной ссылке пока не найдена; запрос мог ещё выполняться. Повторная запись удерживается.",
+            });
+          }
         }
         if (entry.check?.kind === "documentState")
           return ok({

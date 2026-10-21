@@ -233,31 +233,36 @@ export async function saveSettlementSettings(
     await conn.client.prepareCreate(snapshot.entitySet, operation, { withRefKey: false });
     return { dryRun: true, database: conn.cfg.name, ...snapshot, ...operation, concurrency, notes };
   }
-  const result = await conn.client.writeRecordOnce(snapshot.entitySet, operation, async () => {
-    await conn.client.request(path, method, payload, headers);
-    // A failed verification cannot turn an already successful mutation into a rejection.
-    try {
-      const record = await conn.client.getEntity(`${snapshot.recordPath}?$format=json`);
-      assertRecordValues(record, { ...snapshot.key, ...patch });
-      if (snapshot.record)
-        assertRecordValues(
-          record,
-          Object.fromEntries(
-            Object.entries(snapshot.record).filter(
-              ([name]) => props.has(name) && name !== "DataVersion" && !(name in patch),
+  const result = await conn.client.writeRecordOnce(
+    snapshot.entitySet,
+    operation,
+    async () => {
+      await conn.client.request(path, method, payload, headers);
+      // A failed verification cannot turn an already successful mutation into a rejection.
+      try {
+        const record = await conn.client.getEntity(`${snapshot.recordPath}?$format=json`);
+        assertRecordValues(record, { ...snapshot.key, ...patch });
+        if (snapshot.record)
+          assertRecordValues(
+            record,
+            Object.fromEntries(
+              Object.entries(snapshot.record).filter(
+                ([name]) => props.has(name) && name !== "DataVersion" && !(name in patch),
+              ),
             ),
-          ),
-        );
-      return { ...record, RecordPath: snapshot.recordPath };
-    } catch (cause) {
-      throw new ODataError({
-        kind: "unknown",
-        message:
-          "После запроса записи контрольное чтение настройки не подтвердило результат; требуется ручная сверка, повторная запись не разрешена.",
-        cause,
-      });
-    }
-  });
+          );
+        return { ...record, RecordPath: snapshot.recordPath };
+      } catch (cause) {
+        throw new ODataError({
+          kind: "unknown",
+          message:
+            "После запроса записи контрольное чтение настройки не подтвердило результат; требуется ручная сверка, повторная запись не разрешена.",
+          cause,
+        });
+      }
+    },
+    { kind: "manual", target: "settlementSettings" },
+  );
   return {
     updated: true,
     verified: true,
