@@ -6,6 +6,7 @@ import type { ODataEntity } from "../types/odata.js";
 import { accountsByRef } from "./accounting.js";
 import { ODataError } from "./errors.js";
 import { odataGuid, odataString } from "./query.js";
+import { fingerprintRecordFields } from "./write-operation-context.js";
 import { contractSettlementKind } from "./settlement-accounts.js";
 
 import { EMPTY_GUID, exactRef, counterpartyCatalog, readCounterparty } from "./counterparty-hierarchy.js";
@@ -233,6 +234,16 @@ export async function saveSettlementSettings(
     await conn.client.prepareCreate(snapshot.entitySet, operation, { withRefKey: false });
     return { dryRun: true, database: conn.cfg.name, ...snapshot, ...operation, concurrency, notes };
   }
+  const expectedRecord = {
+    ...(snapshot.record
+      ? Object.fromEntries(
+          Object.entries(snapshot.record).filter(([name]) => props.has(name) && name !== "DataVersion"),
+        )
+      : {}),
+    ...snapshot.key,
+    ...patch,
+  };
+  const fields = Object.keys(expectedRecord);
   const result = await conn.client.writeRecordOnce(
     snapshot.entitySet,
     operation,
@@ -261,7 +272,12 @@ export async function saveSettlementSettings(
         });
       }
     },
-    { kind: "manual", target: "settlementSettings" },
+    {
+      kind: "registerValues",
+      recordPath: snapshot.recordPath,
+      fields,
+      expectedHash: fingerprintRecordFields(expectedRecord, fields),
+    },
   );
   return {
     updated: true,

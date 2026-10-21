@@ -29,7 +29,8 @@ export type OperationCheck =
   | LineCountCheck
   | { kind: "documentState"; ref: string }
   | { kind: "createdRef"; ref: string }
-  | { kind: "manual"; target: "counterpartyGroup" | "settlementSettings" };
+  | { kind: "manual"; target: "counterpartyGroup" }
+  | { kind: "registerValues"; recordPath: string; fields: string[]; expectedHash: string };
 
 export interface JournalEntry {
   version: 1;

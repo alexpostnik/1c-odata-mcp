@@ -703,32 +703,41 @@ it("actual Belarus register schema requires honest singleWriter update without I
   expect(f.writes[0]?.headers).toEqual({});
 });
 
-it.each(["create", "update"] as const)("reconciles lost register %s by exact compound key and normalized values without resend", async mode => {
-  const f = await fixture(mode === "update" ? saved() : undefined);
-  const args = {mode, ...(mode === "update" ? {expectedDataVersion:"v1"} : {})};
-  const p = await f.run(args);
-  const operationId = String(data(p).operationId);
-  f.failWrite(new ODataError({kind:"timeout", message:"Synthetic lost response"}));
-  expect((await f.run({...args, confirm:true, operationId})).isError).toBe(true);
-  const expected = {...(mode === "update" ? saved() : key), [resources[2]!]:ACCOUNT};
-  f.setRow(expected);
-  const status = await f.status(operationId);
-  expect(data(status).status).toBe("found_reconciled");
-  expect(data(status).recordPath).toContain("Организация_Key=guid'");
-  expect((await f.conn.client.operationEntry(operationId))?.state).toBe("succeeded");
-  expect((await f.run({...args, confirm:true, operationId})).isError).toBeFalsy();
-  expect(f.writes).toHaveLength(1);
-});
-it.each(["missing", "different"])("keeps %s register result held after a lost response", async reason => {
+it.each(["create", "update"] as const)(
+  "reconciles lost register %s by exact compound key and normalized values without resend",
+  async (mode) => {
+    const before = { ...saved(), СчетПрочихРасчетов_Key: "abcdefab-cdef-4abc-8def-abcdefabcdef" };
+    const f = await fixture(mode === "update" ? before : undefined);
+    const args = { mode, ...(mode === "update" ? { expectedDataVersion: "v1" } : {}) };
+    const p = await f.run(args);
+    const operationId = String(data(p).operationId);
+    f.failWrite(new ODataError({ kind: "timeout", message: "Synthetic lost response" }));
+    expect((await f.run({ ...args, confirm: true, operationId })).isError).toBe(true);
+    const expected = {
+      ...(mode === "update"
+        ? { ...before, СчетПрочихРасчетов_Key: before.СчетПрочихРасчетов_Key.toUpperCase() }
+        : key),
+      [resources[2]!]: ACCOUNT,
+    };
+    f.setRow(expected);
+    const status = await f.status(operationId);
+    expect(data(status).status).toBe("found_reconciled");
+    expect(data(status).recordPath).toContain("Организация_Key=guid'");
+    expect((await f.conn.client.operationEntry(operationId))?.state).toBe("succeeded");
+    expect((await f.run({ ...args, confirm: true, operationId })).isError).toBeFalsy();
+    expect(f.writes).toHaveLength(1);
+  },
+);
+it.each(["missing", "different"])("keeps %s register result held after a lost response", async (reason) => {
   const f = await fixture();
   const p = await f.run();
   const operationId = String(data(p).operationId);
-  f.failWrite(new ODataError({kind:"timeout",message:"Synthetic lost response"}));
-  await f.run({confirm:true,operationId});
-  if (reason === "different") f.setRow({...key,[resources[2]!]:OTHER});
+  f.failWrite(new ODataError({ kind: "timeout", message: "Synthetic lost response" }));
+  await f.run({ confirm: true, operationId });
+  if (reason === "different") f.setRow({ ...key, [resources[2]!]: OTHER });
   const status = await f.status(operationId);
   expect(data(status).status).toBe("unverifiable");
   expect((await f.conn.client.operationEntry(operationId))?.state).toBe("outcome_unknown");
-  expect((await f.run({confirm:true,operationId})).isError).toBe(true);
+  expect((await f.run({ confirm: true, operationId })).isError).toBe(true);
   expect(f.writes).toHaveLength(1);
 });

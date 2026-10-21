@@ -31,7 +31,7 @@ import {
   postDocumentResultSchema,
   operationStatusSchema,
 } from "../schemas/output.js";
-import { currentWriteOperationId } from "../odata/write-operation-context.js";
+import { currentWriteOperationId, fingerprintRecordFields } from "../odata/write-operation-context.js";
 import { InputError } from "../errors.js";
 import { ODataError } from "../odata/errors.js";
 import { getDocumentPostings } from "./registers.js";
@@ -1517,14 +1517,13 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
     {
       title: "Статус операции записи",
       description:
-        "Состояние операции записи по operationId из предпросмотра (создание, добавление/удаление строки " +
-        "документа). Если результат неизвестен (таймаут, сбой сети, 5xx), сверяет с 1С: созданный объект " +
-        "ищет по назначенному Ref_Key (операции 0.5.0 — по метке «[op:…]» в комментарии), правку строк — " +
-        "по числу строк документа. Нашёл — фиксирует " +
-        "успех, и повторное подтверждение вернёт результат без второго запроса; правка не дошла — закрывает " +
-        "операцию, нужен новый предпросмотр. " +
-        "Ничего не создаёт в 1С. Если объект не найден — безопасно сделать новый предпросмотр с новым id " +
-        "(но дайте 1С время: запрос мог ещё выполняться).",
+        "Состояние операции записи по operationId из предпросмотра. После потери ответа созданный объект " +
+        "сверяется по назначенной ссылке (старые операции — по метке), строки документа — по числу строк, " +
+        "настройка регистра — по точному составному ключу и отпечатку проверяемых полей. Совпадение фиксирует " +
+        "успех без повторной отправки. Для изменения группы, Post/Unpost и неподтверждённого результата " +
+        "регистра ответ unverifiable удерживает повтор и требует ручной сверки. Отсутствие объекта само по " +
+        "себе не разрешает новый запрос: он мог ещё выполняться. Новый предпросмотр допустим после " +
+        "подтверждённого not_applied либо rejected с устранённой причиной. Ничего не записывает в 1С.",
       inputSchema: {
         database: databaseField,
         operationId: z.string().uuid().describe("operationId из предпросмотра создания"),
@@ -1571,11 +1570,31 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
           return ok({
             ...common,
             status: "unverifiable",
-            note:
-              entry.check.target === "settlementSettings"
-                ? "Исход записи настройки регистра неизвестен. Сверьте точный составной ключ и ресурсы в 1С; повторная отправка удерживается."
-                : "Исход изменения группы контрагента неизвестен. Сверьте Parent_Key и версию в 1С; повторная отправка удерживается.",
+            note: "Исход изменения группы контрагента неизвестен. Сверьте Parent_Key и версию в 1С; повторная отправка удерживается.",
           });
+        if (entry.check?.kind === "registerValues") {
+          const check = entry.check;
+          try {
+            const record = await conn.client.getEntity(`${check.recordPath}?$format=json`);
+            if (fingerprintRecordFields(record, check.fields) === check.expectedHash) {
+              await conn.client.reconcileOperation(operationId, { RecordPath: check.recordPath });
+              return ok({
+                ...common,
+                status: "found_reconciled",
+                recordPath: check.recordPath,
+                note: "Точная запись регистра и проверяемые ресурсы совпали с ожидаемыми; результат зафиксирован без повторной отправки.",
+              });
+            }
+          } catch {
+            // Missing records and failed reads cannot prove non-application of a delayed request.
+          }
+          return ok({
+            ...common,
+            status: "unverifiable",
+            recordPath: check.recordPath,
+            note: "Точная запись регистра отсутствует, отличается или не прочитана. Требуется ручная сверка; повторная отправка удерживается.",
+          });
+        }
         if (entry.check?.kind === "createdRef") {
           try {
             const actual = await conn.client.getEntity(
