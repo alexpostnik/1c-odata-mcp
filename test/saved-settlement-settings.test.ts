@@ -467,6 +467,23 @@ describe("exact contract saved settlement settings", () => {
 });
 
 describe("counterparty and group saved settlement scope", () => {
+  it.each(["counterparty", "group"])("saves and reads %s all-organizations scope", async (scope) => {
+    const f = await fixture();
+    f.setSubject({ IsFolder: scope === "group" });
+    const args = { scope, contractRef: undefined, organizationRef: EMPTY };
+    const preview = await f.run(args, false, true);
+    expect(preview.isError).toBeFalsy();
+    expect(data(preview).payload).toMatchObject({
+      Организация_Key: EMPTY,
+      Контрагент_Key: CP,
+      Договор_Key: EMPTY,
+    });
+    expect(
+      (await f.run({ ...args, confirm: true, operationId: data(preview).operationId }, false, true)).isError,
+    ).toBeFalsy();
+    expect(data(await f.run(args, true, true)).found).toBe(true);
+  });
+
   it.each(["counterparty", "group"])(
     "creates %s defaults with empty contract and exact organization/subject",
     async (scope) => {
@@ -489,7 +506,6 @@ describe("counterparty and group saved settlement scope", () => {
     { scope: "group", contractRef: undefined },
     { scope: "counterparty", contractRef: CTR },
     { scope: "contract", contractRef: undefined },
-    { scope: "group", contractRef: undefined, organizationRef: EMPTY },
     { scope: "counterparty", contractRef: undefined, counterpartyRef: EMPTY },
   ])("rejects inconsistent or wildcard scope %j", async (args) => {
     const f = await fixture();
