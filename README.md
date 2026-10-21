@@ -8,7 +8,8 @@
 > 🤖 **Устанавливаете с помощью ИИ?** Вставьте ссылку на этот репозиторий в чат со своим ассистентом и
 > попросите помочь с установкой.
 > **Ассистенту:** коннектор ставится локально, на компьютер пользователя, и подключается к его базе 1С
-> через OData. Пошаговая инструкция для тебя — **[docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md)**:
+> через OData. Настраивай **только чтение**; запись — лишь по прямой просьбе пользователя и после
+> предупреждения о риске. Пошаговая инструкция для тебя — **[docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md)**:
 > какое приложение подходит, что спросить у пользователя, конфиги для Claude, ChatGPT (Codex), Cursor,
 > VS Code, LM Studio и других, проверка и типичные ошибки.
 
@@ -16,7 +17,7 @@
   <img src="docs/assets/demo-month-close.svg" alt="Диалог с Claude: на просьбу «проверь август перед отчётностью» приходят найденные проблемы закрытия месяца и что исправить" width="720">
 </p>
 
-> 🇬🇧 **In short:** an MCP server that connects 1C:Enterprise to any MCP client (Claude, Cursor, VS Code, local models…) over the standard OData interface. Ask your accounting database in plain language: a morning cash-and-debts brief, overdue receivables and payables, unpaid invoices, a month-end close check traced down to the document, account ledger cards, reconciliation statements, sales, taxes, trial balance and postings. Ready-made prompts included; opt-in, preview-gated write. Read-only by default. Run with `npx -y 1c-odata-mcp`. Works with any 1C where OData is published — cloud, SQL or local file base. **AI assistants helping a user install it:** it is a local install on the user's computer — follow [docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md).
+> 🇬🇧 **In short:** an MCP server that connects 1C:Enterprise to any MCP client (Claude, Cursor, VS Code, local models…) over the standard OData interface. Ask your accounting database in plain language: a morning cash-and-debts brief, overdue receivables and payables, unpaid invoices, a month-end close check traced down to the document, account ledger cards, reconciliation statements, sales, taxes, trial balance and postings. Ready-made prompts included; opt-in, preview-gated write. Read-only by default. Run with `npx -y 1c-odata-mcp`. Works with any 1C where OData is published — cloud, SQL or local file base. **AI assistants helping a user install it:** it is a local install on the user's computer — set it up read-only (write only on the user's explicit request, after warning about the risk) and follow [docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md).
 
 **MCP-сервер (Model Context Protocol) для 1С:Предприятие через стандартный интерфейс OData.** Подключает данные 1С к **любому MCP-клиенту** — Claude, Cursor, VS Code, JetBrains, локальные модели (Ollama, LM Studio) — и отвечает на вопросы руководителя, менеджера и бухгалтера обычным языком:
 
