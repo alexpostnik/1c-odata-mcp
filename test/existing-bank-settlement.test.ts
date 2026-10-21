@@ -61,6 +61,7 @@ async function fixture(entitySet = SET) {
     Date: "2010-03-22T00:00:00",
     НазначениеПлатежа: "Synthetic loan",
     СубконтоДт1: "cost-analytic",
+    СубконтоДт1_Type: "StandardODATA.Catalog_СтатьиЗатрат",
     [ROWS]: [
       {
         LineNumber: "1",
@@ -69,6 +70,8 @@ async function fixture(entitySet = SET) {
         СчетУчетаРасчетовПоАвансам_Key: OLD,
         СуммаПлатежа: 150,
         СуммаНДС: 0,
+        СтавкаНДС: "НДС20",
+        СтатьяДвиженияДенежныхСредств_Key: OLD,
         Субконто: "preserved",
       },
     ],
@@ -82,6 +85,13 @@ async function fixture(entitySet = SET) {
     ВалютаВзаиморасчетов_Key: CUR,
     ВидДоговора: "Прочее",
     РасчетыВУсловныхЕдиницах: false,
+  };
+  let counterparty: ODataEntity | Error = {
+    Ref_Key: CP,
+    IsFolder: false,
+    DeletionMark: false,
+    Parent_Key: GROUP,
+    Description: "Synthetic counterparty",
   };
   let account: ODataEntity = {
     Ref_Key: ACCOUNT,
@@ -177,12 +187,12 @@ async function fixture(entitySet = SET) {
       if (currency instanceof Error) throw currency;
       return currency as never;
     }
-    if (path.startsWith("Catalog_Контрагенты"))
-      return (
-        path.includes(GROUP)
-          ? { Ref_Key: GROUP, IsFolder: true, DeletionMark: false, Parent_Key: EMPTY }
-          : { Ref_Key: CP, IsFolder: false, DeletionMark: false, Parent_Key: GROUP }
-      ) as never;
+    if (path.startsWith("Catalog_Контрагенты")) {
+      if (path.includes(GROUP))
+        return { Ref_Key: GROUP, IsFolder: true, DeletionMark: false, Parent_Key: EMPTY } as never;
+      if (counterparty instanceof Error) throw counterparty;
+      return structuredClone(counterparty) as never;
+    }
     if (path.startsWith(REG)) return { value: settings } as never;
     if (path.startsWith("ChartOfAccounts_"))
       return (path.includes("guid'") && !path.includes("$filter") ? account : { value: [account] }) as never;
@@ -218,6 +228,8 @@ async function fixture(entitySet = SET) {
     doc: () => structuredClone(doc),
     setDoc: (v: object) => (doc = { ...doc, ...v }),
     setContract: (v: object) => (contract = { ...contract, ...v }),
+    setCounterparty: (v: ODataEntity | Error) =>
+      (counterparty = v instanceof Error ? v : { ...counterparty, ...v }),
     setAccount: (v: object) => (account = { ...account, ...v }),
     setSettings: (v: ODataEntity[]) => (settings = v),
     setCurrency: (v: typeof currency) => (currency = v),
@@ -332,6 +344,140 @@ describe("existing bank inherited settlement", () => {
     expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
     expect(f.doc().СубконтоДт1).toBe(before.СубконтоДт1);
     expect(f.doc().СуммаДокумента).toBe(before.СуммаДокумента);
+  });
+});
+
+describe("explicit counterparty for an empty bank document", () => {
+  it.each([
+    { entitySet: "Document_СписаниеСРасчетногоСчета", operation: "ПрочееСписание" },
+    { entitySet: SET, operation: "ПрочееПоступление" },
+  ])(
+    "fills zero CP in $entitySet from explicit selection and preserves zero row amounts/tax/article",
+    async ({ entitySet, operation }) => {
+      const f = await fixture(entitySet);
+      f.setDoc({
+        Контрагент_Key: EMPTY,
+        ВидОперации: operation,
+        [CONTRACT]: EMPTY,
+        [ROWS]: [{ ...(f.doc()[ROWS] as object[])[0], [CONTRACT]: EMPTY, СуммаПлатежа: 0 }],
+      });
+      f.setAccount({ Code: "26" });
+      // The saved exact contract setting supplies the account; no account argument is accepted.
+      f.setSettings([{ ...f.settings()[0], Контрагент_Key: CP, Договор_Key: CTR }]);
+      const before = f.doc();
+      const p = await f.run({ counterpartyRef: CP });
+      expect(p.isError).toBeFalsy();
+      expect(data(p).observedCounterparty).toMatchObject({
+        Ref_Key: CP,
+        IsFolder: false,
+        DeletionMark: false,
+      });
+      expect(data(p).resolution).toMatchObject({ choice: { settle: ACCOUNT, level: "договор" } });
+      const expectedPayload = {
+        Контрагент_Key: CP,
+        [CONTRACT]: CTR,
+        [ACCOUNT_FIELD]: ACCOUNT,
+        [ROWS]: [{ ...(before[ROWS] as object[])[0], [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT }],
+      };
+      expect(data(p).payload).toEqual(expectedPayload);
+      expect(f.writes).toEqual([]);
+      const r = await f.run({ counterpartyRef: CP, confirm: true, operationId: data(p).operationId });
+      expect(r.isError).toBeFalsy();
+      expect(f.writes).toEqual([
+        expect.objectContaining({ method: "PATCH", body: expectedPayload, headers: { "If-Match": "v1" } }),
+      ]);
+      expect(f.doc()).toEqual({ ...before, ...expectedPayload, DataVersion: "v2" });
+    },
+  );
+  it("requires explicit selection for zero CP instead of inferring from the contract", async () => {
+    const f = await fixture();
+    f.setDoc({ Контрагент_Key: EMPTY });
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it.each([undefined, null, "", "not-a-guid", 0])(
+    "rejects unknown document CP %j even with explicit selection",
+    async (value) => {
+      const f = await fixture();
+      f.setDoc({ Контрагент_Key: value });
+      expect((await f.run({ counterpartyRef: CP })).isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it.each([EMPTY, "not-a-guid", "", null])(
+    "rejects invalid explicit selection %j",
+    async (counterpartyRef) => {
+      const f = await fixture();
+      f.setDoc({ Контрагент_Key: EMPTY });
+      expect((await f.run({ counterpartyRef })).isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it("rejects replacement of populated document CP", async () => {
+    const f = await fixture();
+    expect((await f.run({ counterpartyRef: OLD })).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it("accepts the same explicit CP without adding it to PATCH", async () => {
+    const f = await fixture();
+    const p = await f.run({ counterpartyRef: CP });
+    expect(p.isError).toBeFalsy();
+    expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
+    expect(data(p).observedCounterparty).toMatchObject({ Ref_Key: CP });
+    expect(
+      (await f.run({ counterpartyRef: CP, confirm: true, operationId: data(p).operationId })).isError,
+    ).toBeFalsy();
+    expect(f.doc().Контрагент_Key).toBe(CP);
+  });
+  it.each([
+    { Ref_Key: OLD },
+    { DeletionMark: true },
+    { DeletionMark: undefined },
+    { IsFolder: true },
+    { IsFolder: undefined },
+    new ODataError({ kind: "not_found", message: "Synthetic missing counterparty" }),
+  ])("rejects an unavailable or unsuitable selected CP %j", async (value) => {
+    const f = await fixture();
+    f.setDoc({ Контрагент_Key: EMPTY });
+    f.setCounterparty(value);
+    expect((await f.run({ counterpartyRef: CP })).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it.each([{ Owner_Key: OLD }, { Организация_Key: OLD }, { ВалютаВзаиморасчетов_Key: OLD }])(
+    "rejects selected CP/contract relation mismatch %j",
+    async (value) => {
+      const f = await fixture();
+      f.setDoc({ Контрагент_Key: EMPTY });
+      f.setContract(value);
+      expect((await f.run({ counterpartyRef: CP })).isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it.each(["counterparty", "contract", "document", "selection"])(
+    "rejects changed %s after explicit-CP preview",
+    async (which) => {
+      const f = await fixture();
+      f.setDoc({ Контрагент_Key: EMPTY });
+      const p = await f.run({ counterpartyRef: CP });
+      expect(p.isError).toBeFalsy();
+      if (which === "counterparty") f.setCounterparty({ Description: "Changed synthetic counterparty" });
+      else if (which === "contract") f.setContract({ Description: "Changed synthetic contract" });
+      // Keep v1 to prove the observed document is also bound, beyond the version guard.
+      else if (which === "document") f.setDoc({ Контрагент_Key: CP });
+      const r = await f.run({
+        counterpartyRef: which === "selection" ? OLD : CP,
+        confirm: true,
+        operationId: data(p).operationId,
+      });
+      expect(r.isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it("still rejects multiple rows when CP is explicitly selected", async () => {
+    const f = await fixture();
+    f.setDoc({ Контрагент_Key: EMPTY, [ROWS]: [{}, {}] });
+    expect((await f.run({ counterpartyRef: CP })).isError).toBe(true);
+    expect(f.writes).toEqual([]);
   });
 });
 
