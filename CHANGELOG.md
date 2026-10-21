@@ -5,7 +5,10 @@
 
 ## Unreleased
 
-- Exact contract-scoped saved-settlement read/create/update tools: strict independent-register metadata, preview-confirm journal, DataVersion/If-Match for updates and verified readback. Live configuration and concurrent-create behavior remain unverified.
+- Saved settlement-account read/create/update tools for contracts, counterparties and groups: strict independent-register metadata, preview/confirmation journal and verified readback. Updates use DataVersion/If-Match when published; versionless independent-register updates require explicit `singleWriter=true` and checks between reads, without an atomic lock. Unknown write or readback outcomes hold retries pending manual reconciliation.
+- Apply inherited settlement accounts and the selected contract to existing unposted bank receipts/payments, with explicit settlement side, DataVersion/If-Match, preview/confirmation journal and readback of changed and preserved fields.
+- Separate guarded Post/Unpost operations have their own preview, journal, operation ID and state readback; posting verification is a separate read. The version is checked before the action; atomic If-Match protection for Post/Unpost is not claimed. Unknown outcomes hold dependent actions and retries.
+- Targeted TEST validation (Belarus Accounting 2.1.62.5 / platform 8.3.25.1546, versions provided by the owner): a contract-scoped account 26 setting was created and read back; group account 67.2 was selected without an account argument and applied to a loan receipt, then a separate Post and accounting-row read verified the selected contract and account. Full native 1C priority rules and concurrent-create behavior remain unverified; these checks do not establish acceptance of all accounting scenarios.
 - Contract creation compares currency with configured regulated currency instead of hardcoded643; unknown explicit currency codes are rejected.
 - Contracts of kind `Other` receive no new automatic supplier/customer interpretation.
 
