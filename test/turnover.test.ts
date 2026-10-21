@@ -279,9 +279,10 @@ function fakeCtx(regRows: Array<Record<string, unknown>>) {
         const pfx = /startswith\(Code, '([^']*)'\)/.exec(dec)?.[1] ?? "";
         pool = chart.filter((a) => a.Code.startsWith(pfx));
       } else if (path.startsWith(ORGS)) {
-        pool = dec.includes("substringof('Ромашка', Description)")
-          ? [{ Ref_Key: ORG, Description: "ООО Ромашка" }]
-          : [];
+        pool = [
+          { Ref_Key: ORG, Description: "ООО Ромашка" },
+          { Ref_Key: guid(99), Description: "ООО Берёзка" },
+        ];
       } else if (path.startsWith(REG)) {
         const keys = [...dec.matchAll(/Account_Key eq guid'([^']+)'/g)].map((m) => m[1]);
         pool = regRows.filter((r) => keys.includes(String(r["Account_Key"])));

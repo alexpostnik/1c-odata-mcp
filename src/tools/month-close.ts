@@ -9,8 +9,10 @@ import {
   balanceByAccounts,
   nextDay,
   num,
+  readByRefs,
   resolveAccounts,
   resolveNames,
+  resolvePostingsSource,
   type Account,
 } from "../odata/accounting.js";
 import { collectDocuments, fetchAllForAggregation } from "../odata/aggregate.js";
@@ -99,7 +101,12 @@ async function checkClosing(
   month: string,
   orgs: ReadonlyMap<string, string>,
   orgKey: string | undefined,
-): Promise<{ result: CheckResult; earlier: CheckResult; closedOrgs: Set<string> }> {
+): Promise<{
+  result: CheckResult;
+  earlier: CheckResult;
+  closedOrgs: Set<string>;
+  closedAt: Map<string, string>;
+}> {
   const title = "Закрытие месяца";
   const earlierTitle = "Предыдущие месяцы года";
   const set = resolveEntity(CLOSING_SET, await conn.available());
@@ -114,6 +121,7 @@ async function checkClosing(
       result: skipped(title, "closing"),
       earlier: skipped(earlierTitle, "earlierMonths"),
       closedOrgs: new Set(),
+      closedAt: new Map(),
     };
   }
   const { from: yearStart } = monthBounds(`${month.slice(0, 4)}-01`);
@@ -143,6 +151,7 @@ async function checkClosing(
   const orgRefs = orgKey ? [orgKey] : withOps.length ? withOps : [...orgs.keys()];
   const orgName = (ref: string) => orgs.get(ref) ?? ref;
   const closedOrgs = new Set<string>();
+  const closedAt = new Map<string, string>();
   const notClosed: Record<string, unknown>[] = [];
   const failedItems: Record<string, unknown>[] = [];
   const earlierItems: Record<string, unknown>[] = [];
@@ -165,6 +174,7 @@ async function checkClosing(
         // закрытие могли не попасть. Перезакрытие ссылку не меняет — время остаётся прежним.
         ...(at ? { closingCreatedAt: at } : {}),
       });
+      if (at) closedAt.set(org, at);
     }
     for (let m = 1; m < Number(month.slice(5, 7)); m++) {
       const mm = `${month.slice(0, 4)}-${String(m).padStart(2, "0")}`;
@@ -228,7 +238,7 @@ async function checkClosing(
             ? "Январь — предыдущих месяцев в году нет."
             : "Все предыдущие месяцы года закрыты.",
       };
-  return { result, earlier, closedOrgs };
+  return { result, earlier, closedOrgs, closedAt };
 }
 
 // ─── 2. Непроведённые документы ──────────────────────────────────────────────
@@ -642,6 +652,143 @@ async function carriedResiduals(
     .map((c) => ({ account: c, onDate: prevEnd, balance: rub(net.get(c)!) }));
 }
 
+// ─── 4б. Документы, созданные после закрытия ─────────────────────────────────
+
+export interface LateDocument {
+  ref: string;
+  set: string;
+  org?: string;
+  createdAt: string;
+  closingCreatedAt: string;
+}
+
+/**
+ * Документы с движениями за месяц, созданные позже операции закрытия своей организации (по метке
+ * времени в Ref_Key). Регламентные операции не в счёт. unknown — регистраторы без метки времени
+ * (ссылка не UUIDv1, например из обмена): про них сказать нельзя.
+ */
+export function lateDocuments(
+  records: readonly ODataEntity[],
+  closedAt: ReadonlyMap<string, string>,
+): { late: LateDocument[]; unknown: number } {
+  const seen = new Set<string>();
+  const late: LateDocument[] = [];
+  let unknown = 0;
+  const single = closedAt.size === 1 ? [...closedAt.values()][0] : undefined;
+  for (const r of records) {
+    const ref = refOf(r["Recorder"]);
+    const set = entitySetOfType(r["Recorder_Type"]);
+    if (!ref || !set || set === CLOSING_SET[0] || seen.has(ref)) continue;
+    seen.add(ref);
+    const org = refOf(r["Организация_Key"]);
+    // Своё время закрытия у каждой организации; общее — только для движений без организации.
+    const closing = org ? closedAt.get(org) : single;
+    if (!closing) continue;
+    const at = createdAt(ref);
+    if (!at) {
+      unknown += 1;
+      continue;
+    }
+    if (at > closing)
+      late.push({ ref, set, ...(org ? { org } : {}), createdAt: at, closingCreatedAt: closing });
+  }
+  return { late: late.sort((a, b) => a.createdAt.localeCompare(b.createdAt)), unknown };
+}
+
+async function checkLateDocuments(
+  conn: Connection,
+  bounds: { from: string; to: string },
+  orgKey: string | undefined,
+  closedAt: ReadonlyMap<string, string>,
+  afterClose: CheckResult,
+  orgs: ReadonlyMap<string, string>,
+): Promise<CheckResult> {
+  const id = "lateDocuments";
+  const title = "Документы после закрытия";
+  if (afterClose.status === "skipped") {
+    return { id, title, status: "skipped", message: "Месяц не закрыт — сравнивать не с чем." };
+  }
+  // Время операции закрытия при перезакрытии не меняется: если закрываемые счета в нуле, документы,
+  // созданные позже, уже учтены — сравнение дало бы ложную тревогу.
+  if (afterClose.status === "ok") {
+    return {
+      id,
+      title,
+      status: "not_applicable",
+      message: "Закрываемые счета после закрытия в нуле — поздние документы на результат не повлияли.",
+    };
+  }
+  if (closedAt.size === 0) {
+    return {
+      id,
+      title,
+      status: "skipped",
+      message: "Время операции закрытия не определить (ссылка без метки времени).",
+    };
+  }
+  const source = await resolvePostingsSource(conn);
+  const { rows } = await fetchAllForAggregation(
+    conn,
+    source.entitySet,
+    {
+      filter:
+        and(
+          cmp("Period", "ge", `datetime'${bounds.from}T00:00:00'`),
+          cmp("Period", "le", `datetime'${bounds.to}T23:59:59'`),
+          orgKey ? cmp("Организация_Key", "eq", odataGuid(orgKey)) : undefined,
+        ) || undefined,
+      select: ["Recorder", "Recorder_Type", "Организация_Key"],
+    },
+    `движения ${bounds.from}..${bounds.to}`,
+  );
+  const { late, unknown } = lateDocuments(rows, closedAt);
+  if (!late.length) {
+    return {
+      id,
+      title,
+      status: "ok",
+      message:
+        "Документов, созданных после закрытия, нет — остатки на закрываемых счетах дали перепроведённые " +
+        "документы или ошибка закрытия; карточка счёта покажет, какие движения не закрыты." +
+        (unknown ? ` У ${unknown} документов время создания не определить.` : ""),
+    };
+  }
+  const shown = late.slice(0, ITEMS_LIMIT);
+  const bySet = new Map<string, string[]>();
+  for (const d of shown) bySet.set(d.set, [...(bySet.get(d.set) ?? []), d.ref]);
+  const info = new Map<string, ODataEntity>();
+  for (const [set, refs] of bySet) {
+    for (const [k, v] of await readByRefs(conn, set, refs, [
+      DOC_FIELDS.ref,
+      DOC_FIELDS.number,
+      DOC_FIELDS.date,
+    ]))
+      info.set(k, v);
+  }
+  return {
+    id,
+    title,
+    status: "warning",
+    message:
+      `${late.length} документ(ов) с движениями за месяц созданы позже операции закрытия — их суммы в ` +
+      "закрытие не попали. Перезакройте месяц. Если месяц уже перезакрывали после их создания, а остатки " +
+      "остались — причина в другом: время операции закрытия при перезакрытии не меняется." +
+      (unknown ? ` У ${unknown} документов время создания не определить.` : ""),
+    ...withItems(
+      shown.map((d) => ({
+        documentTitle: documentTitle(d.set),
+        number: String(info.get(d.ref)?.[DOC_FIELDS.number] ?? "").trim(),
+        date: String(info.get(d.ref)?.[DOC_FIELDS.date] ?? "").slice(0, 10),
+        documentRef: d.ref,
+        documentCreatedAt: d.createdAt,
+        closingCreatedAt: d.closingCreatedAt,
+        ...(d.org && orgs.get(d.org) ? { organization: orgs.get(d.org) } : {}),
+      })),
+    ),
+    ...(late.length > ITEMS_LIMIT ? { itemsMore: late.length - ITEMS_LIMIT } : {}),
+  };
+}
+
 // ─── 5. Амортизация ──────────────────────────────────────────────────────────
 
 const ASSET_ACCOUNTS = ["01", "04"];
@@ -819,7 +966,8 @@ export function registerMonthCloseTools(server: McpServer, ctx: ServerContext): 
         "месяца: (1) закрытие месяца выполнено и без ошибок, закрыты ли предыдущие месяцы года; " +
         "(2) непроведённые документы месяца; (3) красное сальдо на конец месяца — деньги и товары в минусе, " +
         "расчёты 62/60 не на той стороне; (4) остатки на 90, 91 (должны быть в нуле) и 20–26, 44 после " +
-        "закрытия; (5) амортизация при наличии ОС и НМА; (6) реализации с НДС без счёта-фактуры. " +
+        "закрытия и документы, созданные позже операции закрытия (если остатки есть); (5) амортизация при наличии " +
+        "ОС и НМА; (6) реализации с НДС без счёта-фактуры. " +
         "Каждая проверка — статус ok / warning / error / not_applicable / skipped, пояснение и строки " +
         "(до 20). Остатки на 90/91/25/26 на начало месяца — признак, что прошлые месяцы закрыты не полностью. " +
         "closingCreatedAt — когда впервые создана операция закрытия (документы, созданные позже, могли в него " +
@@ -858,6 +1006,7 @@ export function registerMonthCloseTools(server: McpServer, ctx: ServerContext): 
           };
         }
         const closed = closing.result.status === "ok";
+        const afterClose = checkAfterClose(snap, closed);
         const closingKinds = new Set(
           (closing.result.items ?? []).flatMap((i) =>
             Array.isArray(i["operations"]) ? (i["operations"] as string[]) : [],
@@ -868,7 +1017,8 @@ export function registerMonthCloseTools(server: McpServer, ctx: ServerContext): 
           closing.earlier,
           await checkUnposted(conn, bounds, org?.ref),
           await checkRedBalances(conn, snap),
-          checkAfterClose(snap, closed),
+          afterClose,
+          await checkLateDocuments(conn, bounds, org?.ref, closing.closedAt, afterClose, orgs),
           checkDepreciation(snap, closingKinds),
           await checkVatInvoices(conn, bounds, org?.ref),
         ];

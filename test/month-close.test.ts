@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { uuidV1 } from "../src/odata/uuid-v1.js";
 import {
   evaluateClosing,
   invoiceBases,
+  lateDocuments,
   monthBounds,
   netByTopCode,
   overallStatus,
@@ -120,5 +122,44 @@ describe("invoiceBases", () => {
       "11111111-1111-1111-1111-111111111111",
       "22222222-2222-2222-2222-222222222222",
     ]);
+  });
+});
+
+describe("lateDocuments", () => {
+  // UUIDv1 с известным временем создания (как выдаёт 1С).
+  const AUG_31 = "b92962b4-c598-11f1-9110-00155d97eb2d"; // создан в 2026
+  const OLD = "13fb1222-a706-11e5-ba67-3085a93ddca2"; // создан в 2015
+  const V4 = "123e4567-e89b-42d3-a456-426614174000";
+  const rec = (ref: string, set: string, org = "org") => ({
+    Recorder: ref,
+    Recorder_Type: `StandardODATA.${set}`,
+    Организация_Key: org,
+  });
+
+  it("документы, созданные позже закрытия своей организации; регламентные — не в счёт; повторы — один раз", () => {
+    const closedAt = new Map([["org", "2020-01-01T00:00:00.000Z"]]);
+    const r = lateDocuments(
+      [
+        rec(AUG_31, "Document_РеализацияТоваровУслуг"),
+        rec(AUG_31, "Document_РеализацияТоваровУслуг"),
+        rec(OLD, "Document_ПоступлениеТоваровУслуг"),
+        rec("c0000000-c598-11f1-9110-00155d97eb2d", "Document_РегламентнаяОперация"),
+        rec(V4, "Document_ОперацияБух"),
+      ],
+      closedAt,
+    );
+    expect(r.late.map((d) => [d.ref, d.set])).toEqual([[AUG_31, "Document_РеализацияТоваровУслуг"]]);
+    expect(r.unknown).toBe(1);
+  });
+
+  it("у каждой организации своё время закрытия; незакрытая организация не сравнивается с чужим", () => {
+    const t = Date.UTC(2026, 8, 3);
+    const docA = uuidV1(t);
+    const docB = uuidV1(t + 1);
+    const r = lateDocuments(
+      [rec(docA, "Document_X", "a"), rec(docB, "Document_X", "b")],
+      new Map([["a", "2026-09-01T00:00:00.000Z"]]),
+    );
+    expect(r.late.map((d) => [d.ref, d.org])).toEqual([[docA, "a"]]);
   });
 });
