@@ -1,3 +1,4 @@
+import { expectedDocumentVersion, guardedDocumentAction } from "../odata/existing-bank-settlement.js";
 import { operationKind as configuredOperationKind, type AccountDefault } from "../config/accounting.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -1566,6 +1567,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             note: "1С отклонила запись; объект не создан. Нужен новый предпросмотр.",
           });
         }
+        if (entry.check?.kind === "documentState")
+          return ok({
+            ...common,
+            status: "unverifiable",
+            note: "Исход изменения документа неизвестен. Нужна ручная сверка версии, полей и состояния; повторная запись удерживается.",
+          });
         if (entry.entitySet.startsWith("InformationRegister_"))
           return ok({
             ...common,
@@ -1967,15 +1974,29 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         database: databaseField,
         entitySet: z.string().describe("Имя документа, напр. Document_СчетНаОплатуПокупателю"),
         ref: z.string().describe("Ref_Key документа (GUID)"),
+        expectedDataVersion: expectedDocumentVersion
+          .optional()
+          .describe(
+            "Точная текущая версия включает durable preview/action/readback. Post/Unpost выполняются отдельно; атомарная CAS действия не подтверждена.",
+          ),
         post: z.boolean().default(true).describe("true — провести, false — отменить проведение"),
         confirm: confirmField,
       },
       outputSchema: postDocumentResultSchema,
     },
-    ({ database, entitySet, ref, post, confirm }) =>
+    ({ database, entitySet, ref, post, confirm, expectedDataVersion }) =>
       guard("write.document.post_document", async () => {
         const conn = ctx.db(database);
         ensurePublished(await conn.available(), entitySet);
+        if (expectedDataVersion !== undefined) {
+          if (post && confirm) {
+            const missing = await missingContract(conn, entitySet, ref);
+            if (missing) return fail(missing);
+          }
+          return ok(
+            await guardedDocumentAction(conn, { entitySet, ref, post, expectedDataVersion }, confirm),
+          );
+        }
         const guid = ref.replace(/[{}']/g, "");
         const action = post ? "Post" : "Unpost";
         const path = `${entitySet}(guid'${guid}')/${action}?$format=json`;

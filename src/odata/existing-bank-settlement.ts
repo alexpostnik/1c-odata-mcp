@@ -1,0 +1,271 @@
+import { z } from "zod";
+import type { Connection } from "../context.js";
+import type { EntityMeta, ODataEntity } from "../types/odata.js";
+import { InputError } from "../errors.js";
+import { CATALOGS, DOCUMENTS, resolveEntity } from "../config/mapping.js";
+import { accountingChart } from "../config/accounting.js";
+import { exactRef } from "./counterparty-hierarchy.js";
+import { settlementAccountsFor, settlementSideOf } from "./settlement-accounts.js";
+import { odataGuid } from "./query.js";
+import { ODataError } from "./errors.js";
+import { fingerprintWriteInput } from "./write-operation-context.js";
+
+export const expectedDocumentVersion = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((v) => v !== "*" && !/[\r\n]/.test(v));
+export const bankSettlementInput = {
+  entitySet: z.string(),
+  ref: exactRef,
+  contractRef: exactRef,
+  side: z.enum(["supplier", "customer"]),
+  expectedDataVersion: expectedDocumentVersion,
+};
+const CONTRACT = "ДоговорКонтрагента_Key",
+  ACCOUNT = "СчетУчетаРасчетовСКонтрагентом_Key",
+  ROWS = "РасшифровкаПлатежа";
+const bankSets: ReadonlySet<string> = new Set([...DOCUMENTS.bankIn, ...DOCUMENTS.bankOut]);
+const same = (a: unknown, b: unknown) =>
+  fingerprintWriteInput("compare", { a }) === fingerprintWriteInput("compare", { a: b });
+function requireTypes(meta: EntityMeta | undefined, fields: Record<string, string>): void {
+  const props = new Map(meta?.properties.map((p) => [p.name, p.type]));
+  if (!meta || Object.entries(fields).some(([k, t]) => props.get(k) !== t))
+    throw new InputError("Не опубликованы совместимые поля документа/ссылки; действие запрещено.");
+}
+function published(record: ODataEntity, meta: EntityMeta): ODataEntity {
+  return Object.fromEntries(
+    meta.properties
+      .filter((p) => p.name in record && p.name !== "DataVersion")
+      .map((p) => [p.name, record[p.name]]),
+  );
+}
+export async function readVersionedDocument(
+  conn: Connection,
+  entitySet: string,
+  ref: string,
+  version: string,
+): Promise<{ doc: ODataEntity; meta: EntityMeta; path: string }> {
+  exactRef.parse(ref);
+  expectedDocumentVersion.parse(version);
+  const meta = (await conn.getMetadata()).entities.get(entitySet);
+  if (!meta || meta.class !== "document" || meta.keys.length !== 1 || meta.keys[0] !== "Ref_Key")
+    throw new InputError("Нужен точный опубликованный документ с ключом Ref_Key.");
+  requireTypes(meta, {
+    Ref_Key: "Edm.Guid",
+    DataVersion: "Edm.String",
+    Posted: "Edm.Boolean",
+    DeletionMark: "Edm.Boolean",
+  });
+  const path = `${entitySet}(${odataGuid(ref)})?$format=json`;
+  const doc = await conn.client.getEntity(path);
+  if (
+    String(doc.Ref_Key).toLowerCase() !== ref.toLowerCase() ||
+    doc.DeletionMark !== false ||
+    typeof doc.Posted !== "boolean" ||
+    doc.DataVersion !== version
+  )
+    throw new InputError("Документ удалён, состояние неизвестно или expectedDataVersion устарел.");
+  return { doc, meta: meta!, path };
+}
+async function verifyAfter(
+  send: () => Promise<unknown>,
+  read: () => Promise<ODataEntity>,
+  expected: ODataEntity,
+): Promise<ODataEntity> {
+  await send();
+  try {
+    const actual = await read();
+    for (const [field, value] of Object.entries(expected))
+      if (!same(actual[field], value)) throw new Error(`Поле ${field} не подтверждено`);
+    if (typeof actual.DataVersion !== "string" || !actual.DataVersion)
+      throw new Error("Версия результата неизвестна");
+    return actual;
+  } catch (cause) {
+    throw new ODataError({
+      kind: "unknown",
+      message:
+        "Запрос отправлен, контрольное чтение не подтвердило результат. Повтор запрещён; требуется ручная сверка.",
+      cause,
+    });
+  }
+}
+/** Only the chosen contract and settlement account are changed. Existing payment row is copied intact. */
+export async function applyBankSettlementSettings(
+  conn: Connection,
+  input: unknown,
+  confirm: boolean,
+): Promise<Record<string, unknown>> {
+  const p = z.object(bankSettlementInput).parse(input);
+  if (!bankSets.has(p.entitySet))
+    throw new InputError("Поддержаны только существующие банковские поступления и списания.");
+  const { doc, meta, path } = await readVersionedDocument(conn, p.entitySet, p.ref, p.expectedDataVersion);
+  if (doc.Posted !== false)
+    throw new InputError(
+      "Документ проведён. Отмена проведения выполняется отдельно; автоматической отмены нет.",
+    );
+  requireTypes(meta, {
+    [CONTRACT]: "Edm.Guid",
+    [ACCOUNT]: "Edm.Guid",
+    Организация_Key: "Edm.Guid",
+    Контрагент_Key: "Edm.Guid",
+    ВалютаДокумента_Key: "Edm.Guid",
+    ВидОперации: "Edm.String",
+  });
+  const org = exactRef.parse(doc.Организация_Key),
+    cp = exactRef.parse(doc.Контрагент_Key),
+    currency = exactRef.parse(doc.ВалютаДокумента_Key);
+  const md = await conn.getMetadata(),
+    available = new Set(md.entities.keys());
+  const contracts = resolveEntity(CATALOGS.contracts, available);
+  if (!contracts) throw new InputError("Договоры не опубликованы.");
+  const contract = await conn.client.getEntity(`${contracts}(${odataGuid(p.contractRef)})?$format=json`);
+  if (
+    String(contract.Ref_Key).toLowerCase() !== p.contractRef ||
+    contract.DeletionMark !== false ||
+    contract.IsFolder !== false ||
+    String(contract.Owner_Key).toLowerCase() !== cp ||
+    String(contract.Организация_Key).toLowerCase() !== org ||
+    String(contract.ВалютаВзаиморасчетов_Key).toLowerCase() !== currency
+  )
+    throw new InputError(
+      "Договор удалён, является группой или не совпадает по владельцу/организации/валюте документа.",
+    );
+  const side = settlementSideOf(contract.ВидДоговора);
+  if ((side && side !== p.side) || (!side && contract.ВидДоговора !== "Прочее"))
+    throw new InputError("Сторона расчётов не соответствует виду договора.");
+  const operation = String(doc.ВидОперации ?? "");
+  const incoming = (DOCUMENTS.bankIn as readonly string[]).includes(p.entitySet);
+  if (
+    (incoming && ["ОплатаПоставщику", "ПрочееСписание"].includes(operation)) ||
+    (!incoming && ["ОплатаОтПокупателя", "ПрочееПоступление"].includes(operation))
+  )
+    throw new InputError("Вид операции не соответствует направлению банковского документа.");
+  if (
+    !/^(ОплатаПоставщику|ОплатаОтПокупателя|РасчетыПоКредитамИЗаймам|ПрочееСписание|ПрочееПоступление)$/.test(
+      operation,
+    ) ||
+    (/Поставщик/.test(operation) && p.side !== "supplier") ||
+    (/Покупател/.test(operation) && p.side !== "customer")
+  )
+    throw new InputError("Вид операции не поддержан или требует другую явную сторону расчётов.");
+  const resolution = await settlementAccountsFor(conn, {
+    orgKey: org,
+    contractRef: p.contractRef,
+    side: p.side,
+  });
+  const accountRef = exactRef.parse(resolution.choice?.settle);
+  const chart = resolveEntity(accountingChart(conn.cfg), available);
+  if (!chart) throw new InputError("План счетов не опубликован.");
+  const account = await conn.client.getEntity(`${chart}(${odataGuid(accountRef)})?$format=json`);
+  if (
+    String(account.Ref_Key).toLowerCase() !== accountRef ||
+    account.DeletionMark !== false ||
+    account.IsFolder === true ||
+    account.ЗапретитьИспользоватьВПроводках !== false ||
+    typeof account.Code !== "string" ||
+    !account.Code
+  )
+    throw new InputError("Выбранный счёт отсутствует, удалён или запрещён для проводок.");
+  const payload: ODataEntity = { [CONTRACT]: p.contractRef, [ACCOUNT]: accountRef };
+  if (!Array.isArray(doc[ROWS])) throw new InputError("Расшифровка платежа неизвестна; изменение запрещено.");
+  const rows = doc[ROWS] as unknown[];
+  if (rows.length > 1)
+    throw new InputError("Несколько строк платежа: выбор строки неоднозначен, изменение запрещено.");
+  if (rows.length) {
+    const row = rows[0];
+    const rowMeta = md.entities.get(`${p.entitySet}_${ROWS}`);
+    requireTypes(rowMeta, { [CONTRACT]: "Edm.Guid", [ACCOUNT]: "Edm.Guid" });
+    if (!row || typeof row !== "object" || Array.isArray(row))
+      throw new InputError("Неверная строка расшифровки.");
+    const r = row as ODataEntity;
+    if (
+      !same(r[CONTRACT], doc[CONTRACT]) ||
+      Object.keys(r).some((k) => !rowMeta!.properties.some((p) => p.name === k))
+    )
+      throw new InputError(
+        "Строка не соответствует договору шапки или содержит неопубликованные поля; изменение запрещено.",
+      );
+    payload[ROWS] = [{ ...r, [CONTRACT]: p.contractRef, [ACCOUNT]: accountRef }];
+  }
+  const headers = { "If-Match": p.expectedDataVersion };
+  const prepared = {
+    method: "PATCH",
+    path,
+    payload,
+    headers,
+    resolution,
+    observedDocument: published(doc, meta),
+    observedContract: contract,
+    account,
+  };
+  if (!confirm) {
+    await conn.client.prepareCreate(p.entitySet, prepared, { withRefKey: false });
+    return { dryRun: true, database: conn.cfg.name, ...prepared };
+  }
+  const result = await conn.client.writeRecordOnce(
+    p.entitySet,
+    prepared,
+    () =>
+      verifyAfter(
+        () => conn.client.request(path, "PATCH", payload, headers),
+        () => conn.client.getEntity(path),
+        { ...published(doc, meta), ...payload },
+      ),
+    { kind: "documentState", ref: p.ref },
+  );
+  return {
+    updated: true,
+    verified: true,
+    database: conn.cfg.name,
+    entitySet: p.entitySet,
+    ref: result.Ref_Key,
+    dataVersion: result.DataVersion,
+    resolution,
+  };
+}
+/** Separate bound action: fresh read guards version; OData Post CAS is not claimed. */
+export async function guardedDocumentAction(
+  conn: Connection,
+  input: { entitySet: string; ref: string; post: boolean; expectedDataVersion: string },
+  confirm: boolean,
+): Promise<Record<string, unknown>> {
+  const p = input;
+  const { doc, meta, path } = await readVersionedDocument(conn, p.entitySet, p.ref, p.expectedDataVersion);
+  if (doc.Posted === p.post)
+    throw new InputError("Документ уже имеет требуемое состояние; действие не отправлено.");
+  const action = p.post ? "Post" : "Unpost",
+    actionPath = `${p.entitySet}(${odataGuid(p.ref)})/${action}?$format=json`;
+  const prepared = {
+    method: "POST",
+    path: actionPath,
+    expectedDataVersion: p.expectedDataVersion,
+    observedDocument: published(doc, meta),
+  };
+  const note =
+    "Версия проверяется свежим чтением перед действием. Атомарная проверка If-Match для Post/Unpost не подтверждена; требуется последовательная работа без параллельных изменений.";
+  if (!confirm) {
+    await conn.client.prepareCreate(p.entitySet, prepared, { withRefKey: false });
+    return { dryRun: true, database: conn.cfg.name, ...prepared, note };
+  }
+  const result = await conn.client.writeRecordOnce(
+    p.entitySet,
+    prepared,
+    () =>
+      verifyAfter(
+        () => conn.client.action(actionPath),
+        () => conn.client.getEntity(path),
+        { Ref_Key: p.ref, DeletionMark: false, Posted: p.post },
+      ),
+    { kind: "documentState", ref: p.ref },
+  );
+  return {
+    done: true,
+    verified: true,
+    database: conn.cfg.name,
+    ref: result.Ref_Key,
+    dataVersion: result.DataVersion,
+    action,
+    note,
+  };
+}

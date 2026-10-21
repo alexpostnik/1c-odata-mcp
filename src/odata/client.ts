@@ -81,7 +81,7 @@ export class ODataClient {
     this.assertWritable(method);
     const url = this.url(path);
     // Тело пишущих запросов повторять небезопасно (не идемпотентно) — без retry.
-    const maxAttempts = body === undefined ? this.behavior.retries + 1 : 1;
+    const maxAttempts = READ_METHODS.has(method) ? this.behavior.retries + 1 : 1;
 
     let lastErr: ODataError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -238,13 +238,14 @@ export class ODataClient {
     entitySet: string,
     operation: Record<string, unknown>,
     sendAndVerify: () => Promise<T>,
+    check?: OperationCheck,
   ): Promise<T> {
     this.assertWritable("POST/PATCH");
     const operationId = currentWriteOperationId();
     const requestHash = currentWriteRequestHash();
     if (!operationId || !requestHash)
       throw new Error("Для записи настройки нужен operationId из предпросмотра.");
-    return this.writeJournal.execute(operationId, entitySet, operation, requestHash, sendAndVerify);
+    return this.writeJournal.execute(operationId, entitySet, operation, requestHash, sendAndVerify, check);
   }
 
   /** Итог уже подтверждённой операции (для повтора до повторного чтения 1С); undefined — не подтверждалась. */

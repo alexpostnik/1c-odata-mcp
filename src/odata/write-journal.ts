@@ -17,13 +17,15 @@ export type OperationState = "prepared" | "executing" | "succeeded" | "rejected"
  * Как сверить операцию, у которой нет «следа» в 1С (правка строк документа): число строк
  * табличной части до записи и ожидаемое после. Пишется в журнал перед отправкой PATCH.
  */
-export interface OperationCheck {
+interface LineCountCheck {
   kind: "lineCount";
   ref: string;
   section: string;
   before: number;
   expected: number;
 }
+
+export type OperationCheck = LineCountCheck | { kind: "documentState"; ref: string };
 
 export interface JournalEntry {
   version: 1;

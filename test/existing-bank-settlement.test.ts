@@ -30,7 +30,7 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 const data = (r: CallToolResult) => r.structuredContent as Record<string, unknown>;
-async function fixture() {
+async function fixture(entitySet = SET) {
   const dir = await mkdtemp(join(tmpdir(), "bank-settings-"));
   dirs.push(dir);
   const cfg = parseConfig({
@@ -88,6 +88,7 @@ async function fixture() {
     Description: "Synthetic account",
     DeletionMark: false,
     IsFolder: false,
+    ЗапретитьИспользоватьВПроводках: false,
   };
   let settings: ODataEntity[] = [
     {
@@ -126,10 +127,14 @@ async function fixture() {
     );
   const entities = new Map<string, EntityMeta>([
     [
-      SET,
-      meta(SET, { ...infer(doc), [ROWS]: `Collection(StandardODATA.${SET}_${ROWS}_RowType)` }, "document"),
+      entitySet,
+      meta(
+        entitySet,
+        { ...infer(doc), [ROWS]: `Collection(StandardODATA.${entitySet}_${ROWS}_RowType)` },
+        "document",
+      ),
     ],
-    [`${SET}_${ROWS}`, meta(`${SET}_${ROWS}`, infer((doc[ROWS] as ODataEntity[])[0]!))],
+    [`${entitySet}_${ROWS}`, meta(`${entitySet}_${ROWS}`, infer((doc[ROWS] as ODataEntity[])[0]!))],
     [
       "Catalog_Контрагенты",
       meta("Catalog_Контрагенты", {
@@ -156,7 +161,7 @@ async function fixture() {
       else doc = { ...doc, ...(body as object), DataVersion: "v2" };
       return {} as never;
     }
-    if (path.startsWith(SET)) {
+    if (path.startsWith(entitySet)) {
       if (writes.length && failure === "readback")
         throw new ODataError({ kind: "auth", message: "Synthetic readback failure" });
       return structuredClone(doc) as never;
@@ -184,7 +189,7 @@ async function fixture() {
     return tools[tool]!.handler(
       {
         database: "default",
-        entitySet: SET,
+        entitySet,
         ref: DOC,
         contractRef: CTR,
         side: "supplier",
@@ -302,7 +307,7 @@ describe("existing bank inherited settlement", () => {
     );
   });
   it("supports explicit supplier side for other writeoff without clearing expense analytic", async () => {
-    const f = await fixture();
+    const f = await fixture("Document_СписаниеСРасчетногоСчета");
     f.setDoc({ ВидОперации: "ПрочееСписание" });
     const p = await f.run();
     expect(p.isError).toBeFalsy();

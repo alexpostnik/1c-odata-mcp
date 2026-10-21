@@ -30,10 +30,16 @@ export const savedSettlementAccounts = z
   .refine((v) => Object.values(v).some((ref) => ref !== undefined), "Укажите хотя бы один ресурс счетов.");
 export const generalSettlementScope = {
   ...savedSettlementScope,
+  organizationRef: z
+    .string()
+    .uuid()
+    .transform((v) => v.toLowerCase()),
   scope: z.enum(["contract", "counterparty", "group"]),
   contractRef: exactRef.optional(),
 };
 const scopeSchema = z.object(generalSettlementScope).superRefine((p, ctx) => {
+  if (p.scope === "contract" && p.organizationRef === EMPTY_GUID)
+    ctx.addIssue({ code: "custom", message: "Для договора нужна точная организация." });
   if ((p.scope === "contract") !== (p.contractRef !== undefined))
     ctx.addIssue({
       code: "custom",
@@ -99,16 +105,18 @@ export async function readSavedSettlementSettings(
       "Неподдерживаемая схема регистра: нужен независимый непериодический регистр с точным ключом организация/контрагент/договор/вид расчётов.",
     );
   }
-  const organizations = resolveEntity(CATALOGS.organizations, new Set(metadata.entities.keys()));
-  if (!organizations)
-    throw new InputError("Организации не опубликованы: точную организацию нельзя проверить.");
-  const org = await conn.client.getEntity(`${organizations}(${odataGuid(p.organizationRef)})?$format=json`);
-  if (
-    String(org.Ref_Key).toLowerCase() !== p.organizationRef ||
-    org.DeletionMark !== false ||
-    org.IsFolder === true
-  )
-    throw new InputError("Указанная организация отсутствует или помечена на удаление.");
+  if (p.organizationRef !== EMPTY_GUID) {
+    const organizations = resolveEntity(CATALOGS.organizations, new Set(metadata.entities.keys()));
+    if (!organizations)
+      throw new InputError("Организации не опубликованы: точную организацию нельзя проверить.");
+    const org = await conn.client.getEntity(`${organizations}(${odataGuid(p.organizationRef)})?$format=json`);
+    if (
+      String(org.Ref_Key).toLowerCase() !== p.organizationRef ||
+      org.DeletionMark !== false ||
+      org.IsFolder === true
+    )
+      throw new InputError("Указанная организация отсутствует или помечена на удаление.");
+  }
   const counterparties = await counterpartyCatalog(conn);
   await readCounterparty(conn, counterparties, p.counterpartyRef, p.scope === "group");
   let contractKind: unknown;
