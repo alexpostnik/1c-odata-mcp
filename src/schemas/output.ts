@@ -22,6 +22,9 @@ export const counterpartySchema = z
     kpp: z.string().optional(),
     fullName: z.string().optional(),
     isFolder: z.boolean().optional(),
+    parentRef: z.string().optional(),
+    dataVersion: z.string().optional(),
+    deletionMark: z.boolean().optional(),
   })
   .passthrough();
 
@@ -268,6 +271,149 @@ export const getDebtorsResultSchema = z
     debtors: z.array(
       z.object({ counterparty: z.string(), ref: z.string(), amount: z.number() }).passthrough(),
     ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const getCreditorsResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    asOf: z.string().optional(),
+    accounts: z.array(z.string()),
+    totalPayable: z.number(),
+    count: z.number(),
+    creditors: z.array(
+      z.object({ counterparty: z.string(), ref: z.string(), amount: z.number() }).passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const unpaidInvoicesResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    status: z.string(),
+    count: z.number(),
+    totalAmount: z.number(),
+    totalPaid: z.number(),
+    totalUnpaid: z.number(),
+    invoices: z.array(
+      z
+        .object({
+          number: z.string(),
+          date: z.string(),
+          counterparty: z.string(),
+          amount: z.number(),
+          paid: z.number(),
+          unpaid: z.number(),
+          status: z.string(),
+        })
+        .passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const cashBalanceResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    asOf: z.string().optional(),
+    accounts: z.array(z.string()),
+    available: z.number(),
+    special: z.number(),
+    inTransit: z.number(),
+    balances: z.array(z.object({ account: z.string(), kind: z.string(), amount: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const monthCloseResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    month: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    status: z.enum(["ok", "warnings", "errors"]),
+    summary: z.object({
+      errors: z.number(),
+      warnings: z.number(),
+      ok: z.number(),
+      notApplicable: z.number(),
+      skipped: z.number(),
+    }),
+    checks: z.array(
+      z
+        .object({
+          id: z.string(),
+          title: z.string(),
+          status: z.enum(["ok", "warning", "error", "not_applicable", "skipped"]),
+          message: z.string(),
+          items: z.array(z.object({}).passthrough()).optional(),
+          itemsMore: z.number().optional(),
+        })
+        .passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const accountCardResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    account: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    openingBalance: z.number(),
+    debitTurnover: z.number(),
+    creditTurnover: z.number(),
+    closingBalance: z.number(),
+    consistent: z.boolean(),
+    count: z.number(),
+    entries: z.array(z.object({ date: z.string(), balance: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const balanceOriginResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    account: z.string(),
+    asOf: z.string(),
+    balance: z.number(),
+    side: z.enum(["debit", "credit"]),
+    method: z.enum(["documents", "movements", "none"]),
+    since: z.string().optional(),
+    count: z.number(),
+    items: z.array(z.object({ date: z.string(), amount: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+const favorSchema = z.object({
+  amount: z.number(),
+  inFavorOf: z.enum(["организации", "контрагента"]).nullable(),
+});
+
+export const reconciliationResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    counterparty: z.string(),
+    counterpartyRef: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    opening: favorSchema,
+    debitTurnover: z.number(),
+    creditTurnover: z.number(),
+    closing: favorSchema,
+    consistent: z.boolean(),
+    count: z.number(),
+    lines: z.array(z.object({ date: z.string() }).passthrough()),
+    byContract: z.array(z.object({ contract: z.string() }).passthrough()),
     scan: scanSchema,
   })
   .passthrough();

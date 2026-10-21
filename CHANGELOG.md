@@ -3,7 +3,62 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [семантическому версионированию](https://semver.org/lang/ru/).
 
+## Unreleased
+
+- Existing-bank settlement application accepts optional explicit `counterpartyRef` to fill only an observed zero-GUID document counterparty. It validates the actual nondeleted, nonfolder item and exact contract owner/organization/currency, rejects replacement and unknown document references, and binds the selected item to preview confirmation. Account selection still comes solely from saved settings; other headers and the sole payment row, including zero amounts, VAT and articles, are preserved. Local synthetic validation only; this change performs no live operation.
+
+- Saved settlement-account read/create/update tools for contracts, counterparties and groups: strict independent-register metadata, preview/confirmation journal and verified readback. Updates use DataVersion/If-Match when published; versionless independent-register updates require explicit `singleWriter=true` and checks between reads, without an atomic lock. Unknown write or readback outcomes hold retries pending manual reconciliation.
+- Apply inherited settlement accounts and the selected contract to existing unposted bank receipts/payments, with explicit settlement side, DataVersion/If-Match, preview/confirmation journal and readback of changed and preserved fields.
+- Separate guarded Post/Unpost operations have their own preview, journal, operation ID and state readback; posting verification is a separate read. The version is checked before the action; atomic If-Match protection for Post/Unpost is not claimed. Unknown outcomes hold dependent actions and retries.
+- Targeted TEST validation (Belarus Accounting 2.1.62.5 / platform 8.3.25.1546, versions provided by the owner): a contract-scoped account 26 setting was created and read back; group account 67.2 was selected without an account argument and applied to a loan receipt, then a separate Post and accounting-row read verified the selected contract and account. Full native 1C priority rules and concurrent-create behavior remain unverified; these checks do not establish acceptance of all accounting scenarios.
+- Contract creation compares currency with configured regulated currency instead of hardcoded643; unknown explicit currency codes are rejected.
+- Contracts of kind `Other` receive no new automatic supplier/customer interpretation.
+
 ## [Не выпущено]
+
+## [0.9.0] — 2026-10-21
+
+Ответы на ежедневные вопросы руководителя, менеджера и бухгалтера, а не только «покажи данные»: утренняя сводка — сколько денег, кто просрочил оплату, что пора платить; проверка закрытия месяца с разбором до документа; акт сверки с контрагентом; карточка счёта. Три самых частых разговора оформлены готовыми сценариями — их видно в меню клиента сразу после подключения. Разговорник по ролям — [docs/SCENARIOS.md](docs/SCENARIOS.md). Проверено на живых базах ИП и ООО.
+
+### Добавлено
+
+- **Дебиторка по срокам** (`read.analytics.get_debtors`, `aging` / `overdueOnly`) — просрочено / в срок / срок не задан, просрочка 1-30 / 31-60 / 61-90 / 90+ дней, возраст долга от даты документа, документы расчётов с датой оплаты по договору; общий срок — `defaultTermDays`, только если его назвал пользователь.
+- `read.analytics.get_creditors` — кредиторка по счёту 60 по контрагентам, с теми же сроками и тем же кодом, что у дебиторки.
+- `read.analytics.get_unpaid_invoices` — неоплаченные и частично оплаченные счета покупателям: оплата по регистру «Оплата счетов», остаток, отгрузка по счёту, сальдо покупателя по 62 для сверки.
+- `read.analytics.get_cash_balance` — остатки денег по каждому расчётному счёту и кассе (50/51/52/55/57), итоги «доступно», «спецсчета», «в пути», суммы в валюте.
+- Настройка плана счетов: `prefixes.payables` и `prefixes.cash`.
+- `read.accounting.check_month_close` — проверка месяца: закрытие выполнено и без ошибок, предыдущие месяцы года, непроведённые документы, красное сальдо (деньги и товары в минусе, расчёты 62/60 не на той стороне), остатки на 90/91 и 20–26/44 после закрытия, амортизация при ОС/НМА, реализации с НДС без счёта-фактуры.
+- `read.accounting.get_account_card` — карточка счёта: каждое движение с корреспонденцией, аналитикой и остатком после него, сальдо сверено с регистром; отбор по контрагенту или любому субконто.
+- `read.counterparty.get_reconciliation` — данные для акта сверки по 60/62/76: сальдо «в чью пользу», строки по документам без внутреннего зачёта аванса, итоги по договорам.
+- `read.accounting.get_balance_origin` — откуда сложилось сальдо: из каких документов состоит остаток и с какой даты он висит. На счетах с документами расчётов — точно из сальдо 1С; на остальных — по истории движений за несколько лет (момент, с которого остаток не закрывался, и доля каждого документа, дожившая до даты).
+- **Поиск контрагента** — полное наименование и роли по видам договоров (покупатель, поставщик, комитент…): помогает выбрать из однофамильцев.
+- **Долги старше года** в дебиторке и кредиторке (`olderThanYear`, дата самого старого документа) — часто это незакрытые взаиморасчёты, а не реальный долг.
+- **Проверка месяца называет документы, внесённые после закрытия**, если на закрываемых счетах остались суммы: по времени создания документа и операции закрытия.
+- **Организацию можно указать ссылкой или ИНН**, не только названием.
+- **Быстрее на облачных 1С:** план счетов и список организаций загружаются один раз на подключение (кэш на 10 минут, перечитывание при промахе) — на типичной сводке 58 запросов вместо 66.
+- **Готовые сценарии (MCP prompts):** «Утренняя сводка руководителя», «Разбор закрытия месяца», «Акт сверки с контрагентом» — в клиенте и в `manifest.json`.
+
+### Исправлено
+
+- По итогам прогона готовых сценариев на живой базе:
+  - **проверка месяца:** минус по деньгам у строки без банковского счёта — «не заполнена аналитика» (предупреждение), а не «деньги в минусе»; подсказка причины по счёту (57.03 — не отражены продажи по картам, 51 — выписка); остатки на 90/91/25/26 на начало месяца — признак не полностью закрытых прошлых месяцев; время создания операции закрытия (`closingCreatedAt`) и типы аналитики для перехода в карточку счёта;
+  - **дебиторка по срокам:** «кто просрочил» без сроков в договорах показывает долги старше 60 дней (`fallback`) вместо пустого списка; документы с датой в будущем — отдельно (`future_dated`); пояснение, что возраст и просрочка — до вычета авансов;
+  - **деньги:** отрицательные строки названы в ответе с вероятной причиной;
+  - **неоплаченные счета:** нет ссылки реализации на счёт — нет поля `shipped`, а не «0»;
+  - **акт сверки и карточка:** организация (и предупреждение, если их в данных несколько), понятное название вида документа, номер «как на печати», время создания документа.
+- **Сальдо «на конец даты» (`asOf`) теряло движения последней секунды дня.** Остаток брался на 23:59:59, а закрытие месяца 1С проводит ровно в это время — дебиторка, остатки товаров и денег на конец месяца не учитывали его проводки. Теперь — на начало следующего дня, как в ОСВ.
+
+### Документация
+
+- README перестроен под задачи: первый экран — сводка, проверка месяца и акт сверки; возможности по ролям; «Начните с готовых сценариев» сразу после быстрого старта; новая иллюстрация.
+- `docs/SCENARIOS.md` — разговорник: что спросить руководителю, менеджеру и бухгалтеру, какой инструмент отвечает и о чём стоит знать.
+- `docs/INSTALL-WITH-AI.md` — установка с помощью ИИ-ассистента: достаточно дать ему ссылку на репозиторий. Какое приложение подходит (веб-чаты локальный коннектор не запускают), проверка Node.js и OData, конфиги для Claude Desktop, ChatGPT (Codex), Cursor, VS Code, LM Studio, JetBrains, Zed и других, проверка и типичные ошибки. Ассистент настраивает только чтение, а запись включает лишь по прямой просьбе пользователя и после предупреждения о риске. Указатель на неё — первым блоком README.
+- `docs/CONNECTING.md` — что опубликовать в OData для неоплаченных счетов и проверки закрытия месяца; `docs/ACCOUNTING.md` — проверка закрытия рассчитана на план счетов БП РФ, при `strictDefaults` без нужных настроек часть проверки пропускается с перечнем настроек.
+
+### Прочее
+
+- Проверки: 333 теста; живой прогон записи на базе ИП — 38 из 38 сценариев (без долгого `--slow`); готовые сценарии и новые инструменты прогнаны на живых базах ИП и ООО; `npm audit` — 0 уязвимостей.
+- Известные ограничения: проверки НДС (счета-фактуры) и амортизации в `check_month_close` вживую не проверены — обе тестовые базы на УСН и без основных средств; работают по стандартным объектам БП 3.0, отзывы с баз на ОСНО приветствуются.
 
 ## [0.8.0] — 2026-10-20
 
@@ -585,7 +640,8 @@ POST-тестом (create → read → mark) на реальной базе — 
   коды плана счетов); вежливый фоллбэк при отсутствии объекта в «Составе OData».
 - npm-пакет с запуском через `npx 1c-odata-mcp`.
 
-[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.8.0...HEAD
+[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.0...v0.6.1

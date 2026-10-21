@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "1c-odata-mcp",
   "display_name": "1С:Предприятие через OData",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 60 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 74 инструмента и 3 готовых сценария: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, проверка закрытия месяца, карточка счёта, акт сверки, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -446,7 +446,7 @@
     {
       "name": "read.counterparty.find_counterparty",
       "title": "Поиск контрагента",
-      "description": "Ищет контрагентов по части названия или по ИНН. Возвращает список совпадений с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов). Пример: «найди контрагента Ромашка» или «контрагент с ИНН 7701234567».",
+      "description": "Ищет контрагентов по части названия или по ИНН; subjectKind=group ищет группы в том же справочнике, all — оба вида. По умолчанию только контрагенты. Возвращает Parent_Key как parentRef и DataVersion как dataVersion для безопасного изменения группы. Возвращает список совпадений с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов), полным наименованием и ролями по видам договоров (roles: покупатель, поставщик, комитент…; contracts — число договоров) — помогает выбрать из однофамильцев. Пример: «найди контрагента Ромашка» или «контрагент с ИНН 7701234567».",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -458,6 +458,15 @@
             "type": "string",
             "minLength": 1,
             "description": "Часть названия или ИНН контрагента"
+          },
+          "subjectKind": {
+            "default": "counterparty",
+            "type": "string",
+            "enum": [
+              "counterparty",
+              "group",
+              "all"
+            ]
           },
           "limit": {
             "default": 20,
@@ -499,6 +508,15 @@
                   "type": "string"
                 },
                 "isFolder": {
+                  "type": "boolean"
+                },
+                "parentRef": {
+                  "type": "string"
+                },
+                "dataVersion": {
+                  "type": "string"
+                },
+                "deletionMark": {
                   "type": "boolean"
                 }
               },
@@ -576,6 +594,15 @@
           },
           "isFolder": {
             "type": "boolean"
+          },
+          "parentRef": {
+            "type": "string"
+          },
+          "dataVersion": {
+            "type": "string"
+          },
+          "deletionMark": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -602,7 +629,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "ref": {
@@ -729,7 +756,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "ref": {
@@ -856,7 +883,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "entitySet": {
@@ -1019,7 +1046,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -1125,7 +1152,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -1228,121 +1255,6 @@
       }
     },
     {
-      "name": "read.analytics.get_debtors",
-      "title": "Дебиторская задолженность",
-      "description": "Кто и сколько должен компании: сальдо счёта 62 (расчёты с покупателями) из регистра бухгалтерии Хозрасчетный, сгруппированное по контрагентам. Дебетовое сальдо = долг клиента, кредитовое = полученные авансы (вычитается). Можно ограничить организацией. По умолчанию берётся текущее сальдо; параметром asOf=YYYY-MM-DD можно получить дебиторку на конец указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "database": {
-            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
-            "type": "string"
-          },
-          "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
-            "type": "string"
-          },
-          "asOf": {
-            "type": "string",
-            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
-          },
-          "limit": {
-            "default": 100,
-            "description": "Сколько контрагентов вернуть",
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 1000
-          }
-        },
-        "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "database": {
-            "type": "string"
-          },
-          "organization": {
-            "type": "string"
-          },
-          "asOf": {
-            "type": "string"
-          },
-          "accounts": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "totalReceivable": {
-            "type": "number"
-          },
-          "count": {
-            "type": "number"
-          },
-          "debtors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "counterparty": {
-                  "type": "string"
-                },
-                "ref": {
-                  "type": "string"
-                },
-                "amount": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "counterparty",
-                "ref",
-                "amount"
-              ],
-              "additionalProperties": {}
-            }
-          },
-          "scan": {
-            "type": "object",
-            "properties": {
-              "documentsScanned": {
-                "type": "number"
-              },
-              "rowsScanned": {
-                "type": "number"
-              },
-              "windows": {
-                "type": "number"
-              },
-              "elapsedMs": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "elapsedMs"
-            ],
-            "additionalProperties": {}
-          }
-        },
-        "required": [
-          "database",
-          "accounts",
-          "totalReceivable",
-          "count",
-          "debtors",
-          "scan"
-        ],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": {}
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": true
-      }
-    },
-    {
       "name": "read.accounting.get_account_turnover",
       "title": "ОСВ по счёту",
       "description": "Оборотно-сальдовая ведомость по бухгалтерскому счёту (регистр бухгалтерии Хозрасчетный, виртуальная таблица «Остатки и обороты») за период: сальдо на начало Дт/Кт, обороты Дт/Кт, сальдо на конец Дт/Кт — итогом и по субсчетам. account — код счёта или префикс («51», «60», «62», «90.01»): берутся все субсчета, код которых начинается с него. Сальдо развёрнутое по аналитике (измерения и субконто), как в стандартной ОСВ по счёту. Можно ограничить организацией. Период — даты YYYY-MM-DD включительно.",
@@ -1354,7 +1266,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "account": {
@@ -1875,7 +1787,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "asOf": {
@@ -1983,6 +1895,1247 @@
       }
     },
     {
+      "name": "read.analytics.get_debtors",
+      "title": "Дебиторская задолженность",
+      "description": "Кто и сколько должен компании: сальдо счёта 62 (расчёты с покупателями) из регистра бухгалтерии Хозрасчетный, сгруппированное по контрагентам. Дебетовое сальдо = долг клиента, кредитовое = полученные авансы (вычитается). Можно ограничить организацией. По умолчанию берётся текущее сальдо; параметром asOf=YYYY-MM-DD можно получить дебиторку на конец указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0. aging=true — по срокам: просрочено / в срок / срок не задан, просрочка по дням, возраст долга от даты документа (byAge — работает и без срока в договоре) и документы расчётов; срок оплаты = дата документа + дни из договора (флаг «Установлен срок оплаты»). overdueOnly=true — «кто просрочил оплату», по убыванию просрочки (без сроков в договорах — долги старше 60 дней, fallback). olderThanYear — долг старше года: часто незакрытые взаиморасчёты, а не реальный долг.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько контрагентов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "aging": {
+            "default": false,
+            "description": "Разбивка по срокам: просрочено / в срок / срок не задан, просрочка по дням (1-30, 31-60, 61-90, 90+), возраст долга от даты документа (byAge: 0-30 … 90+) и документы расчётов с датой оплаты по договору",
+            "type": "boolean"
+          },
+          "overdueOnly": {
+            "default": false,
+            "description": "Только контрагенты с просрочкой, по убыванию просрочки (включает aging)",
+            "type": "boolean"
+          },
+          "defaultTermDays": {
+            "description": "Срок оплаты в днях для договоров, где он не задан. Только если пользователь его назвал — не угадывать",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalReceivable": {
+            "type": "number"
+          },
+          "count": {
+            "type": "number"
+          },
+          "debtors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterparty": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "counterparty",
+                "ref",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "totalReceivable",
+          "count",
+          "debtors",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_creditors",
+      "title": "Кредиторская задолженность",
+      "description": "Кому и сколько должна компания: сальдо счёта 60 (расчёты с поставщиками) из регистра бухгалтерии Хозрасчетный по контрагентам. Кредитовое сальдо = наш долг, дебетовое = наши авансы поставщику (вычитаются). Возвращает только долг > 0. asOf=YYYY-MM-DD — на конец даты. aging=true — по срокам: что уже пора платить (просрочено), что в срок, где срок не задан, с документами поступления и датой оплаты по договору; overdueOnly=true — только просроченные. olderThanYear — долг старше года: часто незакрытые взаиморасчёты, а не реальный долг. Расчёты по счёту 76 (аренда, связь и прочие) сюда не входят — для них ОСВ по счёту 76.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько контрагентов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "aging": {
+            "default": false,
+            "description": "Разбивка по срокам: просрочено / в срок / срок не задан, просрочка по дням (1-30, 31-60, 61-90, 90+), возраст долга от даты документа (byAge: 0-30 … 90+) и документы расчётов с датой оплаты по договору",
+            "type": "boolean"
+          },
+          "overdueOnly": {
+            "default": false,
+            "description": "Только контрагенты с просрочкой, по убыванию просрочки (включает aging)",
+            "type": "boolean"
+          },
+          "defaultTermDays": {
+            "description": "Срок оплаты в днях для договоров, где он не задан. Только если пользователь его назвал — не угадывать",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalPayable": {
+            "type": "number"
+          },
+          "count": {
+            "type": "number"
+          },
+          "creditors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterparty": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "counterparty",
+                "ref",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "totalPayable",
+          "count",
+          "creditors",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_unpaid_invoices",
+      "title": "Неоплаченные счета покупателям",
+      "description": "Счета на оплату покупателям за период и их оплата: сумма счёта, оплачено (по регистру «Оплата счетов» — платежи со ссылкой на счёт), остаток, отгружено по счёту (реализации со ссылкой на счёт), статус unpaid / partial / paid / overpaid, сколько дней счёту. status=open (по умолчанию) — неоплаченные и частично оплаченные, с текущим сальдо покупателя по 62 (customerBalance) для сверки; all — все. Счета старше 90 дней видны только с явным from. Период — по дате счёта; без from — последние 90 дней.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Счета с даты (без параметра — 90 дней назад) (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Счета по дату (без параметра — сегодня) (YYYY-MM-DD)"
+          },
+          "status": {
+            "default": "open",
+            "description": "open | all",
+            "type": "string",
+            "enum": [
+              "open",
+              "all"
+            ]
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько счетов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "totalAmount": {
+            "type": "number"
+          },
+          "totalPaid": {
+            "type": "number"
+          },
+          "totalUnpaid": {
+            "type": "number"
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "counterparty": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                },
+                "paid": {
+                  "type": "number"
+                },
+                "unpaid": {
+                  "type": "number"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "date",
+                "counterparty",
+                "amount",
+                "paid",
+                "unpaid",
+                "status"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "period",
+          "status",
+          "count",
+          "totalAmount",
+          "totalPaid",
+          "totalUnpaid",
+          "invoices",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_cash_balance",
+      "title": "Деньги на счетах и в кассе",
+      "description": "Сколько денег сейчас: остатки счетов 50 (касса), 51 (расчётные счета), 52 (валютные), 55 (спецсчета, депозиты), 57 (переводы в пути, эквайринг) из регистра Хозрасчетный — по каждому банковскому счёту и кассе, итоги available (50+51+52), special (55), inTransit (57). Для валютных счетов — сумма в валюте. asOf=YYYY-MM-DD — остатки на конец даты; без него — текущие.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата остатков — на конец этой даты (без параметра — текущие) (YYYY-MM-DD)"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "available": {
+            "type": "number"
+          },
+          "special": {
+            "type": "number"
+          },
+          "inTransit": {
+            "type": "number"
+          },
+          "balances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "account": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "account",
+                "kind",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "available",
+          "special",
+          "inTransit",
+          "balances",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.check_month_close",
+      "title": "Проверка закрытия месяца",
+      "description": "Проверка учёта за месяц — то, что бухгалтер смотрит перед сдачей отчётности и после закрытия месяца: (1) закрытие месяца выполнено и без ошибок, закрыты ли предыдущие месяцы года; (2) непроведённые документы месяца; (3) красное сальдо на конец месяца — деньги и товары в минусе, расчёты 62/60 не на той стороне; (4) остатки на 90, 91 (должны быть в нуле) и 20–26, 44 после закрытия и документы, созданные позже операции закрытия (если остатки есть); (5) амортизация при наличии ОС и НМА; (6) реализации с НДС без счёта-фактуры. Каждая проверка — статус ok / warning / error / not_applicable / skipped, пояснение и строки (до 20). Остатки на 90/91/25/26 на начало месяца — признак, что прошлые месяцы закрыты не полностью. closingCreatedAt — когда впервые создана операция закрытия (документы, созданные позже, могли в него не попасть; перезакрытие этого времени не меняет). Для перехода в карточку счёта: analyticsRefs с analyticsTypes Catalog_Контрагенты — counterpartyRef, иначе dimensionRef. У регламентных операций в БП Posted = false — это нормально. Только чтение: закрыть месяц через OData нельзя, только проверить результат.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "Проверяемый месяц, YYYY-MM"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "month": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warnings",
+              "errors"
+            ]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "errors": {
+                "type": "number"
+              },
+              "warnings": {
+                "type": "number"
+              },
+              "ok": {
+                "type": "number"
+              },
+              "notApplicable": {
+                "type": "number"
+              },
+              "skipped": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "errors",
+              "warnings",
+              "ok",
+              "notApplicable",
+              "skipped"
+            ],
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "warning",
+                    "error",
+                    "not_applicable",
+                    "skipped"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": {}
+                  }
+                },
+                "itemsMore": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "status",
+                "message"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "month",
+          "period",
+          "status",
+          "summary",
+          "checks",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_account_card",
+      "title": "Карточка счёта",
+      "description": "Карточка счёта за период — каждое движение с корреспонденцией: дата, документ, содержание, Дт или Кт, корреспондирующий счёт и его аналитика, остаток после движения; сальдо на начало, обороты, сальдо на конец (сверено с регистром, consistent). account — код или префикс («51», «62.01», «26»). Отбор: counterpartyRef — контрагент (Ref_Key из find_counterparty), dimensionRef — любое другое субконто (договор, номенклатура, банковский счёт, документ расчётов). Сторно приходит отрицательной суммой в debit/credit. documentCreatedAt — когда документ создан (по ссылке): помогает найти документы, внесённые после закрытия месяца. Если остаток сложился до периода — возьмите период шире. Для разбора: откуда остаток на 26, кто дал красное сальдо, как сложился долг.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "account": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[0-9A-Za-zА-Яа-яЁё]+(\\.[0-9A-Za-zА-Яа-яЁё]+)*$",
+            "description": "Код счёта или префикс субсчетов"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата начала периода (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата конца периода (YYYY-MM-DD)"
+          },
+          "counterpartyRef": {
+            "description": "Ref_Key контрагента (из find_counterparty)",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "dimensionRef": {
+            "description": "Ref_Key другого субконто: договор, номенклатура, банковский счёт",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "limit": {
+            "default": 200,
+            "description": "Сколько движений показать",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 2000
+          }
+        },
+        "required": [
+          "account",
+          "from",
+          "to"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "account": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "openingBalance": {
+            "type": "number"
+          },
+          "debitTurnover": {
+            "type": "number"
+          },
+          "creditTurnover": {
+            "type": "number"
+          },
+          "closingBalance": {
+            "type": "number"
+          },
+          "consistent": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "number"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "balance": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "date",
+                "balance"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "account",
+          "period",
+          "openingBalance",
+          "debitTurnover",
+          "creditTurnover",
+          "closingBalance",
+          "consistent",
+          "count",
+          "entries",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_balance_origin",
+      "title": "Откуда сложилось сальдо",
+      "description": "Из каких документов состоит остаток по счёту на дату и с какого времени он висит — для старых хвостов, которых не видно в карточке за месяц. Где учёт ведётся по документам расчётов (62, 60, 76 в БП), состав — из сальдо 1С (method = documents). Иначе — по истории движений (method = movements): момент, с которого остаток держится непрерывно, и доля каждого документа, дожившая до даты; поиск назад до maxYears лет. since — дата самого старого документа остатка, documentCreatedAt — когда документ создан. Отбор: counterpartyRef — контрагент, dimensionRef — договор, номенклатура, банковский счёт.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "account": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[0-9A-Za-zА-Яа-яЁё]+(\\.[0-9A-Za-zА-Яа-яЁё]+)*$",
+            "description": "Код счёта или префикс субсчетов"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Остаток на конец этой даты (без параметра — сегодня) (YYYY-MM-DD)"
+          },
+          "counterpartyRef": {
+            "description": "Ref_Key контрагента (из find_counterparty)",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "dimensionRef": {
+            "description": "Ref_Key другого субконто: договор, номенклатура, банковский счёт",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "maxYears": {
+            "default": 3,
+            "description": "Как далеко назад искать по движениям",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "account": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "debit",
+              "credit"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "documents",
+              "movements",
+              "none"
+            ]
+          },
+          "since": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "date",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "account",
+          "asOf",
+          "balance",
+          "side",
+          "method",
+          "count",
+          "items",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.counterparty.get_reconciliation",
+      "title": "Данные для акта сверки",
+      "description": "Взаиморасчёты с контрагентом за период для акта сверки — по данным организации: сальдо на начало и конец «в пользу организации / контрагента», строки по документам (дата, документ, номер, договор, дебет, кредит; printNumber — номер как в печатной форме), обороты, разбивка по договорам, организация. Проверяются счета 60, 62 и 76 (без 76.АВ/76.ВА), в accounts — те, где есть движения или остатки; зачёт аванса внутри расчётов с тем же контрагентом в строки не попадает, как в акте сверки 1С. counterpartyRef — Ref_Key из find_counterparty, contractRef — только один договор. Сам документ «Акт сверки» печатается из 1С.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "counterpartyRef": {
+            "description": "Ref_Key контрагента (из find_counterparty)",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "contractRef": {
+            "description": "Ref_Key договора — сверка по одному договору",
+            "type": "string",
+            "pattern": "^\\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}?$"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата начала периода (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата конца периода (YYYY-MM-DD)"
+          }
+        },
+        "required": [
+          "counterpartyRef",
+          "from",
+          "to"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "counterpartyRef": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "opening": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number"
+              },
+              "inFavorOf": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "организации",
+                      "контрагента"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "inFavorOf"
+            ],
+            "additionalProperties": false
+          },
+          "debitTurnover": {
+            "type": "number"
+          },
+          "creditTurnover": {
+            "type": "number"
+          },
+          "closing": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number"
+              },
+              "inFavorOf": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "организации",
+                      "контрагента"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "inFavorOf"
+            ],
+            "additionalProperties": false
+          },
+          "consistent": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "number"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "date"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "byContract": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "contract": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "contract"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "counterparty",
+          "counterpartyRef",
+          "period",
+          "opening",
+          "debitTurnover",
+          "creditTurnover",
+          "closing",
+          "consistent",
+          "count",
+          "lines",
+          "byContract",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
       "name": "read.analytics.get_payments_breakdown",
       "title": "Разбивка платежей за период",
       "description": "Суммирует проведённые банковские и кассовые документы за период с разбивкой по выбранному признаку (вид операции / месяц / контрагент / статья ДДС / итог). Фильтры: направление (приход/расход), контрагент (Ref_Key), категория контрагента (ИП/ЮрЛицо/ФизЛицо/Нерезидент/Госорган), статья ДДС (по коду/имени/Ref), подстрока в назначении платежа (напр. «аренда»), вид операции. Отвечает на вопросы вроде «сколько процентов получили за год от такого-то банка», «сколько заплатили ИП за год», «куда уходили деньги по статьям ДДС», «приход по месяцам». Период — даты YYYY-MM-DD. Контрагент в банковских документах хранится полиморфно — фильтр применяется на стороне коннектора; статья ДДС / назначение / период / организация — на сервере 1С.",
@@ -1994,7 +3147,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -2197,7 +3350,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "dealKey": {
@@ -2362,7 +3515,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -2519,7 +3672,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -2702,7 +3855,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "from": {
@@ -2885,7 +4038,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           }
         },
@@ -3717,7 +4870,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -3857,7 +5010,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -4029,6 +5182,12 @@
             "type": "string",
             "description": "Ref_Key документа (GUID)"
           },
+          "expectedDataVersion": {
+            "description": "Точная текущая версия включает durable preview/action/readback. Post/Unpost выполняются отдельно; атомарная CAS действия не подтверждена.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
           "post": {
             "default": true,
             "description": "true — провести, false — отменить проведение",
@@ -4038,6 +5197,12 @@
             "default": false,
             "description": "false (по умолчанию) — только предпросмотр (dry-run), запись НЕ выполняется. true — выполнить создание. Сначала всегда показывайте dry-run и получайте согласие пользователя; при подтверждении передавайте operationId из результата предпросмотра и те же аргументы. После таймаута повторяйте подтверждение с тем же id, не создавая новый предпросмотр.",
             "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
         "required": [
@@ -4443,7 +5608,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -4608,7 +5773,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -4785,7 +5950,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -4980,7 +6145,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -5310,7 +6475,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -5491,7 +6656,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -5656,7 +6821,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "fromWarehouse": {
@@ -5795,7 +6960,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "warehouse": {
@@ -5932,7 +7097,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "warehouse": {
@@ -6069,7 +7234,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "warehouse": {
@@ -6611,7 +7776,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -6798,7 +7963,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -6980,7 +8145,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "counterpartyRef": {
@@ -7105,7 +8270,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "operationKind": {
@@ -7239,7 +8404,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "operationKind": {
@@ -7373,7 +8538,7 @@
             "type": "string"
           },
           "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "description": "Организация (юрлицо) для фильтра: часть названия, ИНН или Ref_Key из list_organizations. Без указания — все организации базы.",
             "type": "string"
           },
           "operationKind": {
@@ -8154,7 +9319,840 @@
         "destructiveHint": false,
         "openWorldHint": true
       }
+    },
+    {
+      "name": "write.document.apply_bank_settlement_settings",
+      "title": "Применить счета расчётов к существующему банковскому документу",
+      "description": "Применяет унаследованный счёт расчётов и выбранный договор к существующему НЕПРОВЕДЁННОМУ банковскому документу с точной expectedDataVersion/If-Match. Явная сторона supplier/customer обязательна, включая договор Прочее. Необязательный counterpartyRef заполняет только нулевую ссылку контрагента документа; требует существующий неудалённый элемент и точного владельца договора. Замена заполненного контрагента и подбор по названию/договору запрещены. Сохраняет остальные поля шапки и единственной строки платежа, включая статью затрат; несколько строк отклоняются. Предпросмотр связан с payload, документом, явно выбранным контрагентом, договором и результатом подбора. Отмена проведения и проведение выполняются отдельными вызовами; unknown удерживается без повторной записи.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "description": "Явно выбранный контрагент: заполняет только нулевую ссылку документа. Заполненный контрагент должен совпадать; замена запрещена. Без выбора пустой контрагент блокирует действие.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "supplier",
+              "customer"
+            ]
+          },
+          "expectedDataVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "entitySet",
+          "ref",
+          "contractRef",
+          "side",
+          "expectedDataVersion"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_contract_settlement_settings",
+      "title": "Прочитать точную настройку счетов расчётов",
+      "description": "Читает точную настройку независимого регистра. scope=contract требует договор; counterparty/group означает контрагента или группу в том же поле Контрагент_Key без договора. Организация и вид расчётов обязательны. Для counterparty/group пустой GUID организации означает все организации, субъект остаётся точным. Унаследованные настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию. Старое имя get_contract_settlement_settings поддерживает только договор.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "contractRef",
+          "settlementKind"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "recordPath": {
+            "type": "string"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "record": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "contractKind": {},
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "entitySet",
+          "recordPath",
+          "found",
+          "key",
+          "scope"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.accounting.set_contract_settlement_settings",
+      "title": "Сохранить точную настройку счетов расчётов",
+      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match, когда DataVersion опубликован. Только если metadata не содержит DataVersion, update требует singleWriter=true (владелец подтвердил отсутствие параллельных изменений); If-Match не отправляется, атомарной защиты от конкуренции нет. Предпросмотр связан с текущей записью. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "accounts": {
+            "type": "object",
+            "properties": {
+              "customerSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "customerAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "expectedDataVersion": {
+            "type": "string"
+          },
+          "singleWriter": {
+            "description": "Только для update без DataVersion в metadata: подтверждение отсутствия параллельного изменения настроек. Не отменяет CAS при опубликованной версии.",
+            "type": "boolean"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "contractRef",
+          "settlementKind",
+          "mode",
+          "accounts"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.get_settlement_settings",
+      "title": "Прочитать точную настройку счетов расчётов",
+      "description": "Читает точную настройку независимого регистра. scope=contract требует договор; counterparty/group означает контрагента или группу в том же поле Контрагент_Key без договора. Организация и вид расчётов обязательны. Для counterparty/group пустой GUID организации означает все организации, субъект остаётся точным. Унаследованные настройки не подставляются. Отсутствующая или несовместимая схема блокирует операцию. Старое имя get_contract_settlement_settings поддерживает только договор.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "settlementKind",
+          "scope"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "recordPath": {
+            "type": "string"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "record": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "contractKind": {},
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "entitySet",
+          "recordPath",
+          "found",
+          "key",
+          "scope"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.accounting.set_settlement_settings",
+      "title": "Сохранить точную настройку счетов расчётов",
+      "description": "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match, когда DataVersion опубликован. Только если metadata не содержит DataVersion, update требует singleWriter=true (владелец подтвердил отсутствие параллельных изменений); If-Match не отправляется, атомарной защиты от конкуренции нет. Предпросмотр связан с текущей записью. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organizationRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "counterpartyRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contractRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "settlementKind": {
+            "type": "string",
+            "enum": [
+              "РасчетыВВалютеРегламентированногоУчета",
+              "РасчетыВИностраннойВалюте",
+              "РасчетыВУсловныхЕдиницах"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "counterparty",
+              "group"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "accounts": {
+            "type": "object",
+            "properties": {
+              "customerSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "customerAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierSettlement": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "supplierAdvance": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "expectedDataVersion": {
+            "type": "string"
+          },
+          "singleWriter": {
+            "description": "Только для update без DataVersion в metadata: подтверждение отсутствия параллельного изменения настроек. Не отменяет CAS при опубликованной версии.",
+            "type": "boolean"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "organizationRef",
+          "counterpartyRef",
+          "settlementKind",
+          "scope",
+          "mode",
+          "accounts"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.counterparty.create_group",
+      "title": "Создать группу контрагентов",
+      "description": "Создаёт только явно названную группу контрагентов в указанной группе parentRef; пустой GUID parentRef означает корень. Проверяет родителя и иерархию, сначала предпросмотр, затем confirm с тем же operationId и контрольное чтение. Не создаёт произвольные бизнес-группы без поручения владельца.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "parentRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "name",
+          "parentRef"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "write.counterparty.set_group",
+      "title": "Указать группу отдельного контрагента",
+      "description": "Меняет только Parent_Key отдельного контрагента (subjectKind=counterparty, IsFolder=false). Перемещение самих групп запрещено: безопасность глубины их потомков не проверяется. parentRef — точная группа или пустой GUID для корня. Проверяет отсутствие удаления и цикла; expectedDataVersion обязателен, PATCH с If-Match, предпросмотр/confirm/operationId и контроль сохранения остальных полей. Удаление недоступно.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "subjectKind": {
+            "type": "string",
+            "const": "counterparty"
+          },
+          "parentRef": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expectedDataVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "confirm": {
+            "default": false,
+            "type": "boolean"
+          },
+          "operationId": {
+            "description": "UUID из предпросмотра. Передайте его при confirm=true, чтобы повтор не создал дубликат.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "ref",
+          "subjectKind",
+          "parentRef",
+          "expectedDataVersion"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "database": {
+            "type": "string"
+          },
+          "willPatch": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "updated": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "entitySet": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
     }
   ],
-  "tools_generated": false
+  "tools_generated": false,
+  "prompts": [
+    {
+      "name": "morning_brief",
+      "description": "Деньги на счетах, кто просрочил оплату, неоплаченные счета и что пора платить — одной сводкой",
+      "arguments": [
+        "database",
+        "organization"
+      ],
+      "text": "Подготовь утреннюю сводку руководителя по данным 1С. База: ${arguments.database}. Организация: ${arguments.organization}.\n\n1. read.analytics.get_cash_balance — сколько денег доступно сейчас (available); спецсчета и деньги в пути — отдельно; отрицательные остатки назови.\n2. read.analytics.get_debtors с overdueOnly=true и limit=10 — кто просрочил оплату, сколько и на сколько дней. Если в ответе aging.fallback = byAge (в договорах не задан срок оплаты), это долги старше 60 дней — скажи об этом одной строкой. Возраст и просрочка считаются до вычета авансов: итог по должнику — amount.\n3. read.analytics.get_unpaid_invoices — неоплаченные счета покупателям за последние 90 дней; выдели самые старые и те, где customerBalance ≤ 0 (их стоит уточнить у бухгалтера).\n4. read.analytics.get_creditors с aging=true и limit=10 — кому мы должны и что пора платить.\n\nФормат: четыре коротких блока — «Деньги», «Нам должны», «Счета без оплаты», «Мы должны»; в каждом итог и до пяти строк. В конце — одно-три действия на сегодня. Суммы в рублях с разделителями разрядов. Ничего не создавай и не изменяй в 1С."
+    },
+    {
+      "name": "month_close_review",
+      "description": "Проверка месяца и разбор каждой найденной проблемы до конкретных документов — чек-лист для бухгалтера",
+      "arguments": [
+        "month",
+        "database",
+        "organization"
+      ],
+      "text": "Проверь закрытие месяца ${arguments.month} в 1С. База: ${arguments.database}. Организация: ${arguments.organization}.\n\n1. read.accounting.check_month_close за этот месяц.\n2. По каждой проверке со статусом error или warning найди причину до документа. Остаток на закрываемом счёте или красное сальдо — read.accounting.get_account_card по этому счёту за месяц (ссылка из analyticsRefs: при analyticsTypes Catalog_Контрагенты — counterpartyRef, иначе dimensionRef); для быстрого обзора субсчетов — read.accounting.get_account_turnover. Если остаток сложился раньше месяца — read.accounting.get_balance_origin по этому счёту и аналитике покажет, с какой даты и из каких документов он висит. Проверка lateDocuments уже называет документы, созданные после закрытия, — их суммы в закрытие не попали. Непроведённый документ — read.document.get_document.\n3. Итог — чек-лист для бухгалтера: что исправить, в каком документе и в каком порядке (сначала незакрытые предыдущие месяцы, затем документы, затем перезакрыть месяц).\n\nПроверки со статусом ok не пересказывай. Ничего не проводи и не изменяй — только предложи действия."
+    },
+    {
+      "name": "reconciliation_act",
+      "description": "Данные для акта сверки взаиморасчётов с контрагентом за период — по документам и договорам",
+      "arguments": [
+        "counterparty",
+        "from",
+        "to",
+        "database",
+        "organization"
+      ],
+      "text": "Подготовь данные для акта сверки с контрагентом «${arguments.counterparty}» за период с ${arguments.from} по ${arguments.to}. База: ${arguments.database}. Организация: ${arguments.organization}.\n\n1. read.counterparty.find_counterparty — найди контрагента; если подходит несколько — спроси, какой.\n2. read.counterparty.get_reconciliation за этот период.\n3. Покажи как акт сверки: сальдо на начало, таблица (дата, документ, номер, дебет, кредит), обороты, сальдо на конец «в пользу организации / контрагента». Если договоров несколько — итоги по каждому. Если consistent=false — предупреди и не выдавай итог за окончательный.\n\nНапомни одной строкой, что печатная форма акта формируется в 1С. Ничего не создавай и не изменяй в 1С."
+    }
+  ],
+  "prompts_generated": false
 }

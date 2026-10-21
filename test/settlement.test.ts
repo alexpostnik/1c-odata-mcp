@@ -53,7 +53,7 @@ describe("подбор записи регистра счетов расчёто
       ...GENERAL,
       rec({ org: ORG, cp: CP, ctr: CTR, kind: RUB }, { buyer: A["76.09"], buyerAdv: A["76.02"] }),
     ];
-    expect(pickSettlementAccounts(rows, key, "customer")).toEqual({
+    expect(pickSettlementAccounts(rows, key, "customer")).toMatchObject({
       settle: A["76.09"],
       advance: A["76.02"],
       level: "договор",
@@ -85,7 +85,7 @@ describe("подбор записи регистра счетов расчёто
 
   it("каждый счёт — из самой частной записи, где он заполнен", () => {
     const rows = [...GENERAL, rec({ ctr: CTR }, { buyer: A["76.09"] })];
-    expect(pickSettlementAccounts(rows, key, "customer")).toEqual({
+    expect(pickSettlementAccounts(rows, key, "customer")).toMatchObject({
       settle: A["76.09"],
       advance: A["62.02"],
       level: "договор",
@@ -129,19 +129,22 @@ const connWith = (registerRows: unknown[] | undefined, currency = "643") => {
     return { value: [] };
   });
   const getEntity = vi.fn(async (path: string) =>
-    path.startsWith("Catalog_Валюты")
-      ? { Code: currency }
-      : {
-          Ref_Key: CTR,
-          Owner_Key: CP,
-          Организация_Key: ORG,
-          ВидДоговора: "СПокупателем",
-          ВалютаВзаиморасчетов_Key: "c0000000-0000-4000-8000-000000000000",
-          РасчетыВУсловныхЕдиницах: false,
-        },
+    path.startsWith("Catalog_Контрагенты")
+      ? { Ref_Key: CP, Parent_Key: E, IsFolder: false, DeletionMark: false }
+      : path.startsWith("Catalog_Валюты")
+        ? { Code: currency }
+        : {
+            Ref_Key: CTR,
+            Owner_Key: CP,
+            Организация_Key: ORG,
+            ВидДоговора: "СПокупателем",
+            ВалютаВзаиморасчетов_Key: "c0000000-0000-4000-8000-000000000000",
+            РасчетыВУсловныхЕдиницах: false,
+          },
   );
   const available = new Set([
     "Catalog_ДоговорыКонтрагентов",
+    "Catalog_Контрагенты",
     "Catalog_Валюты",
     "ChartOfAccounts_Хозрасчетный",
     ...(registerRows ? [REG] : []),
@@ -151,10 +154,19 @@ const connWith = (registerRows: unknown[] | undefined, currency = "643") => {
     getCollection,
     conn: {
       cfg: { name: "default" },
-      behavior: { pageSize: 100 },
+      behavior: { pageSize: 100, maxRows: 1000, analyticsMaxRows: 200_000 },
       available: async () => available,
       getMetadata: async () => ({
         entities: new Map([
+          [
+            "Catalog_Контрагенты",
+            {
+              properties: ["Ref_Key", "Parent_Key", "IsFolder", "DeletionMark"].map((name) => ({
+                name,
+                type: name.endsWith("_Key") ? "Edm.Guid" : "Edm.Boolean",
+              })),
+            },
+          ],
           [ACT, props(["СчетУчетаРасчетовСКонтрагентом_Key", "СчетУчетаРасчетовПоАвансам_Key"])],
           [PAY, props(["СчетУчетаРасчетовСКонтрагентом_Key"])],
           [
@@ -415,7 +427,7 @@ describe("copy_document: счета расчётов — как в исходн�
       client: Record<string, unknown>;
     };
     c.cfg = { name: "default", writable: true };
-    c.behavior = { pageSize: 100, writeOperationMarker: false };
+    c.behavior = { pageSize: 100, maxRows: 1000, analyticsMaxRows: 200_000, writeOperationMarker: false };
     const avail = c.available;
     c.available = async () => new Set([...(await avail()), ACT]);
     const getEntity = c.client["getEntity"] as (p: string) => Promise<unknown>;
@@ -446,5 +458,34 @@ describe("copy_document: счета расчётов — как в исходн�
     );
     const payload = r.structuredContent!["payload"] as Record<string, unknown>;
     expect(payload["СчетУчетаРасчетовСКонтрагентом_Key"]).toBe(A["62.01"]);
+  });
+});
+
+describe("MCP ancestor settlement policy", () => {
+  const near = "77777777-7777-4777-8777-777777777777";
+  const far = "88888888-8888-4888-8888-888888888888";
+  it("chooses individual and contract overrides, then nearest current group separately per account", () => {
+    const rows = [
+      ...GENERAL,
+      rec({ cp: far, org: ORG }, { buyer: A["60.01"], buyerAdv: A["60.02"] }),
+      rec({ cp: near }, { buyer: A["76.09"], buyerAdv: A["76.02"] }),
+      rec({ cp: CP }, { buyer: A["62.21"] }),
+      rec({ cp: CP, ctr: CTR }, { buyerAdv: A["62.22"] }),
+    ];
+    const k = { ...key, groupRefs: [near, far] };
+    expect(pickSettlementAccounts(rows, k, "customer")).toMatchObject({
+      settle: A["62.21"],
+      advance: A["62.22"],
+    });
+    const choice = pickSettlementAccounts(rows.slice(0, -2), k, "customer");
+    expect(choice).toMatchObject({
+      settle: A["76.09"],
+      advance: A["76.02"],
+      level: "группа",
+      provenance: {
+        settle: { level: "группа", counterpartyRef: near, groupDepth: 0 },
+        advance: { level: "группа", counterpartyRef: near, groupDepth: 0 },
+      },
+    });
   });
 });
