@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Долги по срокам</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --line: #e5e7eb; --tile: #f3f4f6;
+    --ok: #16a34a; --due1: #eab308; --due2: #f97316; --due3: #ea580c; --due4: #dc2626;
+    --age1: #93c5fd; --age2: #60a5fa; --age3: #3b82f6; --age4: #1d4ed8; --none: #cbd5e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --line: #2a2f36; --tile: #1c2127;
+      --ok: #4ade80; --due1: #facc15; --due2: #fb923c; --due3: #f97316; --due4: #f87171;
+      --age1: #1e3a8a; --age2: #1d4ed8; --age3: #3b82f6; --age4: #93c5fd; --none: #475569;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --line: #e5e7eb; --tile: #f3f4f6;
+    --ok: #16a34a; --due1: #eab308; --due2: #f97316; --due3: #ea580c; --due4: #dc2626;
+    --age1: #93c5fd; --age2: #60a5fa; --age3: #3b82f6; --age4: #1d4ed8; --none: #cbd5e1;
+  }
+  :root[data-theme="dark"] {
+    --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --line: #2a2f36; --tile: #1c2127;
+    --ok: #4ade80; --due1: #facc15; --due2: #fb923c; --due3: #f97316; --due4: #f87171;
+    --age1: #1e3a8a; --age2: #1d4ed8; --age3: #3b82f6; --age4: #93c5fd; --none: #475569;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+               font: 13px/1.4 -apple-system, system-ui, "Segoe UI", sans-serif; }
+  .wrap { padding: 12px 14px; }
+  h1 { font-size: 15px; font-weight: 650; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 10px; }
+  .tiles { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tile { background: var(--tile); border-radius: 8px; padding: 6px 12px; min-width: 96px; }
+  .tile .v { font-size: 17px; font-weight: 650; white-space: nowrap; }
+  .tile .l { color: var(--muted); font-size: 11px; }
+  .tile.bad .v { color: var(--due4); }
+  .cap { color: var(--muted); font-size: 11px; margin: 0 0 4px; }
+  .bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--line); }
+  .bar.thin { height: 6px; margin-top: 3px; }
+  .bar span { display: block; height: 100%; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; margin: 6px 0 14px; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .legend b { color: var(--fg); font-weight: 600; margin-left: 3px; }
+  .row { padding: 6px 0; border-top: 1px solid var(--line); }
+  .row .top { display: flex; justify-content: space-between; gap: 12px; }
+  .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .amt { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row .meta { color: var(--muted); font-size: 11px; }
+  .row .meta .warn { color: var(--due3); }
+  #empty { color: var(--muted); padding: 24px 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="empty">Жду данные из 1С…</div>
+  <div id="view" hidden>
+    <h1 id="title"></h1>
+    <div class="sub" id="sub"></div>
+    <div class="tiles" id="tiles"></div>
+    <div id="mix" hidden>
+      <div class="cap" id="mix-cap"></div>
+      <div class="bar" id="mix-bar"></div>
+      <div class="legend" id="mix-legend"></div>
+    </div>
+    <div id="rows"></div>
+  </div>
+</div>
+<script>
+"use strict";
+// Все строки из 1С (контрагенты, документы) выводятся только через textContent.
+const $ = (id) => document.getElementById(id);
+const money = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+const rub = (x) => money.format(Math.round(Number(x) || 0)) + " ₽";
+const ruDate = (s) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}/.test(s)) ? s.slice(8, 10) + "." + s.slice(5, 7) + "." + s.slice(0, 4) : "";
+
+const OVERDUE = [["1-30", "1–30 дн.", "--due1"], ["31-60", "31–60", "--due2"], ["61-90", "61–90", "--due3"], ["90+", "90+", "--due4"]];
+const AGE = [["0-30", "до 30 дн.", "--age1"], ["31-60", "31–60", "--age2"], ["61-90", "61–90", "--age3"], ["90+", "90+", "--age4"]];
+
+function node(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+/** Сегменты [подпись, сумма, цвет] → полоса пропорционально сумме. */
+function fillBar(bar, parts, total) {
+  bar.replaceChildren();
+  const sum = total || parts.reduce((s, p) => s + p[1], 0);
+  if (!(sum > 0)) return;
+  for (const [label, v, color] of parts) {
+    if (!(v > 0)) continue;
+    const s = node("span");
+    s.style.width = (100 * v / sum) + "%";
+    s.style.background = "var(" + color + ")";
+    s.title = label + ": " + rub(v);
+    bar.appendChild(s);
+  }
+}
+
+function tile(value, label, bad) {
+  const t = node("div", "tile" + (bad ? " bad" : ""));
+  t.appendChild(node("div", "v", value));
+  t.appendChild(node("div", "l", label));
+  return t;
+}
+
+/** По срокам, если сроки есть; иначе по возрасту долга от даты документа. */
+function partsOf(src, aging) {
+  const overdue = Number(aging ? aging.totalOverdue : src.overdue) || 0;
+  const notDue = Number(aging ? aging.totalNotDue : src.notDue) || 0;
+  if (overdue > 0 || notDue > 0) {
+    const by = src.overdueByDays || {};
+    const noTerm = Number(aging ? aging.totalNoTerm : src.noTerm) || 0;
+    return { mode: "term", parts: [["в срок", notDue, "--ok"]]
+      .concat(OVERDUE.map(([k, l, c]) => ["просрочка " + l, Number(by[k]) || 0, c]))
+      .concat([["срок не задан", noTerm, "--none"]]) };
+  }
+  const by = src.byAge || {};
+  return { mode: "age", parts: AGE.map(([k, l, c]) => [l, Number(by[k]) || 0, c]) };
+}
+
+function render(p) {
+  const payable = Array.isArray(p.creditors);
+  const list = (payable ? p.creditors : p.debtors) || [];
+  const total = Number(payable ? p.totalPayable : p.totalReceivable) || 0;
+  const aging = p.aging || null;
+
+  $("title").textContent = payable ? "Мы должны поставщикам" : "Нам должны покупатели";
+  const sub = ["база " + (p.database || "—")];
+  if (aging && aging.asOf) sub.push("на " + ruDate(aging.asOf));
+  else if (p.asOf) sub.push("на " + ruDate(p.asOf));
+  sub.push(list.length + " " + (payable ? "поставщиков" : "покупателей") + " в списке");
+  $("sub").textContent = sub.join(" · ");
+
+  const tiles = $("tiles");
+  tiles.replaceChildren(tile(rub(total), payable ? "всего мы должны" : "всего нам должны"));
+  if (aging) {
+    // Без сроков в договорах «просрочено 0» вводит в заблуждение — плитку не показываем.
+    if (aging.totalOverdue > 0 || aging.totalNotDue > 0)
+      tiles.appendChild(tile(rub(aging.totalOverdue), payable ? "пора платить (просрочено)" : "просрочено", aging.totalOverdue > 0));
+    if (aging.totalNotDue > 0) tiles.appendChild(tile(rub(aging.totalNotDue), "в срок"));
+    if (aging.totalNoTerm > 0) tiles.appendChild(tile(rub(aging.totalNoTerm), "срок оплаты не задан"));
+    if (aging.totalOlderThanYear > 0) tiles.appendChild(tile(rub(aging.totalOlderThanYear), "старше года — проверить", true));
+  }
+
+  if (aging) {
+    const { mode, parts } = partsOf(aging, aging);
+    $("mix-cap").textContent = mode === "term"
+      ? "По срокам оплаты из договоров"
+      : "Возраст долга от даты документа (в договорах не задан срок оплаты)";
+    fillBar($("mix-bar"), parts);
+    const legend = $("mix-legend");
+    legend.replaceChildren();
+    for (const [label, v, color] of parts) {
+      if (!(v > 0)) continue;
+      const item = node("span");
+      const sw = node("i");
+      sw.style.background = "var(" + color + ")";
+      item.appendChild(sw);
+      item.appendChild(document.createTextNode(label));
+      item.appendChild(node("b", null, rub(v)));
+      legend.appendChild(item);
+    }
+    $("mix").hidden = false;
+  } else {
+    $("mix").hidden = true;
+  }
+
+  const rows = $("rows");
+  rows.replaceChildren();
+  const max = Math.max(1, ...list.map((d) => Number(d.amount) || 0));
+  for (const d of list) {
+    const r = node("div", "row");
+    const top = node("div", "top");
+    const name = node("div", "name", d.counterparty || "—");
+    name.title = d.counterparty || "";
+    top.appendChild(name);
+    top.appendChild(node("div", "amt", rub(d.amount)));
+    r.appendChild(top);
+
+    const bar = node("div", "bar thin");
+    bar.style.width = Math.max(2, 100 * (Number(d.amount) || 0) / max) + "%";
+    if (aging) fillBar(bar, partsOf(d, null).parts);
+    else fillBar(bar, [["долг", Number(d.amount) || 0, "--age3"]]);
+    r.appendChild(bar);
+
+    const meta = node("div", "meta");
+    const bits = [];
+    if (Number(d.overdue) > 0) bits.push(["просрочено " + rub(d.overdue), true]);
+    if (Number(d.advances) > 0) bits.push(["долг " + rub(d.debt) + ", авансы " + rub(d.advances), false]);
+    if (d.oldestDocumentDate) bits.push(["с " + ruDate(d.oldestDocumentDate), false]);
+    if (d.olderThanYear) bits.push(["старше года", true]);
+    bits.forEach(([text, warn], i) => {
+      if (i) meta.appendChild(document.createTextNode(" · "));
+      meta.appendChild(warn ? node("span", "warn", text) : document.createTextNode(text));
+    });
+    if (bits.length) r.appendChild(meta);
+    rows.appendChild(r);
+  }
+
+  $("empty").hidden = true;
+  $("view").hidden = false;
+}
+
+function extractPayload(result) {
+  if (!result) return null;
+  if (result.structuredContent && typeof result.structuredContent === "object") return result.structuredContent;
+  try {
+    const text = result.content && result.content[0] && result.content[0].text;
+    if (typeof text === "string") return JSON.parse(text);
+  } catch (e) { /* не JSON — ошибка инструмента */ }
+  return null;
+}
+
+function show(result) {
+  const p = extractPayload(result);
+  if (p && (Array.isArray(p.debtors) || Array.isArray(p.creditors))) {
+    render(p);
+  } else if (result && result.isError) {
+    $("empty").textContent = "1С вернула ошибку — подробности в ответе ассистента.";
+  }
+  requestAnimationFrame(reportSize);
+}
+
+// ---- Протокол MCP Apps: JSON-RPC 2.0 через postMessage (SDK не грузим — внешние загрузки запрещены) ----
+let rpcId = 0;
+const pending = {};
+function request(method, params) {
+  return new Promise((resolve) => {
+    const id = ++rpcId;
+    pending[id] = resolve;
+    window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, "*");
+  });
+}
+function notify(method, params) {
+  window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, "*");
+}
+function applyHostContext(ctx) {
+  if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) document.documentElement.setAttribute("data-theme", ctx.theme);
+}
+function reportSize() {
+  notify("ui/notifications/size-changed", {
+    width: document.documentElement.scrollWidth,
+    height: document.documentElement.scrollHeight,
+  });
+}
+window.addEventListener("message", (event) => {
+  const d = event.data;
+  if (!d || d.jsonrpc !== "2.0") return;
+  if (d.id != null && d.method == null) {
+    const resolve = pending[d.id];
+    if (resolve) { delete pending[d.id]; resolve(d.result); }
+    return;
+  }
+  if (d.method === "ui/notifications/tool-result") { show(d.params || {}); return; }
+  if (d.method === "ui/notifications/host-context-changed") { applyHostContext(d.params || {}); return; }
+  if (d.method === "ui/resource-teardown" && d.id != null) {
+    window.parent.postMessage({ jsonrpc: "2.0", id: d.id, result: {} }, "*");
+  }
+});
+(async function connect() {
+  const init = await request("ui/initialize", {
+    protocolVersion: "2025-06-18",
+    appInfo: { name: "1c-odata: долги по срокам", version: "1" },
+    appCapabilities: { availableDisplayModes: ["inline"] },
+  });
+  applyHostContext(init && init.hostContext);
+  notify("ui/notifications/initialized");
+})();
+if (window.ResizeObserver) new ResizeObserver(reportSize).observe(document.body);
+</script>
+</body>
+</html>

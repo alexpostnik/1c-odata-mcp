@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "apps",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
