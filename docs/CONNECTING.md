@@ -246,14 +246,18 @@ claude mcp add 1c-odata -s user -- /opt/homebrew/bin/node \
 
 | Клиент | Где искать конфиг |
 |---|---|
+| **ChatGPT для компьютера** (Codex) и **Codex CLI** | `~/.codex/config.toml`, раздел `[mcp_servers.1c-odata]` (TOML), или `codex mcp add`. Обычный чат ChatGPT локальные серверы не запускает |
 | **Cursor** | `Settings → MCP` в приложении, либо файл `~/.cursor/mcp.json` (глобально) / `.cursor/mcp.json` в проекте — тот же JSON, ключ `mcpServers` |
-| **VS Code** (Continue) | `~/.continue/config.json`, раздел `mcpServers` |
+| **VS Code** (Copilot) | `MCP: Add Server` в палитре команд, либо `.vscode/mcp.json` — ключ `servers`, у записи `"type": "stdio"` |
+| **VS Code / JetBrains** (Continue) | файл в `.continue/mcpServers/` — JSON из варианта А подходит как есть |
 | **VS Code** (Cline) | настройки расширения Cline → MCP Servers, либо `cline_mcp_settings.json` |
-| **JetBrains** (с MCP-плагином) | настройки плагина — тот же `command`/`args`/`env` |
-| **Локальные модели** (Ollama, LM Studio через MCP-клиент) | зависит от клиента, но формат идентичен |
+| **JetBrains AI Assistant** | Settings → Tools → AI Assistant → Model Context Protocol → Add (есть импорт из Claude Desktop) |
+| **Zed** | Settings → AI → MCP Servers, либо `settings.json`, ключ `context_servers` |
+| **LM Studio** (локальная модель) | вкладка Program → Edit `mcp.json` (`~/.lmstudio/mcp.json`), ключ `mcpServers` |
 
-Если клиента нет в списке — ищите в его документации фразу «MCP server» или
-«Model Context Protocol»: конфиг почти всегда сводится к тому же JSON.
+Готовые конфиги для каждого клиента и порядок установки — в [INSTALL-WITH-AI.md](INSTALL-WITH-AI.md)
+(его удобно дать своему ИИ-ассистенту). Если клиента нет в списке — ищите в его документации фразу
+«MCP server» или «Model Context Protocol»: конфиг почти всегда сводится к тому же JSON.
 
 ### ✅ Что проверить
 

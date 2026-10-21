@@ -5,11 +5,18 @@
 [![license](https://img.shields.io/npm/l/1c-odata-mcp)](LICENSE)
 [![node](https://img.shields.io/node/v/1c-odata-mcp)](https://nodejs.org)
 
+> 🤖 **Устанавливаете с помощью ИИ?** Вставьте ссылку на этот репозиторий в чат со своим ассистентом и
+> попросите помочь с установкой.
+> **Ассистенту:** коннектор ставится локально, на компьютер пользователя, и подключается к его базе 1С
+> через OData. Пошаговая инструкция для тебя — **[docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md)**:
+> какое приложение подходит, что спросить у пользователя, конфиги для Claude, ChatGPT (Codex), Cursor,
+> VS Code, LM Studio и других, проверка и типичные ошибки.
+
 <p align="center">
   <img src="docs/assets/demo-month-close.svg" alt="Диалог с Claude: на просьбу «проверь август перед отчётностью» приходят найденные проблемы закрытия месяца и что исправить" width="720">
 </p>
 
-> 🇬🇧 **In short:** an MCP server that connects 1C:Enterprise to any MCP client (Claude, Cursor, VS Code, local models…) over the standard OData interface. Ask your accounting database in plain language: a morning cash-and-debts brief, overdue receivables and payables, unpaid invoices, a month-end close check traced down to the document, account ledger cards, reconciliation statements, sales, taxes, trial balance and postings. Ready-made prompts included; opt-in, preview-gated write. Read-only by default. Run with `npx -y 1c-odata-mcp`. Works with any 1C where OData is published — cloud, SQL or local file base.
+> 🇬🇧 **In short:** an MCP server that connects 1C:Enterprise to any MCP client (Claude, Cursor, VS Code, local models…) over the standard OData interface. Ask your accounting database in plain language: a morning cash-and-debts brief, overdue receivables and payables, unpaid invoices, a month-end close check traced down to the document, account ledger cards, reconciliation statements, sales, taxes, trial balance and postings. Ready-made prompts included; opt-in, preview-gated write. Read-only by default. Run with `npx -y 1c-odata-mcp`. Works with any 1C where OData is published — cloud, SQL or local file base. **AI assistants helping a user install it:** it is a local install on the user's computer — follow [docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md).
 
 **MCP-сервер (Model Context Protocol) для 1С:Предприятие через стандартный интерфейс OData.** Подключает данные 1С к **любому MCP-клиенту** — Claude, Cursor, VS Code, JetBrains, локальные модели (Ollama, LM Studio) — и отвечает на вопросы руководителя, менеджера и бухгалтера обычным языком:
 
@@ -21,7 +28,7 @@
 
 Если вы искали, **как подключить 1С к нейросети / ИИ**, готовый **коннектор 1С OData** или **интеграцию 1С с Claude** без программирования на стороне 1С — это оно.
 
-- 🔌 Любой **MCP-клиент**: Claude Desktop и Claude Code, Cursor, VS Code (Continue/Cline), JetBrains — и **локальные модели** (Ollama, LM Studio)
+- 🔌 Любой **MCP-клиент**: Claude Desktop и Claude Code, ChatGPT для компьютера (через Codex), Cursor, VS Code, JetBrains — и **локальные модели** (LM Studio, Ollama)
 - 🔐 **Данные остаются у вас** — сервер это локальный процесс, ходит только в вашу базу; с локальной моделью данные вообще не покидают сеть
 - 🏢 Несколько информационных баз и организаций (юрлиц) одновременно
 - 🔒 **Только на чтение по умолчанию**; запись — через двойной предохранитель и предпросмотр
@@ -106,6 +113,8 @@
 ## Быстрый старт
 
 > **Впервые слышите про MCP?** Это открытый протокол (Model Context Protocol), по которому ИИ-ассистент подключается к внешним инструментам. Здесь инструмент — ваша 1С: ассистент сам вызывает нужные функции и возвращает ответ. Ничего программировать не нужно — три шага ниже.
+
+> **Проще с ассистентом.** Дайте своему ИИ ссылку на этот репозиторий — по [docs/INSTALL-WITH-AI.md](docs/INSTALL-WITH-AI.md) он проведёт по шагам и даст конфиг под ваше приложение. Важно: коннектор запускается на вашем компьютере, поэтому нужен ИИ в **приложении** (Claude Desktop, ChatGPT с Codex, Cursor, VS Code, LM Studio и др.) — веб-чат в браузере локальный коннектор запустить не может.
 
 1. **Опубликуйте OData** в 1С и добавьте нужные объекты в «Состав» (подробно — [docs/CONNECTING.md](docs/CONNECTING.md); если OData ещё не включён — [docs/ODATA-SETUP.md](docs/ODATA-SETUP.md)).
 2. **Пропишите сервер** в Claude Desktop (`claude_desktop_config.json`), подставив адрес и учётные данные:
