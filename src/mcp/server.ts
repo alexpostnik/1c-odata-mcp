@@ -12,6 +12,8 @@ import { registerDocumentTools } from "../tools/documents.js";
 import { registerRegisterTools } from "../tools/registers.js";
 import { registerDebtTools } from "../tools/debts.js";
 import { registerMonthCloseTools } from "../tools/month-close.js";
+import { registerCardTools } from "../tools/card.js";
+import { registerPrompts } from "./prompts.js";
 import { registerCashflowTools } from "../tools/cashflow.js";
 import { registerSalesTools } from "../tools/sales.js";
 import { registerOrganizationTools } from "../tools/organization.js";
@@ -152,11 +154,13 @@ export function createServer(ctx: ServerContext): McpServer {
   registerRegisterTools(server, ctx);
   registerDebtTools(server, ctx);
   registerMonthCloseTools(server, ctx);
+  registerCardTools(server, ctx);
   registerCashflowTools(server, ctx);
   registerSalesTools(server, ctx);
   registerOrganizationTools(server, ctx);
   registerAuditTools(server, ctx);
   registerWriteTools(server, ctx);
+  registerPrompts(server);
 
   return server;
 }

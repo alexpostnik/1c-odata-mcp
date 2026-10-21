@@ -358,6 +358,47 @@ export const monthCloseResultSchema = z
   })
   .passthrough();
 
+export const accountCardResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    account: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    openingBalance: z.number(),
+    debitTurnover: z.number(),
+    creditTurnover: z.number(),
+    closingBalance: z.number(),
+    consistent: z.boolean(),
+    count: z.number(),
+    entries: z.array(z.object({ date: z.string(), balance: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+const favorSchema = z.object({
+  amount: z.number(),
+  inFavorOf: z.enum(["организации", "контрагента"]).nullable(),
+});
+
+export const reconciliationResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    counterparty: z.string(),
+    counterpartyRef: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    opening: favorSchema,
+    debitTurnover: z.number(),
+    creditTurnover: z.number(),
+    closing: favorSchema,
+    consistent: z.boolean(),
+    count: z.number(),
+    lines: z.array(z.object({ date: z.string() }).passthrough()),
+    byContract: z.array(z.object({ contract: z.string() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
 export const getInventoryResultSchema = z
   .object({
     database: z.string(),

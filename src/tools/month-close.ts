@@ -471,7 +471,7 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
     return {
       kind,
       account: a.code,
-      ...(r.dims.some(Boolean) ? { analytics: label(r.dims) } : {}),
+      ...(r.dims.some(Boolean) ? { analytics: label(r.dims), analyticsRefs: r.dims.filter(Boolean) } : {}),
       balance: rub(r.cents),
       ...(r.quantity !== undefined && r.quantity < 0 ? { quantity: r.quantity } : {}),
     };

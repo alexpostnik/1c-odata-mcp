@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { PROMPTS } from "../mcp/prompts.js";
 
 async function main(): Promise<void> {
   const env: Record<string, string> = {};
@@ -37,8 +38,18 @@ async function main(): Promise<void> {
     ...(t.outputSchema ? { outputSchema: t.outputSchema } : {}),
     ...(t.annotations ? { annotations: t.annotations } : {}),
   }));
+  // Сценарии — статически, в формате MCPB (текст с ${arguments.<имя>}), из того же PROMPTS, что у сервера.
+  manifest["prompts"] = PROMPTS.map((p) => ({
+    name: p.name,
+    description: p.description,
+    arguments: p.arguments.map((a) => a.name),
+    text: p.text,
+  }));
+  manifest["prompts_generated"] = false;
   writeFileSync("manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
-  process.stdout.write(`manifest.json: ${tools.length} инструментов, версия ${pkg.version}\n`);
+  process.stdout.write(
+    `manifest.json: ${tools.length} инструментов, ${PROMPTS.length} сценария, версия ${pkg.version}\n`,
+  );
 }
 
 main().catch((e: unknown) => {
