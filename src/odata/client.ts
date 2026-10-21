@@ -80,7 +80,7 @@ export class ODataClient {
   ): Promise<T> {
     this.assertWritable(method);
     const url = this.url(path);
-    // Тело пишущих запросов повторять небезопасно (не идемпотентно) — без retry.
+    // Любая запись, включая bodyless Post/Unpost, отправляется один раз; retry только чтению.
     const maxAttempts = READ_METHODS.has(method) ? this.behavior.retries + 1 : 1;
 
     let lastErr: ODataError | undefined;

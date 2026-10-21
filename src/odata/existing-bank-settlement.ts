@@ -119,6 +119,15 @@ export async function applyBankSettlementSettings(
     available = new Set(md.entities.keys());
   const contracts = resolveEntity(CATALOGS.contracts, available);
   if (!contracts) throw new InputError("Договоры не опубликованы.");
+  requireTypes(md.entities.get(contracts), {
+    Ref_Key: "Edm.Guid",
+    Owner_Key: "Edm.Guid",
+    Организация_Key: "Edm.Guid",
+    ВалютаВзаиморасчетов_Key: "Edm.Guid",
+    ВидДоговора: "Edm.String",
+    IsFolder: "Edm.Boolean",
+    DeletionMark: "Edm.Boolean",
+  });
   const contract = await conn.client.getEntity(`${contracts}(${odataGuid(p.contractRef)})?$format=json`);
   if (
     String(contract.Ref_Key).toLowerCase() !== p.contractRef ||
@@ -157,6 +166,12 @@ export async function applyBankSettlementSettings(
   const accountRef = exactRef.parse(resolution.choice?.settle);
   const chart = resolveEntity(accountingChart(conn.cfg), available);
   if (!chart) throw new InputError("План счетов не опубликован.");
+  requireTypes(md.entities.get(chart), {
+    Ref_Key: "Edm.Guid",
+    Code: "Edm.String",
+    DeletionMark: "Edm.Boolean",
+    ЗапретитьИспользоватьВПроводках: "Edm.Boolean",
+  });
   const account = await conn.client.getEntity(`${chart}(${odataGuid(accountRef)})?$format=json`);
   if (
     String(account.Ref_Key).toLowerCase() !== accountRef ||
@@ -168,6 +183,8 @@ export async function applyBankSettlementSettings(
   )
     throw new InputError("Выбранный счёт отсутствует, удалён или запрещён для проводок.");
   const payload: ODataEntity = { [CONTRACT]: p.contractRef, [ACCOUNT]: accountRef };
+  if (!meta.properties.some((p) => p.name === ROWS))
+    throw new InputError("Расшифровка платежа не опубликована; изменение запрещено.");
   if (!Array.isArray(doc[ROWS])) throw new InputError("Расшифровка платежа неизвестна; изменение запрещено.");
   const rows = doc[ROWS] as unknown[];
   if (rows.length > 1)

@@ -280,7 +280,12 @@ describe("existing bank inherited settlement", () => {
     expect((await f.run()).isError).toBe(true);
     expect(f.writes).toEqual([]);
   });
-  it.each([{ DeletionMark: true }, { IsFolder: true }])("rejects unusable account %j", async (v) => {
+  it.each([
+    { DeletionMark: true },
+    { IsFolder: true },
+    { ЗапретитьИспользоватьВПроводках: true },
+    { ЗапретитьИспользоватьВПроводках: undefined },
+  ])("rejects unusable account %j", async (v) => {
     const f = await fixture();
     f.setAccount(v);
     expect((await f.run()).isError).toBe(true);
@@ -312,6 +317,29 @@ describe("existing bank inherited settlement", () => {
     const p = await f.run();
     expect(p.isError).toBeFalsy();
     expect(data(p).payload).not.toHaveProperty("СубконтоДт1");
+    const before = f.doc();
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+    expect(f.doc().СубконтоДт1).toBe(before.СубконтоДт1);
+    expect(f.doc().СуммаДокумента).toBe(before.СуммаДокумента);
+  });
+});
+
+describe("mutation HTTP retry boundary", () => {
+  it("does not retry a bodyless Post after network failure", async () => {
+    const f = await fixture();
+    vi.mocked(f.conn.client.request).mockRestore();
+    const fetchMock = vi.fn(async () => {
+      throw new Error("Synthetic connection loss");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(f.conn.client.action(`Document_Synthetic(guid'${DOC}')/Post`)).rejects.toBeInstanceOf(
+        ODataError,
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 describe("version guarded separate Post/Unpost", () => {
