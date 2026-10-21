@@ -80,6 +80,14 @@ export function fromHttpStatus(status: number, url: string, body?: string): ODat
   }
   if (status === 400) return base("Некорректный запрос к OData (400)", "bad_request");
   if (status === 429) return base("Слишком много запросов (429)", "rate_limit");
+  // 1С отвечает 500 «Нарушение прав доступа!», когда у пользователя OData нет прав на объект или
+  // действие. Права проверяются до записи — это однозначный отказ, а не сбой с неизвестным исходом.
+  if (status >= 500 && detail && /Нарушение прав доступа/i.test(detail)) {
+    return base(
+      `Нет прав в 1С (${status}). Пользователю OData нужны права на этот объект и действие (роль в 1С)`,
+      "auth",
+    );
+  }
   if (status >= 500) return base(`Ошибка сервера 1С (${status})`, "server");
   return base(`Неожиданный ответ OData (${status})`, "unknown");
 }
