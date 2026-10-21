@@ -4,6 +4,7 @@ import {
   ACCOUNT_FILTER_BATCH,
   BALANCE_AND_TURNOVERS,
   accountsOrgFilter,
+  balanceByAccounts,
   balanceAndTurnoversPath,
   nextDay,
   turnoversByAccounts,
@@ -405,5 +406,26 @@ describe("redBalanceNote — пояснение «красного» сальд�
     };
     expect(redBalanceNote(t).note).toContain("-457275.81");
     expect(redBalanceNote({ ...t, closingDr: 100, closingCr: 0 })).toEqual({});
+  });
+});
+
+describe("balanceByAccounts: сальдо на конец даты", () => {
+  // Регресс: Period=<дата>T23:59:59 терял движения последней секунды — а закрытие месяца
+  // 1С проводит ровно в 23:59:59. Сальдо на конец дня = на начало следующего.
+  it("asOf → Period начала следующего дня; без asOf — текущее сальдо", async () => {
+    const { conn, paths } = fakeConn([]);
+    (conn as unknown as { cfg: object }).cfg = {};
+    await balanceByAccounts(conn, [guid(1)], undefined, "2026-08-31");
+    await balanceByAccounts(conn, [guid(1)]);
+    expect(decodeURIComponent(paths[0]!)).toContain("/Balance(Period=datetime'2026-09-01T00:00:00')");
+    expect(decodeURIComponent(paths[1]!)).toMatch(/\/Balance\?/);
+  });
+
+  it("null — снимок по всем счетам без отбора по счёту", async () => {
+    const { conn, paths } = fakeConn([]);
+    (conn as unknown as { cfg: object }).cfg = {};
+    await balanceByAccounts(conn, null, ORG, "2026-08-31");
+    expect(decodeURIComponent(paths[0]!)).not.toContain("Account_Key");
+    expect(decodeURIComponent(paths[0]!)).toContain(`Организация_Key eq guid'${ORG}'`);
   });
 });

@@ -11,6 +11,7 @@ import { registerCounterpartyTools } from "../tools/counterparties.js";
 import { registerDocumentTools } from "../tools/documents.js";
 import { registerRegisterTools } from "../tools/registers.js";
 import { registerDebtTools } from "../tools/debts.js";
+import { registerMonthCloseTools } from "../tools/month-close.js";
 import { registerCashflowTools } from "../tools/cashflow.js";
 import { registerSalesTools } from "../tools/sales.js";
 import { registerOrganizationTools } from "../tools/organization.js";
@@ -150,6 +151,7 @@ export function createServer(ctx: ServerContext): McpServer {
   registerDocumentTools(server, ctx);
   registerRegisterTools(server, ctx);
   registerDebtTools(server, ctx);
+  registerMonthCloseTools(server, ctx);
   registerCashflowTools(server, ctx);
   registerSalesTools(server, ctx);
   registerOrganizationTools(server, ctx);

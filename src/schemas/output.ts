@@ -328,6 +328,36 @@ export const cashBalanceResultSchema = z
   })
   .passthrough();
 
+export const monthCloseResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    month: z.string(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    status: z.enum(["ok", "warnings", "errors"]),
+    summary: z.object({
+      errors: z.number(),
+      warnings: z.number(),
+      ok: z.number(),
+      notApplicable: z.number(),
+      skipped: z.number(),
+    }),
+    checks: z.array(
+      z
+        .object({
+          id: z.string(),
+          title: z.string(),
+          status: z.enum(["ok", "warning", "error", "not_applicable", "skipped"]),
+          message: z.string(),
+          items: z.array(z.object({}).passthrough()).optional(),
+          itemsMore: z.number().optional(),
+        })
+        .passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
 export const getInventoryResultSchema = z
   .object({
     database: z.string(),

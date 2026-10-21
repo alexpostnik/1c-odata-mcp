@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.8.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 63 инструмента: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 64 инструмента: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, проверка закрытия месяца, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -2395,6 +2395,180 @@
           "special",
           "inTransit",
           "balances",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.accounting.check_month_close",
+      "title": "Проверка закрытия месяца",
+      "description": "Проверка учёта за месяц — то, что бухгалтер смотрит перед сдачей отчётности и после закрытия месяца: (1) закрытие месяца выполнено и без ошибок, закрыты ли предыдущие месяцы года; (2) непроведённые документы месяца; (3) красное сальдо на конец месяца — деньги и товары в минусе, расчёты 62/60 не на той стороне; (4) остатки на 90, 91 (должны быть в нуле) и 20–26, 44 после закрытия; (5) амортизация при наличии ОС и НМА; (6) реализации с НДС без счёта-фактуры. Каждая проверка — статус ok / warning / error / not_applicable / skipped, пояснение и строки (до 20). Только чтение: закрыть месяц через OData нельзя, только проверить результат.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "Проверяемый месяц, YYYY-MM"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "month": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warnings",
+              "errors"
+            ]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "errors": {
+                "type": "number"
+              },
+              "warnings": {
+                "type": "number"
+              },
+              "ok": {
+                "type": "number"
+              },
+              "notApplicable": {
+                "type": "number"
+              },
+              "skipped": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "errors",
+              "warnings",
+              "ok",
+              "notApplicable",
+              "skipped"
+            ],
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "warning",
+                    "error",
+                    "not_applicable",
+                    "skipped"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": {}
+                  }
+                },
+                "itemsMore": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "status",
+                "message"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "month",
+          "period",
+          "status",
+          "summary",
+          "checks",
           "scan"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",

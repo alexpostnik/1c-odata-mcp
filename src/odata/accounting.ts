@@ -190,25 +190,28 @@ export async function nomenclatureAccounts(
 
 /**
  * Тянет строки сальдо регистра Хозрасчетный, отфильтрованные по набору счетов
- * и (необязательно) по организации.
+ * и (необязательно) по организации. accountKeys = null — сальдо по всем счетам одним
+ * снимком (для проверок, которым нужно много групп счетов сразу).
  */
 export async function balanceByAccounts(
   conn: Connection,
-  accountKeys: string[],
+  accountKeys: string[] | null,
   orgKey?: string,
   asOf?: string,
 ): Promise<ODataEntity[]> {
-  if (accountKeys.length === 0) return [];
+  if (accountKeys?.length === 0) return [];
   const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
   const filter =
     and(
-      or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))),
+      accountKeys ? or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))) : undefined,
       orgKey ? cmp("Организация_Key", "eq", odataGuid(orgKey)) : undefined,
     ) || undefined;
   // Параметр Period — НЕ через $filter, а path-параметром у виртуальной таблицы:
-  // .../AccountingRegister_Хозрасчетный/Balance(Period=datetime'YYYY-MM-DDT23:59:59').
-  // Без него виртуальная таблица возвращает текущее сальдо.
-  const balancePath = asOf ? `${reg}/Balance(Period=datetime'${asOf}T23:59:59')` : `${reg}/Balance`;
+  // .../AccountingRegister_Хозрасчетный/Balance(Period=datetime'<следующий день>T00:00:00').
+  // Сальдо берётся на НАЧАЛО момента Period: при 23:59:59 терялись бы движения последней
+  // секунды дня, а закрытие месяца 1С проводит ровно в 23:59:59 (как в balanceAndTurnoversPath).
+  // Без параметра виртуальная таблица возвращает текущее сальдо.
+  const balancePath = asOf ? `${reg}/Balance(Period=datetime'${nextDay(asOf)}T00:00:00')` : `${reg}/Balance`;
   // Через безопасную выборку: сальдо берём ПОЛНОСТЬЮ (иначе дебиторка/остатки
   // занижаются), с громким переполнением вместо тихой обрезки.
   const { rows } = await fetchAllForAggregation(
@@ -315,7 +318,7 @@ export function assertTurnoverFields(rows: readonly ODataEntity[]): void {
 export function accountsOrgFilter(accountKeys: readonly string[], orgKey?: string): string | undefined {
   return (
     and(
-      or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))),
+      accountKeys ? or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))) : undefined,
       orgKey ? cmp("Организация_Key", "eq", odataGuid(orgKey)) : undefined,
     ) || undefined
   );
