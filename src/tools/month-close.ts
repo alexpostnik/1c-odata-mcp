@@ -17,6 +17,7 @@ import { collectDocuments, fetchAllForAggregation } from "../odata/aggregate.js"
 import { listOrganizations, resolveOrganization } from "../odata/orgs.js";
 import { addDays, entitySetOfType, refOf } from "../odata/settlements-aging.js";
 import { monthCloseResultSchema } from "../schemas/output.js";
+import { InputError } from "../errors.js";
 import type { ODataEntity } from "../types/odata.js";
 
 /**
@@ -385,16 +386,34 @@ export interface BalanceSnapshot {
 
 const startsWithAny = (code: string, prefixes: readonly string[]) => prefixes.some((p) => code.startsWith(p));
 
+/**
+ * Счета из настройки плана счетов. При strictDefaults без нужной группы настройка бросает
+ * InputError — тогда эта часть проверки пропускается с причиной, а не валит всю проверку месяца.
+ */
+function configured(label: string, get: () => readonly string[], missing: string[]): readonly string[] {
+  try {
+    return get();
+  } catch (e) {
+    if (!(e instanceof InputError)) throw e;
+    missing.push(label);
+    return [];
+  }
+}
+
+const notConfigured = (missing: readonly string[]) =>
+  `Не проверено: в настройке плана счетов (strictDefaults) нет ${missing.join(", ")} — задайте их в ` +
+  "ODATA_ACCOUNTING_CONFIG.";
+
 async function balanceSnapshot(
   conn: Connection,
   asOf: string,
   orgKey: string | undefined,
 ): Promise<BalanceSnapshot> {
+  const ignore: string[] = [];
   const prefixes = [
-    ...accountPrefixes(conn.cfg, "cash"),
-    ...accountPrefixes(conn.cfg, "inventory"),
-    ...accountPrefixes(conn.cfg, "receivables"),
-    ...accountPrefixes(conn.cfg, "payables"),
+    ...(["cash", "inventory", "receivables", "payables"] as const).flatMap((g) =>
+      configured(`prefixes.${g}`, () => accountPrefixes(conn.cfg, g), ignore),
+    ),
     ...CLOSED_ACCOUNTS.map((c) => c.code),
     ...ASSET_ACCOUNTS,
   ];
@@ -411,10 +430,14 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
   const { byKey } = snap;
   const group = (prefixes: readonly string[]) =>
     new Set([...byKey.values()].filter((a) => startsWithAny(a.code, prefixes)).map((a) => a.key));
-  const cash = group(accountPrefixes(conn.cfg, "cash"));
-  const stock = group(accountPrefixes(conn.cfg, "inventory"));
+  const missing: string[] = [];
+  const cash = group(configured("prefixes.cash", () => accountPrefixes(conn.cfg, "cash"), missing));
+  const stock = group(
+    configured("prefixes.inventory", () => accountPrefixes(conn.cfg, "inventory"), missing),
+  );
   // Расчёты: основной счёт и счёт авансов из настройки плана счетов (62.01/62.02, 60.01/60.02).
-  const codes = (g: Parameters<typeof defaultAccountCodes>[1]) => defaultAccountCodes(conn.cfg, g);
+  const codes = (g: Parameters<typeof defaultAccountCodes>[1]) =>
+    configured(`defaults.${g}`, () => defaultAccountCodes(conn.cfg, g), missing);
   const debitSettl = new Set([...codes("receivable"), ...codes("payableAdvance")]);
   const creditSettl = new Set([...codes("receivableAdvance"), ...codes("payable")]);
   const settlementSide = (k: string): Side | undefined => {
@@ -427,6 +450,10 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
   const stockRows = rowsOf(stock);
   const settlRows = snap.rows.filter((r) => settlementSide(String(r["Account_Key"] ?? "")));
 
+  if (!cash.size && !stock.size && !debitSettl.size && !creditSettl.size && missing.length) {
+    return { id: "redBalances", title, status: "skipped", message: notConfigured(missing) };
+  }
+  const notChecked = missing.length ? ` ${notConfigured(missing)}` : "";
   const red = {
     cash: wrongSideBalances(cashRows, () => "debit", 1),
     stock: wrongSideBalances(stockRows, () => "debit", 2, true),
@@ -459,7 +486,7 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
       id: "redBalances",
       title,
       status: "ok",
-      message: "Красного сальдо по деньгам, товарам и расчётам нет.",
+      message: `Красного сальдо по деньгам, товарам и расчётам нет.${notChecked}`,
     };
   }
   const parts = [
@@ -474,7 +501,7 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
     message:
       `На конец месяца: ${parts.join(", ")}. Деньги и товары в минусе — ошибка учёта (не загружена ` +
       "выписка, расход раньше прихода). Расчёты не на той стороне (кредит 62.01, дебет 60.01 и т.п.) — " +
-      "обычно незачтённый аванс или оплата не по тому договору.",
+      `обычно незачтённый аванс или оплата не по тому договору.${notChecked}`,
     ...withItems([...errors, ...warnings]),
   };
 }
