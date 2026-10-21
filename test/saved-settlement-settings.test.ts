@@ -35,7 +35,14 @@ afterEach(async () => {
 
 async function fixture(
   existing?: ODataEntity,
-  options: { readOnly?: boolean; writable?: boolean; versionless?: boolean } = {},
+  options: {
+    readOnly?: boolean;
+    writable?: boolean;
+    versionless?: boolean;
+    currencyCode?: string;
+    perBaseCurrency?: string;
+    globalCurrency?: string;
+  } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), "settings-test-"));
   dirs.push(dir);
@@ -46,11 +53,19 @@ async function fixture(
     READ_ONLY: String(options.readOnly ?? false),
     ODATA_WRITABLE: String(options.writable ?? true),
     WRITE_JOURNAL_DIR: dir,
-    ODATA_REGULATED_CURRENCY_CODE: "933",
+    ODATA_REGULATED_CURRENCY_CODE: options.globalCurrency ?? "933",
+    ...(options.perBaseCurrency
+      ? {
+          ODATA_DB_DEFAULT_BASE_URL: "https://example.invalid/odata/",
+          ODATA_DB_DEFAULT_USERNAME: "synthetic",
+          ODATA_DB_DEFAULT_PASSWORD: "synthetic",
+          ODATA_DB_DEFAULT_REGULATED_CURRENCY_CODE: options.perBaseCurrency,
+        }
+      : {}),
   });
   const conn = new Connection(
     { ...cfg.connections[0]!, writable: options.writable ?? true },
-    { ...cfg.behavior, regulatedCurrencyCode: "933", writeJournalDir: dir },
+    { ...cfg.behavior, writeJournalDir: dir },
   );
   const props = [
     ...dimensions,
@@ -117,7 +132,7 @@ async function fixture(
       if (path.startsWith("Catalog_Контрагенты")) return subject as never;
       if (path.startsWith("Catalog_Организации")) return organization as never;
       if (path.startsWith("Catalog_Договоры")) return contract as never;
-      if (path.startsWith("Catalog_Валюты")) return { Code: "933" } as never;
+      if (path.startsWith("Catalog_Валюты")) return { Code: options.currencyCode ?? "933" } as never;
       if (path.startsWith("ChartOfAccounts_"))
         return { value: [{ Ref_Key: ACCOUNT, Code: "66.2", Description: "Synthetic" }] } as never;
       if (path.startsWith(REG)) {
@@ -201,6 +216,18 @@ const saved = () => ({
 });
 
 describe("exact contract saved settlement settings", () => {
+  it("reads regulated BYN933 and RUB643 settings in the same process without changing global fallback", async () => {
+    const by = await fixture(saved(), { globalCurrency: "643", perBaseCurrency: "933", currencyCode: "933" });
+    const ru = await fixture(saved(), { globalCurrency: "643", currencyCode: "643" });
+    for (const f of [by, ru]) {
+      const result = await f.run({}, true);
+      expect(result.isError, JSON.stringify(result)).toBeFalsy();
+      expect(data(result).found).toBe(true);
+      expect(f.writes).toEqual([]);
+    }
+    expect(by.conn.behavior.regulatedCurrencyCode).toBe("933");
+    expect(ru.conn.behavior.regulatedCurrencyCode).toBe("643");
+  });
   it("reads exact compound-key row without inherited defaults", async () => {
     const f = await fixture(saved());
     const r = await f.run({}, true);

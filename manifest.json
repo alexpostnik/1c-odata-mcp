@@ -180,6 +180,27 @@
           "readOnly": {
             "type": "boolean"
           },
+          "regulatedCurrency": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "database",
+                  "global",
+                  "default"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "source"
+            ],
+            "additionalProperties": false
+          },
           "writeJournal": {
             "type": "object",
             "properties": {
@@ -219,7 +240,8 @@
           "database",
           "entityCount",
           "baseUrl",
-          "readOnly"
+          "readOnly",
+          "regulatedCurrency"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": {}

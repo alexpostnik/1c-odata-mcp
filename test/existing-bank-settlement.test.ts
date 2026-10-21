@@ -560,7 +560,6 @@ describe("existing bank mutation currency evidence", () => {
   it.each([
     { code: " 933 ", conditional: false, kind: "РасчетыВВалютеРегламентированногоУчета" },
     { code: "840", conditional: false, kind: "РасчетыВИностраннойВалюте" },
-    { code: "840", conditional: true, kind: "РасчетыВУсловныхЕдиницах" },
   ])("previews and confirms known classification $kind", async ({ code, conditional, kind }) => {
     const f = await fixture();
     f.setCurrency({ Code: code });
@@ -578,7 +577,7 @@ describe("existing bank mutation currency evidence", () => {
     expect((await f.run()).isError).toBe(true);
     expect(f.writes).toEqual([]);
   });
-  it("requires currency code evidence even when conditional units are true", async () => {
+  it("rejects conditional units even when currency code is missing", async () => {
     const f = await fixture();
     f.setContract({ РасчетыВУсловныхЕдиницах: true });
     f.setSettings([{ ...f.settings()[0], ВидРасчетовПоДоговору: "РасчетыВУсловныхЕдиницах" }]);
@@ -714,15 +713,18 @@ describe("PR43 real BP30 compatibility and bounded readback", () => {
       { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
     ]);
   });
-  it.each([CUR, OLD])("rejects every conditional-unit contract before currency/settings lookup (%s)", async (contractCurrency) => {
-    const f = await fixture();
-    f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: contractCurrency });
-    f.setCurrency(new ODataError({ kind: "auth", message: "must not read currency" }));
-    const r = await f.run();
-    expect(r.isError).toBe(true);
-    expect(JSON.stringify(r)).toContain("Расчёты в условных единицах этим инструментом не поддерживаются");
-    expect(f.writes).toEqual([]);
-  });
+  it.each([CUR, OLD])(
+    "rejects every conditional-unit contract before currency/settings lookup (%s)",
+    async (contractCurrency) => {
+      const f = await fixture();
+      f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: contractCurrency });
+      f.setCurrency(new ODataError({ kind: "auth", message: "must not read currency" }));
+      const r = await f.run();
+      expect(r.isError).toBe(true);
+      expect(JSON.stringify(r)).toContain("Расчёты в условных единицах этим инструментом не поддерживаются");
+      expect(f.writes).toEqual([]);
+    },
+  );
   it("accepts recalculated settlement rate fields while protecting payment amount", async () => {
     const f = await fixture();
     const p = await f.run();

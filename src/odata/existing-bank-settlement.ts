@@ -184,13 +184,10 @@ export async function applyBankSettlementSettings(
     throw new InputError(
       "Договор удалён, является группой или не совпадает по владельцу/организации/валюте документа.",
     );
-  if (String(contract.ВалютаВзаиморасчетов_Key).toLowerCase() !== currency) {
-    if (contract.РасчетыВУсловныхЕдиницах === true)
-      throw new InputError(
-        "Договор в условных единицах с другой валютой пока не поддержан: курс, кратность и сумма взаиморасчетов не определяются этим инструментом. Нужна отдельная проверка этих реквизитов в 1С.",
-      );
+  if (contract.РасчетыВУсловныхЕдиницах === true)
+    throw new InputError("Расчёты в условных единицах этим инструментом не поддерживаются.");
+  if (String(contract.ВалютаВзаиморасчетов_Key).toLowerCase() !== currency)
     throw new InputError("Валюта договора не совпадает с валютой документа.");
-  }
   const side = settlementSideOf(contract.ВидДоговора);
   if ((side && side !== p.side) || (!side && contract.ВидДоговора !== "Прочее"))
     throw new InputError("Сторона расчётов не соответствует виду договора.");
