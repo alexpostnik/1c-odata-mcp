@@ -6,6 +6,7 @@ import { Connection } from "../src/context.js";
 import { parseConfig } from "../src/config/env.js";
 import { createServer } from "../src/mcp/server.js";
 import { ODataError } from "../src/odata/errors.js";
+import { settlementAccountsFor } from "../src/odata/settlement-accounts.js";
 import type { EntityMeta, ODataEntity } from "../src/types/odata.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 const id = (n: number) => `${n}`.repeat(8) + "-1111-4111-8111-111111111111";
@@ -335,6 +336,18 @@ describe("existing bank inherited settlement", () => {
 });
 
 describe("existing bank mutation currency evidence", () => {
+  it("preserves the legacy resolver fallback when strict mutation mode is absent", async () => {
+    const f = await fixture();
+    f.setCurrency(new ODataError({ kind: "auth", message: "Synthetic legacy lookup failure" }));
+    f.setContract({ РасчетыВУсловныхЕдиницах: undefined });
+    expect(
+      await settlementAccountsFor(f.conn, { orgKey: ORG, contractRef: CTR, side: "supplier" }),
+    ).toMatchObject({
+      kind: "РасчетыВВалютеРегламентированногоУчета",
+      choice: { settle: ACCOUNT },
+    });
+    expect(f.writes).toEqual([]);
+  });
   const unknownCases = [
     "auth",
     "timeout",
