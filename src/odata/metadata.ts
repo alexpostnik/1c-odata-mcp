@@ -58,7 +58,11 @@ const asArray = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Arra
  * Результат кешируется вызывающей стороной — здесь только разбор.
  */
 export async function loadMetadata(client: ODataClient): Promise<MetadataMap> {
-  const xml = await client.getText("$metadata");
+  return parseMetadata(await client.getText("$metadata"));
+}
+
+/** Разбор текста $metadata — отдельно от загрузки, чтобы тесты проверяли код по снимку схемы. */
+export function parseMetadata(xml: string): MetadataMap {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
