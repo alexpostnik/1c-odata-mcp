@@ -714,12 +714,13 @@ describe("PR43 real BP30 compatibility and bounded readback", () => {
       { СчетУчетаРасчетовПоАвансам_Key: ACCOUNT },
     ]);
   });
-  it("reports explicit unsupported cross-currency conditional units without guessing rates", async () => {
+  it.each([CUR, OLD])("rejects every conditional-unit contract before currency/settings lookup (%s)", async (contractCurrency) => {
     const f = await fixture();
-    f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: OLD });
+    f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: contractCurrency });
+    f.setCurrency(new ODataError({ kind: "auth", message: "must not read currency" }));
     const r = await f.run();
     expect(r.isError).toBe(true);
-    expect(JSON.stringify(r)).toContain("условных единицах");
+    expect(JSON.stringify(r)).toContain("Расчёты в условных единицах этим инструментом не поддерживаются");
     expect(f.writes).toEqual([]);
   });
   it("accepts recalculated settlement rate fields while protecting payment amount", async () => {
