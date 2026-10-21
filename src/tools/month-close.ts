@@ -18,6 +18,7 @@ import { listOrganizations, resolveOrganization } from "../odata/orgs.js";
 import { addDays, entitySetOfType, refOf } from "../odata/settlements-aging.js";
 import { monthCloseResultSchema } from "../schemas/output.js";
 import { InputError } from "../errors.js";
+import { createdAt, documentTitle, negativeCashHint } from "../odata/names.js";
 import type { ODataEntity } from "../types/odata.js";
 
 /**
@@ -73,6 +74,7 @@ const DONE_STATES = new Set(["Выполнено", "Пропущено"]);
 export interface ClosingOp {
   month: string;
   org?: string;
+  ref?: string;
   kind: string;
   state: string;
 }
@@ -125,13 +127,14 @@ async function checkClosing(
     dateField: DOC_FIELDS.date,
     from: yearStart,
     to,
-    select: [DOC_FIELDS.date, DOC_FIELDS.organization, "ВидОперации", "Состояние"],
+    select: [DOC_FIELDS.ref, DOC_FIELDS.date, DOC_FIELDS.organization, "ВидОперации", "Состояние"],
   });
   const ops: ClosingOp[] = rows.map((r) => ({
     month: String(r[DOC_FIELDS.date] ?? "").slice(0, 7),
     ...(refOf(r[DOC_FIELDS.organization]) ? { org: refOf(r[DOC_FIELDS.organization]) } : {}),
     kind: String(r["ВидОперации"] ?? ""),
     state: String(r["Состояние"] ?? ""),
+    ...(refOf(r[DOC_FIELDS.ref]) ? { ref: refOf(r[DOC_FIELDS.ref]) } : {}),
   }));
 
   // Организации, которые закрывают месяцы: выбранная или все, у кого были закрытия в году.
@@ -152,7 +155,17 @@ async function checkClosing(
     else notClosed.push({ organization: orgName(org) });
     for (const f of cur.failed)
       failedItems.push({ organization: orgName(org), operation: f.kind, state: f.state });
-    if (cur.kinds.length) doneKinds.push({ organization: orgName(org), operations: cur.kinds });
+    if (cur.kinds.length) {
+      const key = forOrg.find((o) => o.month === month && o.kind === KEY_CLOSING_OPERATION);
+      const at = createdAt(key?.ref);
+      doneKinds.push({
+        organization: orgName(org),
+        operations: cur.kinds,
+        // Время ПЕРВОГО создания операции закрытия (по ссылке): документы, созданные позже, в
+        // закрытие могли не попасть. Перезакрытие ссылку не меняет — время остаётся прежним.
+        ...(at ? { closingCreatedAt: at } : {}),
+      });
+    }
     for (let m = 1; m < Number(month.slice(5, 7)); m++) {
       const mm = `${month.slice(0, 4)}-${String(m).padStart(2, "0")}`;
       if (!evaluateClosing(forOrg.filter((o) => o.month === mm)).closed) {
@@ -284,6 +297,7 @@ async function checkUnposted(
       if (cp) cpRefs.push(cp);
       items.push({
         document: set.replace(/^Document_/, ""),
+        documentTitle: documentTitle(set),
         number: String(r[DOC_FIELDS.number] ?? "").trim(),
         date: String(r[DOC_FIELDS.date] ?? "").slice(0, 10),
         ref: String(r[DOC_FIELDS.ref]),
@@ -362,20 +376,22 @@ async function namesForDims(
   conn: Connection,
   rows: readonly ODataEntity[],
   refs: Iterable<string>,
-): Promise<Map<string, string>> {
+): Promise<{ names: Map<string, string>; types: Map<string, string> }> {
   const want = new Set(refs);
   const bySet = new Map<string, Set<string>>();
+  const types = new Map<string, string>();
   for (const r of rows) {
     for (const i of [1, 2, 3]) {
       const ref = refOf(r[`ExtDimension${i}`]);
       const set = entitySetOfType(r[`ExtDimension${i}_Type`]);
-      if (!ref || !set || !want.has(ref) || !set.startsWith("Catalog_")) continue;
-      bySet.set(set, (bySet.get(set) ?? new Set()).add(ref));
+      if (!ref || !set || !want.has(ref)) continue;
+      types.set(ref, set);
+      if (set.startsWith("Catalog_")) bySet.set(set, (bySet.get(set) ?? new Set()).add(ref));
     }
   }
   const names = new Map<string, string>();
   for (const [set, rs] of bySet) for (const [k, v] of await resolveNames(conn, set, rs)) names.set(k, v);
-  return names;
+  return { names, types };
 }
 
 /** План счетов и сальдо на конец месяца — один раз на все проверки остатков. */
@@ -460,27 +476,42 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
     settl: wrongSideBalances(settlRows, settlementSide, 2),
   };
   const allRows = [...cashRows, ...stockRows, ...settlRows];
-  const names = await namesForDims(
+  const { names, types } = await namesForDims(
     conn,
     allRows,
     [...red.cash, ...red.stock, ...red.settl].flatMap((r) => r.dims),
   );
   const label = (dims: string[]) => dims.filter(Boolean).map((d) => names.get(d) ?? d);
-  const item = (kind: string, r: (typeof red.cash)[number]) => {
+  const item = (kind: string, r: (typeof red.cash)[number], hint?: string) => {
     const a = byKey.get(r.accountKey)!;
+    const refs = r.dims.filter(Boolean);
     return {
       kind,
       account: a.code,
-      ...(r.dims.some(Boolean) ? { analytics: label(r.dims), analyticsRefs: r.dims.filter(Boolean) } : {}),
+      ...(refs.length
+        ? {
+            analytics: label(r.dims),
+            analyticsRefs: refs,
+            analyticsTypes: refs.map((d) => types.get(d) ?? ""),
+          }
+        : {}),
       balance: rub(r.cents),
       ...(r.quantity !== undefined && r.quantity < 0 ? { quantity: r.quantity } : {}),
+      ...(hint ? { hint } : {}),
     };
   };
+  // Минус у строки без банковского счёта / кассы — суммы не разнесены, это не «денег не хватает».
+  const cashNoAnalytics = red.cash.filter((r) => !r.dims.some(Boolean));
+  const cashNegative = red.cash.filter((r) => r.dims.some(Boolean));
+  const code = (r: (typeof red.cash)[number]) => byKey.get(r.accountKey)!.code;
   const errors = [
-    ...red.cash.map((r) => item("деньги в минусе", r)),
+    ...cashNegative.map((r) => item("деньги в минусе", r, negativeCashHint(code(r), false))),
     ...red.stock.map((r) => item("отрицательный остаток", r)),
   ];
-  const warnings = red.settl.map((r) => item("расчёты не на той стороне", r));
+  const warnings = [
+    ...cashNoAnalytics.map((r) => item("минус без аналитики", r, negativeCashHint(code(r), true))),
+    ...red.settl.map((r) => item("расчёты не на той стороне", r)),
+  ];
   if (!errors.length && !warnings.length) {
     return {
       id: "redBalances",
@@ -490,7 +521,8 @@ async function checkRedBalances(conn: Connection, snap: BalanceSnapshot): Promis
     };
   }
   const parts = [
-    red.cash.length ? `денег в минусе — ${red.cash.length}` : "",
+    cashNegative.length ? `денег в минусе — ${cashNegative.length}` : "",
+    cashNoAnalytics.length ? `минус по деньгам без аналитики — ${cashNoAnalytics.length}` : "",
     red.stock.length ? `отрицательных остатков товаров — ${red.stock.length}` : "",
     red.settl.length ? `расчётов «не на той стороне» — ${red.settl.length}` : "",
   ].filter(Boolean);
@@ -561,12 +593,12 @@ function checkAfterClose(snap: BalanceSnapshot, closed: boolean): CheckResult {
       balance: rub(cents),
       severity: strict ? "error" : "warning",
       reason: strict
-        ? "после закрытия месяца счёт в целом должен быть в нуле — закрытие не сформировало проводки, перезакройте месяц"
+        ? "после закрытия месяца счёт в целом должен быть в нуле. Обычно это документы, внесённые или перепроведённые после закрытия, — карточка счёта за месяц покажет какие; затем перезакройте месяц"
         : code === "44"
           ? "остаток бывает законным (транспортные расходы на остаток товаров), иначе — счёт не закрыт"
           : code === "20" || code === "23"
             ? "остаток бывает законным (незавершённое производство), иначе — счёт не закрыт"
-            : "косвенные расходы закрываются полностью — проверьте закрытие счетов 20–26",
+            : "косвенные расходы закрываются полностью: обычно это затраты, внесённые после закрытия, — карточка счёта покажет какие; затем перезакройте месяц",
     });
   }
   if (!items.length) {
@@ -584,6 +616,30 @@ function checkAfterClose(snap: BalanceSnapshot, closed: boolean): CheckResult {
     message: `После закрытия остались суммы на ${items.length} счетах из тех, что закрываются в конце месяца.`,
     ...withItems(items),
   };
+}
+
+/**
+ * Остатки на 90/91/25/26 на начало месяца = хвосты прошлых месяцев: после их закрытия внесли
+ * документы. Регламентные операции при этом «Выполнено», поэтому одной проверки их наличия мало.
+ */
+async function carriedResiduals(
+  conn: Connection,
+  snap: BalanceSnapshot,
+  month: string,
+  orgKey: string | undefined,
+): Promise<Record<string, unknown>[]> {
+  const codes = CLOSED_ACCOUNTS.filter((c) => c.strict || c.code === "25" || c.code === "26").map(
+    (c) => c.code,
+  );
+  const keys = [...snap.byKey.values()]
+    .filter((a) => codes.includes(a.code.split(".")[0]!))
+    .map((a) => a.key);
+  const prevEnd = addDays(monthBounds(month).from, -1);
+  const rows = await balanceByAccounts(conn, keys, orgKey, prevEnd);
+  const net = netByTopCode({ byKey: snap.byKey, rows }, codes);
+  return codes
+    .filter((c) => (net.get(c) ?? 0) !== 0)
+    .map((c) => ({ account: c, onDate: prevEnd, balance: rub(net.get(c)!) }));
 }
 
 // ─── 5. Амортизация ──────────────────────────────────────────────────────────
@@ -765,7 +821,11 @@ export function registerMonthCloseTools(server: McpServer, ctx: ServerContext): 
         "расчёты 62/60 не на той стороне; (4) остатки на 90, 91 (должны быть в нуле) и 20–26, 44 после " +
         "закрытия; (5) амортизация при наличии ОС и НМА; (6) реализации с НДС без счёта-фактуры. " +
         "Каждая проверка — статус ok / warning / error / not_applicable / skipped, пояснение и строки " +
-        "(до 20). Только чтение: закрыть месяц через OData нельзя, только проверить результат.",
+        "(до 20). Остатки на 90/91/25/26 на начало месяца — признак, что прошлые месяцы закрыты не полностью. " +
+        "closingCreatedAt — когда впервые создана операция закрытия (документы, созданные позже, могли в него " +
+        "не попасть; перезакрытие этого времени не меняет). Для перехода в карточку счёта: analyticsRefs с " +
+        "analyticsTypes Catalog_Контрагенты — counterpartyRef, иначе dimensionRef. У регламентных операций в БП " +
+        "Posted = false — это нормально. Только чтение: закрыть месяц через OData нельзя, только проверить результат.",
       inputSchema: {
         database: databaseField,
         organization: organizationField,
@@ -783,6 +843,20 @@ export function registerMonthCloseTools(server: McpServer, ctx: ServerContext): 
 
         const closing = await checkClosing(conn, month, orgs, org?.ref);
         const snap = await balanceSnapshot(conn, bounds.to, org?.ref);
+        const carried = await carriedResiduals(conn, snap, month, org?.ref);
+        if (carried.length) {
+          const prev = closing.earlier;
+          closing.earlier = {
+            id: prev.id,
+            title: prev.title,
+            status: "warning",
+            message:
+              (prev.status === "warning" ? `${prev.message} ` : "") +
+              "На начало месяца на закрываемых счетах уже были остатки: прошлые месяцы закрыты не полностью — " +
+              "после их закрытия внесли документы. Перезакройте их по порядку, начиная с самого раннего.",
+            ...withItems([...(prev.items ?? []), ...carried]),
+          };
+        }
         const closed = closing.result.status === "ok";
         const closingKinds = new Set(
           (closing.result.items ?? []).flatMap((i) =>

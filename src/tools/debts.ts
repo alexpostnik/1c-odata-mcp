@@ -40,6 +40,7 @@ import {
   unpaidInvoicesResultSchema,
 } from "../schemas/output.js";
 import type { ODataEntity } from "../types/odata.js";
+import { documentTitle, negativeCashHint } from "../odata/names.js";
 
 // Деньги копим в целых копейках (float-сложение тысяч сумм даёт дрейф).
 const toCents = (v: unknown): number => Math.round(num(v) * 100);
@@ -118,7 +119,9 @@ interface SettlementsOptions {
 }
 
 const docOut = (d: AgedDocument, contractNames: ReadonlyMap<string, string>) => ({
-  ...(d.entitySet ? { document: d.entitySet.replace(/^Document_/, "") } : {}),
+  ...(d.entitySet
+    ? { document: d.entitySet.replace(/^Document_/, ""), documentTitle: documentTitle(d.entitySet) }
+    : {}),
   ...(d.number ? { number: d.number } : {}),
   ...(d.date ? { date: d.date } : {}),
   ...(d.ref ? { ref: d.ref } : {}),
@@ -205,9 +208,18 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
   const withoutDocument = sum((a) => a.noDocumentCents);
   const noTerm = sum((a) => a.noTermCents);
 
-  const selected = (o.overdueOnly ? aged.filter((x) => x.a.overdueCents > 0) : aged)
-    .sort((x, y) => (o.overdueOnly ? y.a.overdueCents - x.a.overdueCents : y.a.netCents - x.a.netCents))
-    .slice(0, o.limit);
+  // «Кто просрочил», а сроков в договорах нет: пустой список ничего не скажет — показываем долги
+  // старше 60 дней от даты документа и помечаем это (fallback).
+  const old = (a: (typeof aged)[number]["a"]) => a.ageBuckets["61-90"] + a.ageBuckets["90+"];
+  const noneOverdue = aged.every((x) => x.a.overdueCents === 0);
+  const fallback = o.overdueOnly && noneOverdue && aged.some((x) => x.a.noTermCents > 0 && old(x.a) > 0);
+  const selected = (
+    fallback
+      ? aged.filter((x) => old(x.a) > 0).sort((x, y) => old(y.a) - old(x.a))
+      : o.overdueOnly
+        ? aged.filter((x) => x.a.overdueCents > 0).sort((x, y) => y.a.overdueCents - x.a.overdueCents)
+        : aged.sort((x, y) => y.a.netCents - x.a.netCents)
+  ).slice(0, o.limit);
   const names = cpSet
     ? await resolveNames(
         conn,
@@ -235,6 +247,23 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
         "в noTerm, с возрастом от даты документа (ageDays). Если у компании общий срок, передайте defaultTermDays.",
     );
   }
+  if (fallback) {
+    notes.unshift(
+      "Просрочку не посчитать: в договорах не задан срок оплаты. Вместо неё показаны контрагенты с долгом " +
+        "старше 60 дней от даты документа (fallback = byAge), по убыванию такого долга.",
+    );
+  }
+  const futureDated = sum((a) => a.futureDatedCents);
+  if (futureDated > 0) {
+    notes.push(
+      `Документы с датой позже ${asOf} на ${rub(futureDated)} (status future_dated) — вероятно, ошибка в дате ` +
+        "документа; в возраст и просрочку они не входят.",
+    );
+  }
+  notes.push(
+    "overdue, notDue, noTerm и byAge считаются по документам долга ДО вычета авансов (debt); amount — чистый " +
+      "долг после авансов, поэтому их сумма может быть больше amount.",
+  );
   if (sum((a) => a.advanceCents) > 0) {
     notes.push(
       side === "receivable"
@@ -256,6 +285,7 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
       notDue: rub(a.notDueCents),
       noTerm: rub(a.noTermCents),
       withoutDocument: rub(a.noDocumentCents),
+      ...(a.futureDatedCents ? { futureDated: rub(a.futureDatedCents) } : {}),
       overdueByDays: bucketsOut(OVERDUE_BUCKETS, a.buckets),
       byAge: bucketsOut(AGE_BUCKETS, a.ageBuckets),
       ...(a.maxOverdueDays !== undefined ? { maxOverdueDays: a.maxOverdueDays } : {}),
@@ -274,6 +304,8 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
         totalNotDue: rub(sum((a) => a.notDueCents)),
         totalNoTerm: rub(noTerm),
         totalWithoutDocument: rub(withoutDocument),
+        ...(futureDated ? { totalFutureDated: rub(futureDated) } : {}),
+        ...(fallback ? { fallback: "byAge" } : {}),
         counterpartiesOverdue: aged.filter((x) => x.a.overdueCents > 0).length,
       },
       ...(notes.length ? { note: notes.join(" ") } : {}),
@@ -495,9 +527,9 @@ async function unpaidInvoices(
   }
   notes.push(
     shipmentsLinked === 0
-      ? "Ни одна реализация за период не ссылается на счёт — отгрузку по счёту не определить (shipped = 0)."
+      ? "Ни одна реализация за период не ссылается на счёт — отгрузку по счёту не определить (поля shipped нет)."
       : `Отгружено (shipped) — по реализациям со ссылкой на счёт; ссылка есть у ${shipmentsLinked} из ` +
-          `${shipmentsScanned} реализаций за период, без неё отгрузка не видна.`,
+          `${shipmentsScanned} реализаций за период. Нет поля shipped — отгрузка не определена, а не «не отгружено».`,
   );
   if (picked.length > shown.length)
     notes.push(`Показано ${shown.length} из ${picked.length} — увеличьте limit.`);
@@ -521,7 +553,8 @@ async function unpaidInvoices(
       amount: rub(i.amount),
       paid: rub(i.paid),
       unpaid: rub(Math.max(0, i.amount - i.paid)),
-      shipped: rub(i.shipped),
+      // Отгрузку видно только по реализациям со ссылкой на счёт: нет ссылки — поля нет (не «0»).
+      ...(i.shipped > 0 ? { shipped: rub(i.shipped) } : {}),
       status: i.status,
       ...(isOpen(i) ? { customerBalance: rub(balance.get(i.counterpartyRef ?? "") ?? 0) } : {}),
       ...(i.ageDays !== undefined ? { ageDays: i.ageDays } : {}),
@@ -621,14 +654,17 @@ async function cashBalance(
     present.filter((l) => kinds.includes(cashKind(l.account.code))).reduce((s, l) => s + l.cents, 0);
 
   const negative = present.filter((l) => l.cents < 0);
+  const lineLabel = (l: (typeof present)[number]) =>
+    `${l.account.code}${l.holder ? ` «${holderNames.get(l.holder) || l.holder}»` : " без банковского счёта"} ${rub(l.cents)}`;
   const notes: string[] = [
     "available — касса, расчётные и валютные счета (50, 51, 52); special — специальные счета и депозиты (55); " +
       "inTransit — переводы в пути и эквайринг (57), деньги ещё не на счёте.",
   ];
   if (negative.length) {
     notes.push(
-      `Отрицательный остаток на ${negative.length} строк(ах) — в учёте расход прошёл раньше прихода ` +
-        "(например, не загружена выписка или касса ушла в минус). Стоит проверить.",
+      "Отрицательные остатки — проверить в учёте: " +
+        negative.map((l) => `${lineLabel(l)} — ${negativeCashHint(l.account.code, !l.holder)}`).join("; ") +
+        ". Итоги available / special / inTransit — чистые, с учётом этих строк.",
     );
   }
 
@@ -646,6 +682,7 @@ async function cashBalance(
       kind: cashKind(l.account.code),
       ...(l.holder ? { holder: holderNames.get(l.holder) || l.holder, holderRef: l.holder } : {}),
       amount: rub(l.cents),
+      ...(l.cents < 0 ? { hint: negativeCashHint(l.account.code, !l.holder) } : {}),
       ...(l.currency && l.cur !== 0
         ? { currency: curNames.get(l.currency) || l.currency, currencyAmount: rub(l.cur) }
         : {}),
@@ -695,7 +732,7 @@ export function registerDebtTools(server: McpServer, ctx: ServerContext): void {
         "счетов» — платежи со ссылкой на счёт), остаток, отгружено по счёту (реализации со ссылкой на " +
         "счёт), статус unpaid / partial / paid / overpaid, сколько дней счёту. status=open (по умолчанию) — " +
         "неоплаченные и частично оплаченные, с текущим сальдо покупателя по 62 (customerBalance) для " +
-        "сверки; all — все. Период — по дате счёта; без from — последние 90 дней.",
+        "сверки; all — все. Счета старше 90 дней видны только с явным from. Период — по дате счёта; без from — последние 90 дней.",
       inputSchema: {
         database: databaseField,
         organization: organizationField,

@@ -41,6 +41,7 @@ export interface CardEntry {
   corrAccount?: string;
   corrDims: Dim[];
   content?: string;
+  org?: string;
 }
 
 function dimsOf(r: ODataEntity, side: "Dr" | "Cr"): Dim[] {
@@ -75,6 +76,7 @@ export function cardEntries(
       ...(refOf(r["Recorder"]) ? { recorder: refOf(r["Recorder"]) } : {}),
       ...(entitySetOfType(r["Recorder_Type"]) ? { recorderSet: entitySetOfType(r["Recorder_Type"]) } : {}),
       ...(typeof r["Содержание"] === "string" && r["Содержание"] ? { content: String(r["Содержание"]) } : {}),
+      ...(refOf(r["Организация_Key"]) ? { org: refOf(r["Организация_Key"]) } : {}),
       cents,
     };
     for (const [side, mine, other] of [

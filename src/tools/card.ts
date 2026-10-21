@@ -15,7 +15,9 @@ import {
 } from "../odata/accounting.js";
 import { cardEntries, fetchMovements, netBalance, type CardEntry, type Dim } from "../odata/account-card.js";
 import { addDays } from "../odata/settlements-aging.js";
-import { resolveOrganization } from "../odata/orgs.js";
+import { listOrganizations, resolveOrganization } from "../odata/orgs.js";
+import { createdAt, documentTitle, printNumber } from "../odata/names.js";
+import { refOf } from "../odata/settlements-aging.js";
 import { InputError } from "../errors.js";
 import { accountCardResultSchema, reconciliationResultSchema } from "../schemas/output.js";
 
@@ -193,9 +195,12 @@ async function accountCard(
       const doc = names.doc(e.recorderSet, e.recorder);
       return {
         date: e.period.slice(0, 10),
-        ...(e.recorderSet ? { document: e.recorderSet.replace(/^Document_/, "") } : {}),
+        ...(e.recorderSet
+          ? { document: e.recorderSet.replace(/^Document_/, ""), documentTitle: documentTitle(e.recorderSet) }
+          : {}),
         ...(doc.number ? { number: doc.number } : {}),
         ...(e.recorder ? { documentRef: e.recorder } : {}),
+        ...(createdAt(e.recorder) ? { documentCreatedAt: createdAt(e.recorder) } : {}),
         ...(e.content ? { content: e.content } : {}),
         account: code(e.account),
         ...(e.dims.length ? { analytics: e.dims.map(names.name) } : {}),
@@ -339,6 +344,19 @@ async function reconciliation(
       contractNames.set(k, v);
   }
 
+  // Акт сверки составляется между двумя юрлицами: по какой организации данные — должно быть видно.
+  const orgRefs = new Set<string>([
+    ...entries.map((e) => e.org).filter((x): x is string => !!x),
+    ...[...openRows, ...closeRows]
+      .filter((r) => netBalance([r], refs) !== 0)
+      .map((r) => refOf(r["Организация_Key"]))
+      .filter((x): x is string => !!x),
+  ]);
+  const orgNames = org
+    ? new Map([[org.ref, org.name]])
+    : new Map((await listOrganizations(conn)).map((x) => [x.ref, x.name]));
+  const orgsInData = [...orgRefs].map((r) => orgNames.get(r) ?? r);
+
   const notes = [
     "Это данные организации для акта сверки: дебет — отгрузки покупателю и оплаты поставщику, кредит — " +
       "оплаты покупателя и поступления от поставщика. Документ «Акт сверки» в 1С заполняется кнопкой " +
@@ -349,12 +367,19 @@ async function reconciliation(
       `Сальдо по строкам акта (${rub(closing)}) не совпало с регистром (${rub(closingRegister)}) — повторите запрос.`,
     );
   }
+  if (!org && orgsInData.length > 1) {
+    notes.push(
+      `В данных несколько организаций (${orgsInData.join(", ")}): акт сверки составляется по одной — ` +
+        "повторите запрос с organization.",
+    );
+  }
   if (!lines.length && opening === 0)
     notes.push("За период нет ни движений, ни остатков по расчётам с контрагентом.");
 
   return {
     database: conn.cfg.name,
-    ...(org ? { organization: org.name } : {}),
+    ...(org ? { organization: org.name } : orgsInData.length === 1 ? { organization: orgsInData[0] } : {}),
+    ...(!org && orgsInData.length > 1 ? { organizations: orgsInData } : {}),
     counterparty: cpName ?? o.counterpartyRef,
     counterpartyRef: o.counterpartyRef,
     ...(o.contractRef ? { contractRef: o.contractRef } : {}),
@@ -376,8 +401,10 @@ async function reconciliation(
       const doc = names.doc(l.recorderSet, l.recorder);
       return {
         date: doc.date ?? l.date,
-        ...(l.recorderSet ? { document: l.recorderSet.replace(/^Document_/, "") } : {}),
-        ...(doc.number ? { number: doc.number } : {}),
+        ...(l.recorderSet
+          ? { document: l.recorderSet.replace(/^Document_/, ""), documentTitle: documentTitle(l.recorderSet) }
+          : {}),
+        ...(doc.number ? { number: doc.number, printNumber: printNumber(doc.number) } : {}),
         ...(l.recorder ? { documentRef: l.recorder } : {}),
         ...(l.contract ? { contract: names.name(l.contract) } : {}),
         ...(l.debit ? { debit: rub(l.debit) } : {}),
@@ -408,7 +435,9 @@ export function registerCardTools(server: McpServer, ctx: ServerContext): void {
         "обороты, сальдо на конец (сверено с регистром, consistent). account — код или префикс " +
         "(«51», «62.01», «26»). Отбор: counterpartyRef — контрагент (Ref_Key из find_counterparty), " +
         "dimensionRef — любое другое субконто (договор, номенклатура, банковский счёт, документ " +
-        "расчётов). Для разбора: откуда остаток на 26, кто дал красное сальдо, как сложился долг.",
+        "расчётов). Сторно приходит отрицательной суммой в debit/credit. documentCreatedAt — когда документ " +
+        "создан (по ссылке): помогает найти документы, внесённые после закрытия месяца. Если остаток сложился " +
+        "до периода — возьмите период шире. Для разбора: откуда остаток на 26, кто дал красное сальдо, как сложился долг.",
       inputSchema: {
         database: databaseField,
         organization: organizationField,
@@ -453,7 +482,8 @@ export function registerCardTools(server: McpServer, ctx: ServerContext): void {
       description:
         "Взаиморасчёты с контрагентом за период для акта сверки — по данным организации: сальдо на начало " +
         "и конец «в пользу организации / контрагента», строки по документам (дата, документ, номер, договор, " +
-        "дебет, кредит), обороты, разбивка по договорам. Счета 60, 62 и 76 (без 76.АВ/76.ВА); зачёт аванса " +
+        "дебет, кредит; printNumber — номер как в печатной форме), обороты, разбивка по договорам, организация. " +
+        "Проверяются счета 60, 62 и 76 (без 76.АВ/76.ВА), в accounts — те, где есть движения или остатки; зачёт аванса " +
         "внутри расчётов с тем же контрагентом в строки не попадает, как в акте сверки 1С. counterpartyRef — " +
         "Ref_Key из find_counterparty, contractRef — только один договор. Сам документ «Акт сверки» " +
         "печатается из 1С.",

@@ -25,7 +25,7 @@ export interface DocInfo {
   number?: string;
 }
 
-export type DebtStatus = "overdue" | "not_due" | "no_term" | "no_document";
+export type DebtStatus = "overdue" | "not_due" | "no_term" | "no_document" | "future_dated";
 
 export interface AgedDocument {
   ref?: string;
@@ -56,6 +56,8 @@ export interface CounterpartyAging {
   notDueCents: number;
   noTermCents: number;
   noDocumentCents: number;
+  /** Документы с датой позже asOf — аномалия учёта (ошибка в дате), не долг «в срок». */
+  futureDatedCents: number;
   buckets: Record<OverdueBucket, number>;
   ageBuckets: Record<AgeBucket, number>;
   maxOverdueDays?: number;
@@ -169,6 +171,7 @@ export function ageCounterparty(
     notDueCents: 0,
     noTermCents: 0,
     noDocumentCents: 0,
+    futureDatedCents: 0,
     buckets: { "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0 },
     ageBuckets: { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 },
     documents: [],
@@ -193,7 +196,18 @@ export function ageCounterparty(
       continue;
     }
     const ageDays = daysBetween(info.date, asOf);
-    res.ageBuckets[ageBucket(Math.max(0, ageDays))] += r.cents;
+    if (ageDays < 0) {
+      res.futureDatedCents += r.cents;
+      res.documents.push({
+        ...base,
+        date: info.date,
+        ...(info.number ? { number: info.number } : {}),
+        ageDays,
+        status: "future_dated",
+      });
+      continue;
+    }
+    res.ageBuckets[ageBucket(ageDays)] += r.cents;
     const fromContract = r.contract ? terms.get(r.contract) : undefined;
     const termDays = fromContract ?? defaultTermDays;
     const doc = { ...base, date: info.date, ...(info.number ? { number: info.number } : {}), ageDays };
