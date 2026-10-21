@@ -166,25 +166,37 @@ export interface SettlementLookup {
 export async function settlementAccountsFor(
   conn: Connection,
   p: { orgKey?: string | undefined; contractRef: string; side?: SettlementSide | undefined },
+  mutation?: { contract: ODataEntity },
 ): Promise<SettlementLookup> {
   const available = await conn.available();
   const reg = resolveEntity(REGISTERS.settlementAccounts, available);
   const ctrSet = resolveEntity(CATALOGS.contracts, available);
-  if (!ctrSet) return { published: !!reg, side: p.side };
-  const contract = await conn.client.getEntity(
-    `${ctrSet}(${odataGuid(p.contractRef)})${buildQuery({
-      select: [
-        "Ref_Key",
-        "Owner_Key",
-        "Организация_Key",
-        "ВидДоговора",
-        "ВалютаВзаиморасчетов_Key",
-        "РасчетыВУсловныхЕдиницах",
-      ],
-    })}`,
-  );
+  if (!ctrSet) {
+    if (mutation) throw new InputError("Договоры не опубликованы; вид расчётов неизвестен.");
+    return { published: !!reg, side: p.side };
+  }
+  // Mutation callers supply the exact full contract they already validated. Do not reread
+  // a partial snapshot that could disagree with its owner, organization or currency.
+  const contract =
+    mutation?.contract ??
+    (await conn.client.getEntity(
+      `${ctrSet}(${odataGuid(p.contractRef)})${buildQuery({
+        select: [
+          "Ref_Key",
+          "Owner_Key",
+          "Организация_Key",
+          "ВидДоговора",
+          "ВалютаВзаиморасчетов_Key",
+          "РасчетыВУсловныхЕдиницах",
+        ],
+      })}`,
+    ));
   const side = p.side ?? settlementSideOf(contract["ВидДоговора"]);
   const currencyCode = await currencyCodeOf(conn, norm(contract["ВалютаВзаиморасчетов_Key"]));
+  if (mutation && (!currencyCode?.trim() || typeof contract["РасчетыВУсловныхЕдиницах"] !== "boolean"))
+    throw new InputError(
+      "Код валюты или признак расчётов в условных единицах неизвестен; применение счетов запрещено.",
+    );
   const kind = contractSettlementKind(contract, currencyCode, conn.behavior.regulatedCurrencyCode ?? "643");
   if (!reg || !side) return { published: !!reg, side, kind };
   const orgKey = p.orgKey ?? norm(contract["Организация_Key"]);

@@ -125,6 +125,7 @@ export async function applyBankSettlementSettings(
     Организация_Key: "Edm.Guid",
     ВалютаВзаиморасчетов_Key: "Edm.Guid",
     ВидДоговора: "Edm.String",
+    РасчетыВУсловныхЕдиницах: "Edm.Boolean",
     IsFolder: "Edm.Boolean",
     DeletionMark: "Edm.Boolean",
   });
@@ -158,11 +159,11 @@ export async function applyBankSettlementSettings(
     (/Покупател/.test(operation) && p.side !== "customer")
   )
     throw new InputError("Вид операции не поддержан или требует другую явную сторону расчётов.");
-  const resolution = await settlementAccountsFor(conn, {
-    orgKey: org,
-    contractRef: p.contractRef,
-    side: p.side,
-  });
+  const resolution = await settlementAccountsFor(
+    conn,
+    { orgKey: org, contractRef: p.contractRef, side: p.side },
+    { contract },
+  );
   const accountRef = exactRef.parse(resolution.choice?.settle);
   const chart = resolveEntity(accountingChart(conn.cfg), available);
   if (!chart) throw new InputError("План счетов не опубликован.");
