@@ -4,7 +4,7 @@ import type { EntityMeta, ODataEntity } from "../types/odata.js";
 import { InputError } from "../errors.js";
 import { CATALOGS, DOCUMENTS, resolveEntity } from "../config/mapping.js";
 import { accountingChart } from "../config/accounting.js";
-import { exactRef } from "./counterparty-hierarchy.js";
+import { counterpartyCatalog, EMPTY_GUID, exactRef, readCounterparty } from "./counterparty-hierarchy.js";
 import { settlementAccountsFor, settlementSideOf } from "./settlement-accounts.js";
 import { odataGuid } from "./query.js";
 import { ODataError } from "./errors.js";
@@ -19,6 +19,11 @@ export const bankSettlementInput = {
   entitySet: z.string(),
   ref: exactRef,
   contractRef: exactRef,
+  counterpartyRef: exactRef
+    .optional()
+    .describe(
+      "Явно выбранный контрагент: заполняет только нулевую ссылку документа. Заполненный контрагент должен совпадать; замена запрещена. Без выбора пустой контрагент блокирует действие.",
+    ),
   side: z.enum(["supplier", "customer"]),
   expectedDataVersion: expectedDocumentVersion,
 };
@@ -90,7 +95,7 @@ async function verifyAfter(
     });
   }
 }
-/** Only the chosen contract and settlement account are changed. Existing payment row is copied intact. */
+/** Applies the saved contract/account; explicit CP may fill only a zero GUID. Other fields stay intact. */
 export async function applyBankSettlementSettings(
   conn: Connection,
   input: unknown,
@@ -113,8 +118,19 @@ export async function applyBankSettlementSettings(
     ВидОперации: "Edm.String",
   });
   const org = exactRef.parse(doc.Организация_Key),
-    cp = exactRef.parse(doc.Контрагент_Key),
     currency = exactRef.parse(doc.ВалютаДокумента_Key);
+  // Only an observed zero GUID is empty; missing, null or malformed values remain unknown.
+  const fillCounterparty = doc.Контрагент_Key === EMPTY_GUID;
+  const cp = fillCounterparty ? p.counterpartyRef : exactRef.parse(doc.Контрагент_Key);
+  if (!cp)
+    throw new InputError(
+      "Контрагент документа пуст: требуется явный counterpartyRef; подбор по договору запрещён.",
+    );
+  if (p.counterpartyRef && p.counterpartyRef !== cp)
+    throw new InputError("Замена заполненного контрагента документа запрещена.");
+  const observedCounterparty = p.counterpartyRef
+    ? await readCounterparty(conn, await counterpartyCatalog(conn), cp, false)
+    : undefined;
   const md = await conn.getMetadata(),
     available = new Set(md.entities.keys());
   const contracts = resolveEntity(CATALOGS.contracts, available);
@@ -183,7 +199,11 @@ export async function applyBankSettlementSettings(
     !account.Code
   )
     throw new InputError("Выбранный счёт отсутствует, удалён или запрещён для проводок.");
-  const payload: ODataEntity = { [CONTRACT]: p.contractRef, [ACCOUNT]: accountRef };
+  const payload: ODataEntity = {
+    [CONTRACT]: p.contractRef,
+    [ACCOUNT]: accountRef,
+    ...(fillCounterparty ? { Контрагент_Key: cp } : {}),
+  };
   if (!meta.properties.some((p) => p.name === ROWS))
     throw new InputError("Расшифровка платежа не опубликована; изменение запрещено.");
   if (!Array.isArray(doc[ROWS])) throw new InputError("Расшифровка платежа неизвестна; изменение запрещено.");
@@ -215,6 +235,7 @@ export async function applyBankSettlementSettings(
     resolution,
     observedDocument: published(doc, meta),
     observedContract: contract,
+    ...(observedCounterparty ? { observedCounterparty } : {}),
     account,
   };
   if (!confirm) {
