@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { ODataError } from "../src/odata/errors.js";
+import { fromHttpStatus, ODataError } from "../src/odata/errors.js";
 import { fingerprintWriteInput } from "../src/odata/write-operation-context.js";
 import { WriteOperationJournal } from "../src/odata/write-journal.js";
 
@@ -152,6 +152,22 @@ describe("WriteOperationJournal", () => {
       }),
     ).rejects.toThrow(/ранее была отклонена/i);
     expect(sends).toBe(1);
+  });
+
+  it("records 1С «Нарушение прав доступа» as a rejection, not an unknown outcome", async () => {
+    const journal = await createJournal();
+    const operationId = randomUUID();
+    await journal.prepare(operationId, entitySet, payload, requestHash);
+    const body = JSON.stringify({
+      "odata.error": { code: "-1", message: { lang: "ru", value: "Нарушение прав доступа!" } },
+    });
+
+    await expect(
+      journal.execute(operationId, entitySet, payload, requestHash, async () => {
+        throw fromHttpStatus(500, "url", body);
+      }),
+    ).rejects.toThrow(/Нет прав в 1С/);
+    expect((await journal.lookup(operationId))?.state).toBe("rejected");
   });
 
   it("atomically allows only one concurrent POST for the same operationId", async () => {
