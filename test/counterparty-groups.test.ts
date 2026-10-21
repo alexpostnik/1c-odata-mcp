@@ -249,3 +249,17 @@ describe("explicit counterparty group operations", () => {
     expect(f.writes).toHaveLength(1);
   });
 });
+
+
+it("lost create_group reply reconciles its exact assigned ref without marker search", async () => {
+  const f = await fixture();
+  const p = await f.run("create_group", { name: "Synthetic", parentRef: E });
+  const operationId = String(p.structuredContent?.operationId);
+  f.failWrite();
+  expect((await f.run("create_group", {name:"Synthetic", parentRef:E, confirm:true, operationId})).isError).toBe(true);
+  f.rows.set(operationId, {Ref_Key:operationId, IsFolder:true, DeletionMark:false, Parent_Key:E});
+  const tools = (f.server as unknown as {_registeredTools: Record<string,{handler:(args:object, extra:object)=>Promise<{structuredContent?:Record<string, unknown>}>}>})._registeredTools;
+  const status = await tools["write.operation.status"]!.handler({operationId}, {});
+  expect(status.structuredContent?.status).toBe("found_reconciled");
+  expect(f.writes).toHaveLength(1);
+});

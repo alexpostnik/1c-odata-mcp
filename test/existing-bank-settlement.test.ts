@@ -6,6 +6,7 @@ import { Connection } from "../src/context.js";
 import { parseConfig } from "../src/config/env.js";
 import { createServer } from "../src/mcp/server.js";
 import { ODataError } from "../src/odata/errors.js";
+import { bp30Metadata, bp30Enums } from "./helpers/metadata-snapshot.js";
 import { settlementAccountsFor } from "../src/odata/settlement-accounts.js";
 import type { EntityMeta, ODataEntity } from "../src/types/odata.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -162,6 +163,7 @@ async function fixture(entitySet = SET) {
   ]);
   vi.spyOn(conn, "getMetadata").mockResolvedValue({ entities, odataVersion: "3.0" });
   let failure: "write" | "readback" | undefined;
+  let readbackChange: object = {};
   let currency: ODataEntity | Error = { Code: "933" };
   const contractReads: string[] = [];
   const writes: Array<{ path: string; method: string; body: unknown; headers: unknown }> = [];
@@ -171,7 +173,7 @@ async function fixture(entitySet = SET) {
       if (failure === "write") throw new ODataError({ kind: "timeout", message: "Synthetic timeout" });
       if (path.includes("/Unpost")) doc = { ...doc, Posted: false, DataVersion: "v2" };
       else if (path.includes("/Post")) doc = { ...doc, Posted: true, DataVersion: "v2" };
-      else doc = { ...doc, ...(body as object), DataVersion: "v2" };
+      else doc = { ...doc, ...(body as object), ...readbackChange, DataVersion: "v2" };
       return {} as never;
     }
     if (path.startsWith(entitySet)) {
@@ -234,6 +236,7 @@ async function fixture(entitySet = SET) {
     setSettings: (v: ODataEntity[]) => (settings = v),
     setCurrency: (v: typeof currency) => (currency = v),
     settings: () => settings,
+    changeOnWrite: (v: object) => (readbackChange = v),
     fail: (v: typeof failure) => (failure = v),
   };
 }
@@ -633,5 +636,66 @@ describe("version guarded separate Post/Unpost", () => {
     expect((await f.conn.client.operationEntry(data(p).operationId as string))?.state).toBe(
       "outcome_unknown",
     );
+  });
+});
+
+
+describe("PR43 real BP30 compatibility and bounded readback", () => {
+  it.each([
+    { set: SET, operation: "ОплатаПокупателя", side: "customer", kind: "СПокупателем" },
+    { set: "Document_СписаниеСРасчетногоСчета", operation: "ОплатаПоставщику", side: "supplier", kind: "СПоставщиком" },
+  ])("previews $side with actual BP30 metadata and enum", async ({set, operation, side, kind}) => {
+    const f = await fixture(set);
+    vi.mocked(f.conn.getMetadata).mockResolvedValue(bp30Metadata());
+    f.setDoc({ Контрагент: CP, Контрагент_Type: "StandardODATA.Catalog_Контрагенты", ВидОперации: operation,
+      [ROWS]: [{ LineNumber: "1", [CONTRACT]: OLD, [ACCOUNT_FIELD]: OLD, СчетУчетаРасчетовПоАвансам_Key: OLD, СуммаПлатежа: 150 }] });
+    f.setContract({ ВидДоговора: kind });
+    f.setSettings([{ ...f.settings()[0], СчетУчетаРасчетовСПокупателем_Key: ACCOUNT,
+      СчетУчетаАвансовПолученных_Key: ACCOUNT, СчетУчетаАвансовВыданных_Key: ACCOUNT }]);
+    expect([...bp30Enums().values()].some(values => values.has(operation))).toBe(true);
+    const p = await f.run({side});
+    expect(p.isError, JSON.stringify(p)).toBeFalsy();
+    expect(data(p).payload).not.toHaveProperty("Контрагент_Key");
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([{ СчетУчетаРасчетовПоАвансам_Key: ACCOUNT }]);
+    expect((await f.run({side, confirm: true, operationId: data(p).operationId})).isError).toBeFalsy();
+  });
+  it("changes both saved settlement and advance accounts in the payment row", async () => {
+    const f = await fixture();
+    f.setSettings([{ ...f.settings()[0], СчетУчетаАвансовВыданных_Key: ACCOUNT }]);
+    const p = await f.run();
+    expect(p.isError).toBeFalsy();
+    expect((data(p).payload as ODataEntity)[ROWS]).toMatchObject([{ СчетУчетаРасчетовПоАвансам_Key: ACCOUNT }]);
+  });
+  it("reports explicit unsupported cross-currency conditional units without guessing rates", async () => {
+    const f = await fixture();
+    f.setContract({ РасчетыВУсловныхЕдиницах: true, ВалютаВзаиморасчетов_Key: OLD });
+    const r = await f.run();
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r)).toContain("условных единицах");
+    expect(f.writes).toEqual([]);
+  });
+  it("accepts recalculated settlement rate fields while protecting payment amount", async () => {
+    const f = await fixture();
+    const p = await f.run();
+    const row = (f.doc()[ROWS] as ODataEntity[])[0]!;
+    f.changeOnWrite({ [ROWS]: [{ ...row, [CONTRACT]: CTR, [ACCOUNT_FIELD]: ACCOUNT,
+      КурсВзаиморасчетов: 2, КратностьВзаиморасчетов: 1, СуммаВзаиморасчетов: 75 }] });
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+  });
+  it.each([{СуммаДокумента: 151}, {НазначениеПлатежа: "changed"}, {СубконтоДт1: "lost"}])("holds changed protected business field %j", async (change) => {
+    const f = await fixture();
+    const p = await f.run();
+    f.changeOnWrite(change);
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBe(true);
+    expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe("outcome_unknown");
+  });
+  it("legacy lookup skips hierarchy entirely even if metadata or CP state is unsuitable", async () => {
+    const f = await fixture();
+    f.entities.delete("Catalog_Контрагенты");
+    f.setCounterparty({ DeletionMark: true });
+    const get = vi.spyOn(f.conn.client, "getEntity");
+    const r = await settlementAccountsFor(f.conn, {orgKey: ORG, contractRef: CTR, side: "supplier"});
+    expect(r.kind).toBe("РасчетыВВалютеРегламентированногоУчета");
+    expect(get.mock.calls.filter(([path]) => path.startsWith("Catalog_Контрагенты"))).toHaveLength(0);
   });
 });
