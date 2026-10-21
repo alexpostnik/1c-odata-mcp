@@ -882,20 +882,35 @@ describe("published header business values survive settlement PATCH", () => {
     { set: "Document_СписаниеСРасчетногоСчета", field: "СуммаВПенсионный", before: 0, after: 3 },
     { set: "Document_СписаниеСРасчетногоСчета", field: "СуммаВСоцстрах", before: 0, after: 4 },
     { set: "Document_СписаниеСРасчетногоСчета", field: "НДСпоТС", before: false, after: true },
-  ])("holds changed $field and never resends for $set", async ({set,field,before,after}) => {
+  ])("holds changed $field and never resends for $set", async ({ set, field, before, after }) => {
     const f = await fixture(set);
     for (const entity of belarusSchema.entities) {
       const prior = f.entities.get(entity.entitySet);
-      f.entities.set(entity.entitySet, { ...prior, ...entity, entityType: entity.entitySet, shortName: entity.entitySet, navigations: [], class: entity.entitySet.startsWith("Document_") ? "document" : entity.entitySet.startsWith("InformationRegister_") ? "informationRegister" : "catalog" });
+      f.entities.set(entity.entitySet, {
+        ...prior,
+        ...entity,
+        entityType: entity.entitySet,
+        shortName: entity.entitySet,
+        navigations: [],
+        class: entity.entitySet.startsWith("Document_")
+          ? "document"
+          : entity.entitySet.startsWith("InformationRegister_")
+            ? "informationRegister"
+            : "catalog",
+      });
     }
     // НДСпоТС belongs to the outgoing schema.
     const header = f.entities.get(set)!;
-    expect(header.properties.some(p=>p.name===field)).toBe(true);
-    f.setDoc({ [field]: before, [ROWS]: [], ВидОперации: set===SET ? "ПрочееПоступление" : "ПрочееСписание" });
-    const preview=await f.run();
-    expect(preview.isError,JSON.stringify(preview)).toBeFalsy();
-    f.changeOnWrite({[field]:after});
-    const args={confirm:true,operationId:data(preview).operationId};
+    expect(header.properties.some((p) => p.name === field)).toBe(true);
+    f.setDoc({
+      [field]: before,
+      [ROWS]: [],
+      ВидОперации: set === SET ? "ПрочееПоступление" : "ПрочееСписание",
+    });
+    const preview = await f.run();
+    expect(preview.isError, JSON.stringify(preview)).toBeFalsy();
+    f.changeOnWrite({ [field]: after });
+    const args = { confirm: true, operationId: data(preview).operationId };
     expect((await f.run(args)).isError).toBe(true);
     expect((await f.conn.client.operationEntry(String(args.operationId)))?.state).toBe("outcome_unknown");
     expect((await f.run(args)).isError).toBe(true);

@@ -106,31 +106,9 @@ const recalculatedRowFields = new Set([
   "СуммаВзаиморасчетов",
 ]);
 function protectedSettlementResult(record: ODataEntity): ODataEntity {
-  const headerFields = new Set([
-    "Ref_Key",
-    "Posted",
-    "DeletionMark",
-    "Number",
-    "Date",
-    "Организация_Key",
-    "Контрагент_Key",
-    "Контрагент",
-    "Контрагент_Type",
-    "ВалютаДокумента_Key",
-    "ВидОперации",
-    "СуммаДокумента",
-    "НазначениеПлатежа",
-    CONTRACT,
-    ACCOUNT,
-    ADVANCE,
-  ]);
-  const result = Object.fromEntries(
-    Object.entries(record).filter(
-      ([field]) =>
-        headerFields.has(field) ||
-        /^(Субконто|Подразделение|СтатьяДвижения|СчетБанк|СчетОрганизации|СчетКонтрагента)/.test(field),
-    ),
-  );
+  // No header recalculation is established: preserve every observed published business field.
+  // The caller projects metadata first; DataVersion alone is expected to change.
+  const result = Object.fromEntries(Object.entries(record).filter(([field]) => field !== "DataVersion"));
   if (Array.isArray(record[ROWS]))
     result[ROWS] = (record[ROWS] as ODataEntity[]).map((row) =>
       Object.fromEntries(Object.entries(row).filter(([field]) => !recalculatedRowFields.has(field))),
