@@ -272,6 +272,62 @@ export const getDebtorsResultSchema = z
   })
   .passthrough();
 
+export const getCreditorsResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    asOf: z.string().optional(),
+    accounts: z.array(z.string()),
+    totalPayable: z.number(),
+    count: z.number(),
+    creditors: z.array(
+      z.object({ counterparty: z.string(), ref: z.string(), amount: z.number() }).passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const unpaidInvoicesResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    period: z.object({ from: z.string(), to: z.string() }),
+    status: z.string(),
+    count: z.number(),
+    totalAmount: z.number(),
+    totalPaid: z.number(),
+    totalUnpaid: z.number(),
+    invoices: z.array(
+      z
+        .object({
+          number: z.string(),
+          date: z.string(),
+          counterparty: z.string(),
+          amount: z.number(),
+          paid: z.number(),
+          unpaid: z.number(),
+          status: z.string(),
+        })
+        .passthrough(),
+    ),
+    scan: scanSchema,
+  })
+  .passthrough();
+
+export const cashBalanceResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    asOf: z.string().optional(),
+    accounts: z.array(z.string()),
+    available: z.number(),
+    special: z.number(),
+    inTransit: z.number(),
+    balances: z.array(z.object({ account: z.string(), kind: z.string(), amount: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
 export const getInventoryResultSchema = z
   .object({
     database: z.string(),

@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.8.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 60 инструментов: аналитика (дебиторка, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 63 инструмента: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -1228,121 +1228,6 @@
       }
     },
     {
-      "name": "read.analytics.get_debtors",
-      "title": "Дебиторская задолженность",
-      "description": "Кто и сколько должен компании: сальдо счёта 62 (расчёты с покупателями) из регистра бухгалтерии Хозрасчетный, сгруппированное по контрагентам. Дебетовое сальдо = долг клиента, кредитовое = полученные авансы (вычитается). Можно ограничить организацией. По умолчанию берётся текущее сальдо; параметром asOf=YYYY-MM-DD можно получить дебиторку на конец указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "database": {
-            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
-            "type": "string"
-          },
-          "organization": {
-            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
-            "type": "string"
-          },
-          "asOf": {
-            "type": "string",
-            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
-          },
-          "limit": {
-            "default": 100,
-            "description": "Сколько контрагентов вернуть",
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 1000
-          }
-        },
-        "$schema": "http://json-schema.org/draft-07/schema#"
-      },
-      "outputSchema": {
-        "type": "object",
-        "properties": {
-          "database": {
-            "type": "string"
-          },
-          "organization": {
-            "type": "string"
-          },
-          "asOf": {
-            "type": "string"
-          },
-          "accounts": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "totalReceivable": {
-            "type": "number"
-          },
-          "count": {
-            "type": "number"
-          },
-          "debtors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "counterparty": {
-                  "type": "string"
-                },
-                "ref": {
-                  "type": "string"
-                },
-                "amount": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "counterparty",
-                "ref",
-                "amount"
-              ],
-              "additionalProperties": {}
-            }
-          },
-          "scan": {
-            "type": "object",
-            "properties": {
-              "documentsScanned": {
-                "type": "number"
-              },
-              "rowsScanned": {
-                "type": "number"
-              },
-              "windows": {
-                "type": "number"
-              },
-              "elapsedMs": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "elapsedMs"
-            ],
-            "additionalProperties": {}
-          }
-        },
-        "required": [
-          "database",
-          "accounts",
-          "totalReceivable",
-          "count",
-          "debtors",
-          "scan"
-        ],
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": {}
-      },
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": true
-      }
-    },
-    {
       "name": "read.accounting.get_account_turnover",
       "title": "ОСВ по счёту",
       "description": "Оборотно-сальдовая ведомость по бухгалтерскому счёту (регистр бухгалтерии Хозрасчетный, виртуальная таблица «Остатки и обороты») за период: сальдо на начало Дт/Кт, обороты Дт/Кт, сальдо на конец Дт/Кт — итогом и по субсчетам. account — код счёта или префикс («51», «60», «62», «90.01»): берутся все субсчета, код которых начинается с него. Сальдо развёрнутое по аналитике (измерения и субконто), как в стандартной ОСВ по счёту. Можно ограничить организацией. Период — даты YYYY-MM-DD включительно.",
@@ -1972,6 +1857,544 @@
           "totalAmount",
           "count",
           "items",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_debtors",
+      "title": "Дебиторская задолженность",
+      "description": "Кто и сколько должен компании: сальдо счёта 62 (расчёты с покупателями) из регистра бухгалтерии Хозрасчетный, сгруппированное по контрагентам. Дебетовое сальдо = долг клиента, кредитовое = полученные авансы (вычитается). Можно ограничить организацией. По умолчанию берётся текущее сальдо; параметром asOf=YYYY-MM-DD можно получить дебиторку на конец указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0. aging=true — по срокам: просрочено / в срок / срок не задан, просрочка по дням, возраст долга от даты документа (byAge — работает и без срока в договоре) и документы расчётов; срок оплаты = дата документа + дни из договора (флаг «Установлен срок оплаты»). overdueOnly=true — «кто просрочил оплату», по убыванию просрочки.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько контрагентов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "aging": {
+            "default": false,
+            "description": "Разбивка по срокам: просрочено / в срок / срок не задан, просрочка по дням (1-30, 31-60, 61-90, 90+), возраст долга от даты документа (byAge: 0-30 … 90+) и документы расчётов с датой оплаты по договору",
+            "type": "boolean"
+          },
+          "overdueOnly": {
+            "default": false,
+            "description": "Только контрагенты с просрочкой, по убыванию просрочки (включает aging)",
+            "type": "boolean"
+          },
+          "defaultTermDays": {
+            "description": "Срок оплаты в днях для договоров, где он не задан. Только если пользователь его назвал — не угадывать",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalReceivable": {
+            "type": "number"
+          },
+          "count": {
+            "type": "number"
+          },
+          "debtors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterparty": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "counterparty",
+                "ref",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "totalReceivable",
+          "count",
+          "debtors",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_creditors",
+      "title": "Кредиторская задолженность",
+      "description": "Кому и сколько должна компания: сальдо счёта 60 (расчёты с поставщиками) из регистра бухгалтерии Хозрасчетный по контрагентам. Кредитовое сальдо = наш долг, дебетовое = наши авансы поставщику (вычитаются). Возвращает только долг > 0. asOf=YYYY-MM-DD — на конец даты. aging=true — по срокам: что уже пора платить (просрочено), что в срок, где срок не задан, с документами поступления и датой оплаты по договору; overdueOnly=true — только просроченные. Расчёты по счёту 76 (аренда, связь и прочие) сюда не входят — для них ОСВ по счёту 76.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата сальдо — на конец этой даты (без параметра — текущее) (YYYY-MM-DD)"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько контрагентов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "aging": {
+            "default": false,
+            "description": "Разбивка по срокам: просрочено / в срок / срок не задан, просрочка по дням (1-30, 31-60, 61-90, 90+), возраст долга от даты документа (byAge: 0-30 … 90+) и документы расчётов с датой оплаты по договору",
+            "type": "boolean"
+          },
+          "overdueOnly": {
+            "default": false,
+            "description": "Только контрагенты с просрочкой, по убыванию просрочки (включает aging)",
+            "type": "boolean"
+          },
+          "defaultTermDays": {
+            "description": "Срок оплаты в днях для договоров, где он не задан. Только если пользователь его назвал — не угадывать",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalPayable": {
+            "type": "number"
+          },
+          "count": {
+            "type": "number"
+          },
+          "creditors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterparty": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "counterparty",
+                "ref",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "totalPayable",
+          "count",
+          "creditors",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_unpaid_invoices",
+      "title": "Неоплаченные счета покупателям",
+      "description": "Счета на оплату покупателям за период и их оплата: сумма счёта, оплачено (по регистру «Оплата счетов» — платежи со ссылкой на счёт), остаток, отгружено по счёту (реализации со ссылкой на счёт), статус unpaid / partial / paid / overpaid, сколько дней счёту. status=open (по умолчанию) — неоплаченные и частично оплаченные, с текущим сальдо покупателя по 62 (customerBalance) для сверки; all — все. Период — по дате счёта; без from — последние 90 дней.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Счета с даты (без параметра — 90 дней назад) (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Счета по дату (без параметра — сегодня) (YYYY-MM-DD)"
+          },
+          "status": {
+            "default": "open",
+            "description": "open | all",
+            "type": "string",
+            "enum": [
+              "open",
+              "all"
+            ]
+          },
+          "limit": {
+            "default": 100,
+            "description": "Сколько счетов вернуть",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "totalAmount": {
+            "type": "number"
+          },
+          "totalPaid": {
+            "type": "number"
+          },
+          "totalUnpaid": {
+            "type": "number"
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "counterparty": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                },
+                "paid": {
+                  "type": "number"
+                },
+                "unpaid": {
+                  "type": "number"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "date",
+                "counterparty",
+                "amount",
+                "paid",
+                "unpaid",
+                "status"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "period",
+          "status",
+          "count",
+          "totalAmount",
+          "totalPaid",
+          "totalUnpaid",
+          "invoices",
+          "scan"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.analytics.get_cash_balance",
+      "title": "Деньги на счетах и в кассе",
+      "description": "Сколько денег сейчас: остатки счетов 50 (касса), 51 (расчётные счета), 52 (валютные), 55 (спецсчета, депозиты), 57 (переводы в пути, эквайринг) из регистра Хозрасчетный — по каждому банковскому счёту и кассе, итоги available (50+51+52), special (55), inTransit (57). Для валютных счетов — сумма в валюте. asOf=YYYY-MM-DD — остатки на конец даты; без него — текущие.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Название организации (юрлица) для фильтра. Без указания — все организации базы.",
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "description": "Дата остатков — на конец этой даты (без параметра — текущие) (YYYY-MM-DD)"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "available": {
+            "type": "number"
+          },
+          "special": {
+            "type": "number"
+          },
+          "inTransit": {
+            "type": "number"
+          },
+          "balances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "account": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "account",
+                "kind",
+                "amount"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "scan": {
+            "type": "object",
+            "properties": {
+              "documentsScanned": {
+                "type": "number"
+              },
+              "rowsScanned": {
+                "type": "number"
+              },
+              "windows": {
+                "type": "number"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "elapsedMs"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "database",
+          "accounts",
+          "available",
+          "special",
+          "inTransit",
+          "balances",
           "scan"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",

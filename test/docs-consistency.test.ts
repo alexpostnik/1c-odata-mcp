@@ -22,6 +22,14 @@ const registered = (
   createServer({ db: () => undefined } as never) as unknown as { _registeredTools: Registered }
 )._registeredTools;
 const names = Object.keys(registered).sort();
+/** «63 инструмента», «60 инструментов», «61 инструмент». */
+const toolsWord = (n: number) => {
+  const d = n % 10;
+  const dd = n % 100;
+  if (d === 1 && dd !== 11) return "инструмент";
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return "инструмента";
+  return "инструментов";
+};
 const reads = names.filter((n) => n.startsWith("read.")).length;
 const writes = names.filter((n) => n.startsWith("write.")).length;
 
@@ -48,10 +56,12 @@ describe("документация совпадает с кодом", () => {
   });
 
   it("число инструментов в README, package.json и manifest.json", () => {
-    expect(readme).toContain(`${names.length} инструментов (${reads} чтение/аналитика + ${writes} записей)`);
+    expect(readme).toContain(
+      `${names.length} ${toolsWord(names.length)} (${reads} чтение/аналитика + ${writes} записей)`,
+    );
     expect(readme).toContain(`У всех ${names.length} инструментов`);
     expect(pkg.description).toContain(`${names.length} tools`);
-    expect(manifest.long_description).toContain(`${names.length} инструментов`);
+    expect(manifest.long_description).toContain(`${names.length} ${toolsWord(names.length)}`);
   });
 
   it("каждый инструмент упомянут в README полным именем", () => {

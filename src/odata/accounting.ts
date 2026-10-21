@@ -392,8 +392,24 @@ export async function resolveNames(
   entitySet: string,
   keys: Iterable<string>,
 ): Promise<Map<string, string>> {
-  const unique = [...new Set([...keys].filter(Boolean))];
+  const rows = await readByRefs(conn, entitySet, keys, ["Ref_Key", "Description"]);
   const result = new Map<string, string>();
+  for (const [ref, r] of rows) result.set(ref, String(r["Description"] ?? ""));
+  return result;
+}
+
+/**
+ * Читает объекты набора по списку Ref_Key батчами (только выбранные поля). Набор не
+ * опубликован — пустая карта: вызывающий сам решает, как показать «нет данных».
+ */
+export async function readByRefs(
+  conn: Connection,
+  entitySet: string,
+  keys: Iterable<string>,
+  select: string[],
+): Promise<Map<string, ODataEntity>> {
+  const unique = [...new Set([...keys].filter(Boolean))];
+  const result = new Map<string, ODataEntity>();
   const available = await conn.available();
   if (!available.has(entitySet)) return result;
 
@@ -401,14 +417,8 @@ export async function resolveNames(
   for (let i = 0; i < unique.length; i += BATCH) {
     const batch = unique.slice(i, i + BATCH);
     const filter = or(...batch.map((k) => cmp("Ref_Key", "eq", odataGuid(k))));
-    const { rows } = await fetchAll(
-      conn.client,
-      entitySet,
-      { filter, select: ["Ref_Key", "Description"] },
-      BATCH,
-      BATCH,
-    );
-    for (const r of rows) result.set(String(r["Ref_Key"]), String(r["Description"] ?? ""));
+    const { rows } = await fetchAll(conn.client, entitySet, { filter, select }, BATCH, BATCH);
+    for (const r of rows) result.set(String(r["Ref_Key"]), r);
   }
   return result;
 }

@@ -22,7 +22,15 @@ export const AccountingSchema = z
       })
       .strict()
       .optional(),
-    prefixes: z.object({ receivables: codes.optional(), inventory: codes.optional() }).strict().optional(),
+    prefixes: z
+      .object({
+        receivables: codes.optional(),
+        payables: codes.optional(),
+        inventory: codes.optional(),
+        cash: codes.optional(),
+      })
+      .strict()
+      .optional(),
     defaults: z
       .object({
         goods: codes.optional(),
@@ -60,7 +68,7 @@ export function accountingRegister(cfg: ConnectionConfig): readonly string[] {
 }
 export function accountPrefixes(
   cfg: ConnectionConfig,
-  group: "receivables" | "inventory",
+  group: "receivables" | "payables" | "inventory" | "cash",
 ): readonly string[] {
   const configured = cfg?.accounting?.prefixes?.[group];
   if (configured) return configured;
