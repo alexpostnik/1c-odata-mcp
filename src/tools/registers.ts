@@ -28,7 +28,6 @@ import { collectDocuments, emptyMeta, addMeta, type ScanMeta } from "../odata/ag
 import {
   getSalesResultSchema,
   getCashflowResultSchema,
-  getDebtorsResultSchema,
   getInventoryResultSchema,
   getAccountTurnoverResultSchema,
   getDocumentPostingsResultSchema,
@@ -526,72 +525,6 @@ export function registerRegisterTools(server: McpServer, ctx: ServerContext): vo
           net: fromCents(inflow.totalCents - outflow.totalCents),
           byDocument: { ...inflow.perSet, ...outflow.perSet },
           scan: { documentsScanned: scanned, windows, elapsedMs: Date.now() - t0 },
-        });
-      }),
-  );
-
-  server.registerTool(
-    "read.analytics.get_debtors",
-    {
-      title: "Дебиторская задолженность",
-      description:
-        "Кто и сколько должен компании: сальдо счёта 62 (расчёты с покупателями) из регистра " +
-        "бухгалтерии Хозрасчетный, сгруппированное по контрагентам. Дебетовое сальдо = долг клиента, " +
-        "кредитовое = полученные авансы (вычитается). Можно ограничить организацией. По умолчанию " +
-        "берётся текущее сальдо; параметром asOf=YYYY-MM-DD можно получить дебиторку на конец " +
-        "указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0.",
-      inputSchema: {
-        database: databaseField,
-        organization: organizationField,
-        asOf: dateField("Дата сальдо — на конец этой даты (без параметра — текущее)").optional(),
-        limit: z.number().int().positive().max(1000).default(100).describe("Сколько контрагентов вернуть"),
-      },
-      outputSchema: getDebtorsResultSchema,
-    },
-    ({ database, organization, asOf, limit }) =>
-      guard("read.analytics.get_debtors", async () => {
-        const t0 = Date.now();
-        const conn = ctx.db(database);
-        const org = await orgKeyOf(conn, organization);
-        const accounts = await resolveAccounts(conn, accountPrefixes(conn.cfg, "receivables"));
-        const rows = await balanceByAccounts(
-          conn,
-          accounts.map((a) => a.key),
-          org.key,
-          asOf,
-        );
-
-        // Сальдо копим в копейках (целые) — без float-дрейфа на тысячах строк.
-        const byCp = new Map<string, number>();
-        for (const r of rows) {
-          const cp = String(r["ExtDimension1"] ?? "");
-          if (!cp) continue;
-          byCp.set(cp, (byCp.get(cp) ?? 0) + toCents(r["СуммаBalanceDr"]) - toCents(r["СуммаBalanceCr"]));
-        }
-
-        const cpSet = resolveEntity(CATALOGS.counterparties, await conn.available());
-        const names = cpSet ? await resolveNames(conn, cpSet, byCp.keys()) : new Map<string, string>();
-
-        const debtors = [...byCp.entries()]
-          .filter(([, cents]) => cents > 0)
-          .map(([ref, cents]) => ({
-            counterparty: names.get(ref) ?? ref,
-            ref,
-            amount: fromCents(cents),
-          }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, limit);
-
-        const totalCents = [...byCp.values()].filter((c) => c > 0).reduce((s, c) => s + c, 0);
-        return ok({
-          database: conn.cfg.name,
-          organization: org.name,
-          ...(asOf ? { asOf } : {}),
-          accounts: accounts.map((a) => `${a.code} ${a.description}`),
-          totalReceivable: fromCents(totalCents),
-          count: debtors.length,
-          debtors,
-          scan: { rowsScanned: rows.length, elapsedMs: Date.now() - t0 },
         });
       }),
   );

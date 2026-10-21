@@ -13,6 +13,10 @@ import { registerMetaTools } from "../tools/meta.js";
 import { registerCounterpartyTools } from "../tools/counterparties.js";
 import { registerDocumentTools } from "../tools/documents.js";
 import { registerRegisterTools } from "../tools/registers.js";
+import { registerDebtTools } from "../tools/debts.js";
+import { registerMonthCloseTools } from "../tools/month-close.js";
+import { registerCardTools } from "../tools/card.js";
+import { registerPrompts } from "./prompts.js";
 import { registerCashflowTools } from "../tools/cashflow.js";
 import { registerSalesTools } from "../tools/sales.js";
 import { registerOrganizationTools } from "../tools/organization.js";
@@ -160,6 +164,9 @@ export function createServer(ctx: ServerContext): McpServer {
   registerCounterpartyTools(server, ctx);
   registerDocumentTools(server, ctx);
   registerRegisterTools(server, ctx);
+  registerDebtTools(server, ctx);
+  registerMonthCloseTools(server, ctx);
+  registerCardTools(server, ctx);
   registerCashflowTools(server, ctx);
   registerSalesTools(server, ctx);
   registerOrganizationTools(server, ctx);
@@ -168,6 +175,7 @@ export function createServer(ctx: ServerContext): McpServer {
   registerExistingBankSettlementTools(server, ctx);
   registerSettlementSettingsTools(server, ctx);
   registerCounterpartyGroupTools(server, ctx);
+  registerPrompts(server);
 
   return server;
 }

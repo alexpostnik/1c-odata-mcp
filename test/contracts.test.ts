@@ -132,7 +132,7 @@ describe("create_contract regulated currency", () => {
   const preview = async (code: string | undefined, regulatedCurrencyCode = "933") => {
     const connection = {
       cfg: { name: "default", writable: true },
-      behavior: { regulatedCurrencyCode, writeOperationMarker: false },
+      behavior: { regulatedCurrencyCode, writeOperationMarker: false, pageSize: 100, maxRows: 1000 },
       available: async () =>
         new Set(["Catalog_ДоговорыКонтрагентов", "Catalog_Организации", "Catalog_Валюты"]),
       client: {

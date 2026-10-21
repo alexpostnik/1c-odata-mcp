@@ -9,6 +9,7 @@ import { fetchAll } from "./pagination.js";
 import { and, cmp, odataGuid, odataString, or } from "./query.js";
 import { CATALOGS, resolveEntity } from "../config/mapping.js";
 import { ensurePublished, requireEntity } from "./publication.js";
+import { lookupWithRefresh } from "./cache.js";
 import { buildQuery } from "./query.js";
 import {
   AggregateOverflowError,
@@ -34,22 +35,42 @@ export interface Account {
   description: string;
 }
 
-/** Возвращает счета, код которых начинается с одного из префиксов (напр. "62", "41"). */
-export async function resolveAccounts(conn: Connection, prefixes: readonly string[]): Promise<Account[]> {
+/**
+ * План счетов целиком — из кэша подключения (cache.ts): он меняется редко, а нужен почти каждому
+ * инструменту. Несколько сотен строк, одним запросом с громким переполнением вместо усечения.
+ */
+async function loadChart(conn: Connection): Promise<Account[]> {
   const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
-  const filter = or(...prefixes.map((p) => `startswith(Code, ${odataString(p)})`));
-  const { rows } = await fetchAll(
-    conn.client,
+  const { rows } = await fetchAllForAggregation(
+    conn,
     chart,
-    { filter, select: ["Ref_Key", "Code", "Description"], orderby: "Code" },
-    conn.behavior.pageSize,
-    conn.behavior.maxRows,
+    { select: ["Ref_Key", "Code", "Description"], orderby: "Code" },
+    "план счетов",
   );
   return rows.map((r) => ({
     key: String(r["Ref_Key"] ?? ""),
     code: String(r["Code"] ?? ""),
     description: String(r["Description"] ?? ""),
   }));
+}
+
+const chartKey = (conn: Connection): string => `chart:${accountingChart(conn.cfg).join("|")}`;
+
+function fromChart<R>(
+  conn: Connection,
+  pick: (chart: Account[]) => R,
+  missing: (r: R) => boolean,
+): Promise<R> {
+  return lookupWithRefresh(conn, chartKey(conn), () => loadChart(conn), pick, missing);
+}
+
+/** Возвращает счета, код которых начинается с одного из префиксов (напр. "62", "41"). */
+export async function resolveAccounts(conn: Connection, prefixes: readonly string[]): Promise<Account[]> {
+  return fromChart(
+    conn,
+    (chart) => chart.filter((a) => prefixes.some((p) => a.code.startsWith(p))),
+    (r) => r.length === 0,
+  );
 }
 
 /**
@@ -61,23 +82,15 @@ export async function accountsByCode(
   conn: Connection,
   codes: readonly string[],
 ): Promise<Map<string, string>> {
-  codes = [...new Set(codes)];
-  const result = new Map<string, string>();
-  if (codes.length === 0) return result;
-  const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
-  for (let i = 0; i < codes.length; i += ACCOUNT_FILTER_BATCH) {
-    const batch = codes.slice(i, i + ACCOUNT_FILTER_BATCH);
-    const filter = or(...batch.map((c) => cmp("Code", "eq", odataString(c))));
-    const { rows } = await fetchAll(
-      conn.client,
-      chart,
-      { filter, select: ["Ref_Key", "Code"] },
-      batch.length,
-      batch.length,
-    );
-    for (const r of rows) result.set(String(r["Code"]), String(r["Ref_Key"]));
-  }
-  return result;
+  const wanted = new Set(codes);
+  if (wanted.size === 0) return new Map();
+  return fromChart(
+    conn,
+    (chart) => new Map(chart.filter((a) => wanted.has(a.code)).map((a) => [a.code, a.key])),
+    // Коды — кандидаты по порядку предпочтения, часть может отсутствовать законно: перечитываем,
+    // только если не нашлось ни одного.
+    (r) => r.size === 0,
+  );
 }
 
 /** Счета по умолчанию только для нужных групп; общая точка для будущего поиска настройки расчётов. */
@@ -190,25 +203,28 @@ export async function nomenclatureAccounts(
 
 /**
  * Тянет строки сальдо регистра Хозрасчетный, отфильтрованные по набору счетов
- * и (необязательно) по организации.
+ * и (необязательно) по организации. accountKeys = null — сальдо по всем счетам одним
+ * снимком (для проверок, которым нужно много групп счетов сразу).
  */
 export async function balanceByAccounts(
   conn: Connection,
-  accountKeys: string[],
+  accountKeys: string[] | null,
   orgKey?: string,
   asOf?: string,
 ): Promise<ODataEntity[]> {
-  if (accountKeys.length === 0) return [];
+  if (accountKeys?.length === 0) return [];
   const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
   const filter =
     and(
-      or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))),
+      accountKeys ? or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))) : undefined,
       orgKey ? cmp("Организация_Key", "eq", odataGuid(orgKey)) : undefined,
     ) || undefined;
   // Параметр Period — НЕ через $filter, а path-параметром у виртуальной таблицы:
-  // .../AccountingRegister_Хозрасчетный/Balance(Period=datetime'YYYY-MM-DDT23:59:59').
-  // Без него виртуальная таблица возвращает текущее сальдо.
-  const balancePath = asOf ? `${reg}/Balance(Period=datetime'${asOf}T23:59:59')` : `${reg}/Balance`;
+  // .../AccountingRegister_Хозрасчетный/Balance(Period=datetime'<следующий день>T00:00:00').
+  // Сальдо берётся на НАЧАЛО момента Period: при 23:59:59 терялись бы движения последней
+  // секунды дня, а закрытие месяца 1С проводит ровно в 23:59:59 (как в balanceAndTurnoversPath).
+  // Без параметра виртуальная таблица возвращает текущее сальдо.
+  const balancePath = asOf ? `${reg}/Balance(Period=datetime'${nextDay(asOf)}T00:00:00')` : `${reg}/Balance`;
   // Через безопасную выборку: сальдо берём ПОЛНОСТЬЮ (иначе дебиторка/остатки
   // занижаются), с громким переполнением вместо тихой обрезки.
   const { rows } = await fetchAllForAggregation(
@@ -315,7 +331,7 @@ export function assertTurnoverFields(rows: readonly ODataEntity[]): void {
 export function accountsOrgFilter(accountKeys: readonly string[], orgKey?: string): string | undefined {
   return (
     and(
-      or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))),
+      accountKeys ? or(...accountKeys.map((k) => cmp("Account_Key", "eq", odataGuid(k)))) : undefined,
       orgKey ? cmp("Организация_Key", "eq", odataGuid(orgKey)) : undefined,
     ) || undefined
   );
@@ -392,8 +408,24 @@ export async function resolveNames(
   entitySet: string,
   keys: Iterable<string>,
 ): Promise<Map<string, string>> {
-  const unique = [...new Set([...keys].filter(Boolean))];
+  const rows = await readByRefs(conn, entitySet, keys, ["Ref_Key", "Description"]);
   const result = new Map<string, string>();
+  for (const [ref, r] of rows) result.set(ref, String(r["Description"] ?? ""));
+  return result;
+}
+
+/**
+ * Читает объекты набора по списку Ref_Key батчами (только выбранные поля). Набор не
+ * опубликован — пустая карта: вызывающий сам решает, как показать «нет данных».
+ */
+export async function readByRefs(
+  conn: Connection,
+  entitySet: string,
+  keys: Iterable<string>,
+  select: string[],
+): Promise<Map<string, ODataEntity>> {
+  const unique = [...new Set([...keys].filter(Boolean))];
+  const result = new Map<string, ODataEntity>();
   const available = await conn.available();
   if (!available.has(entitySet)) return result;
 
@@ -401,14 +433,8 @@ export async function resolveNames(
   for (let i = 0; i < unique.length; i += BATCH) {
     const batch = unique.slice(i, i + BATCH);
     const filter = or(...batch.map((k) => cmp("Ref_Key", "eq", odataGuid(k))));
-    const { rows } = await fetchAll(
-      conn.client,
-      entitySet,
-      { filter, select: ["Ref_Key", "Description"] },
-      BATCH,
-      BATCH,
-    );
-    for (const r of rows) result.set(String(r["Ref_Key"]), String(r["Description"] ?? ""));
+    const { rows } = await fetchAll(conn.client, entitySet, { filter, select }, BATCH, BATCH);
+    for (const r of rows) result.set(String(r["Ref_Key"]), r);
   }
   return result;
 }
@@ -722,30 +748,18 @@ export async function fetchRegistrarPostings(
  */
 export async function accountsByRef(conn: Connection, keys: Iterable<string>): Promise<Map<string, Account>> {
   const unique = [...new Set([...keys].filter((k) => k && k !== EMPTY_GUID))];
-  const result = new Map<string, Account>();
-  if (unique.length === 0) return result;
-  const chart = await requireEntity(conn, accountingChart(conn.cfg), "План счетов «Хозрасчётный»");
-  for (let i = 0; i < unique.length; i += ACCOUNT_FILTER_BATCH) {
-    const batch = unique.slice(i, i + ACCOUNT_FILTER_BATCH);
-    const { rows } = await fetchAll(
-      conn.client,
-      chart,
-      {
-        filter: or(...batch.map((k) => cmp("Ref_Key", "eq", odataGuid(k)))),
-        select: ["Ref_Key", "Code", "Description"],
-      },
-      batch.length,
-      batch.length,
-    );
-    for (const r of rows) {
-      const key = String(r["Ref_Key"] ?? "");
-      result.set(normGuid(key), {
-        key,
-        code: String(r["Code"] ?? ""),
-        description: String(r["Description"] ?? ""),
-      });
-    }
-  }
+  if (unique.length === 0) return new Map();
+  // Ссылки пришли из данных 1С — промах значит устаревший кэш: перечитываем.
+  const result = await fromChart(
+    conn,
+    (chart) => {
+      const byKey = new Map(chart.map((a) => [normGuid(a.key), a]));
+      return new Map(
+        unique.filter((k) => byKey.has(normGuid(k))).map((k) => [normGuid(k), byKey.get(normGuid(k))!]),
+      );
+    },
+    (r) => r.size < unique.length,
+  );
   const missing = unique.filter((k) => !result.has(normGuid(k)));
   if (missing.length > 0) {
     throw new Error(`Счета не найдены в плане счетов «Хозрасчётный» по Ref_Key: ${missing.join(", ")}.`);

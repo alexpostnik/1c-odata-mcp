@@ -179,17 +179,11 @@ function setup(opts: Fake1C = {}) {
       return json({ value: pool.slice(skip, skip + top) });
     }
 
-    if (rel === CHART) {
-      const keys = [...filter.matchAll(/Ref_Key eq guid'([^']+)'/g)].map((m) => m[1]);
-      return json({ value: CHART_ROWS.filter((a) => keys.includes(a.Ref_Key)).slice(skip, skip + top) });
-    }
+    // План счетов и организации грузятся целиком в кэш подключения (без $filter).
+    if (rel === CHART) return json({ value: CHART_ROWS.slice(skip, skip + top) });
 
     if (rel === ORGS) {
-      return json({
-        value: filter.includes(ORG)
-          ? [{ Ref_Key: ORG, Description: 'ООО "Медицинский центр "Мегаполис"' }]
-          : [],
-      });
+      return json({ value: [{ Ref_Key: ORG, Description: 'ООО "Медицинский центр "Мегаполис"' }] });
     }
 
     return json({ "odata.error": { message: { value: "unknown" } } }, 404);
@@ -327,13 +321,13 @@ describe("read.accounting.get_document_postings", () => {
     expect((r.structuredContent as { postingsCount: number }).postingsCount).toBe(4);
   });
 
-  it("счета Дт/Кт резолвятся одним пакетным запросом к плану счетов, а не по проводке", async () => {
+  it("счета Дт/Кт — из плана счетов, загруженного одним запросом и закэшированного", async () => {
     const { ctx, calls } = setup({ records: SAMPLE });
+    await callTool(ctx, { documentEntity: DOC, documentRef: DOC_REF });
     await callTool(ctx, { documentEntity: DOC, documentRef: DOC_REF });
     const chart = calls.filter((c) => c.path.includes(`/${CHART}`));
     expect(chart).toHaveLength(1);
-    for (const k of [A20, A26, A9021, A9008, A001]) expect(chart[0]!.path).toContain(`guid'${k}'`);
-    expect(chart[0]!.path).not.toContain(EMPTY);
+    expect(chart[0]!.path).not.toContain("$filter");
   });
 
   it("деньги копятся в копейках: 1000 × 0.10 = ровно 100.00", async () => {

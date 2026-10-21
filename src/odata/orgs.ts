@@ -1,9 +1,9 @@
 import type { Connection } from "../context.js";
 import { fetchAll } from "./pagination.js";
-import { contains } from "./query.js";
 import { CATALOGS } from "../config/mapping.js";
 import { requireEntity } from "./publication.js";
 import { InputError } from "../errors.js";
+import { cached, lookupWithRefresh } from "./cache.js";
 
 export interface Organization {
   ref: string;
@@ -14,8 +14,7 @@ export interface Organization {
 const orgSet = (conn: Connection): Promise<string> =>
   requireEntity(conn, CATALOGS.organizations, "Справочник «Организации»");
 
-/** Все организации (юрлица) базы. */
-export async function listOrganizations(conn: Connection): Promise<Organization[]> {
+async function loadOrganizations(conn: Connection): Promise<Organization[]> {
   const set = await orgSet(conn);
   const { rows } = await fetchAll(
     conn.client,
@@ -31,32 +30,46 @@ export async function listOrganizations(conn: Connection): Promise<Organization[
   }));
 }
 
+const ORGS_KEY = "organizations";
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Все организации (юрлица) базы — из кэша подключения (cache.ts). */
+export async function listOrganizations(conn: Connection): Promise<Organization[]> {
+  return cached(conn, ORGS_KEY, () => loadOrganizations(conn));
+}
+
 /**
- * Резолвит организацию по части названия в Ref_Key.
+ * Резолвит организацию в Ref_Key: по части названия (без учёта регистра), по Ref_Key или по ИНН.
  * Бросает понятную ошибку, если ничего не найдено или найдено неоднозначно.
  */
 export async function resolveOrganization(conn: Connection, query: string): Promise<Organization> {
-  const set = await orgSet(conn);
-  const { rows } = await fetchAll(
-    conn.client,
-    set,
-    { filter: contains("Description", query), select: ["Ref_Key", "Description", "ИНН"] },
-    20,
-    20,
+  const q = query
+    .trim()
+    .replace(/^\{|\}$/g, "")
+    .toLowerCase();
+  // Ссылка из list_organizations или ИНН — точное совпадение; иначе — часть названия.
+  const match = GUID.test(q)
+    ? (o: Organization) => o.ref.toLowerCase() === q
+    : /^\d{10,12}$/.test(q)
+      ? (o: Organization) => o.inn === q
+      : (o: Organization) => o.name.toLowerCase().includes(q);
+  const found = await lookupWithRefresh(
+    conn,
+    ORGS_KEY,
+    () => loadOrganizations(conn),
+    (orgs) => orgs.filter(match),
+    (r) => r.length === 0,
   );
-  if (rows.length === 0) {
+  if (found.length === 0) {
     throw new InputError(`Организация "${query}" не найдена. Список — в list_organizations.`);
   }
-  if (rows.length > 1) {
-    const names = rows.map((r) => String(r["Description"])).join(", ");
+  // Точное совпадение названия снимает неоднозначность («Ромашка» и «Ромашка-Юг»).
+  const exact = found.filter((o) => o.name.toLowerCase() === q);
+  if (found.length > 1 && exact.length !== 1) {
+    const names = found.map((o) => o.name).join(", ");
     throw new InputError(`Под "${query}" подходит несколько организаций: ${names}. Уточните название.`);
   }
-  const r = rows[0] as Record<string, unknown>;
-  return {
-    ref: String(r["Ref_Key"] ?? ""),
-    name: String(r["Description"] ?? ""),
-    inn: r["ИНН"] ? String(r["ИНН"]) : undefined,
-  };
+  return exact.length === 1 ? exact[0]! : found[0]!;
 }
 
 /**

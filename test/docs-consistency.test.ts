@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../src/mcp/server.js";
+import { PROMPTS, renderPrompt } from "../src/mcp/prompts.js";
 
 /**
  * Тексты, которые при релизе расходились с кодом: число инструментов в README / package.json /
@@ -13,6 +14,7 @@ const manifest = JSON.parse(read("manifest.json")) as {
   version: string;
   long_description: string;
   tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }>;
+  prompts?: Array<{ name: string; arguments?: string[]; text: string }>;
 };
 const readme = read("README.md");
 const changelog = read("CHANGELOG.md");
@@ -22,6 +24,14 @@ const registered = (
   createServer({ db: () => undefined } as never) as unknown as { _registeredTools: Registered }
 )._registeredTools;
 const names = Object.keys(registered).sort();
+/** «63 инструмента», «60 инструментов», «61 инструмент». */
+const toolsWord = (n: number) => {
+  const d = n % 10;
+  const dd = n % 100;
+  if (d === 1 && dd !== 11) return "инструмент";
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return "инструмента";
+  return "инструментов";
+};
 const reads = names.filter((n) => n.startsWith("read.")).length;
 const writes = names.filter((n) => n.startsWith("write.")).length;
 
@@ -67,13 +77,37 @@ describe("документация совпадает с кодом", () => {
   });
 
   it("число инструментов в README, package.json и manifest.json", () => {
-    expect(readme).toContain(`${names.length} инструментов (${reads} чтение/аналитика + ${writes} записей)`);
+    expect(readme).toContain(
+      `${names.length} ${toolsWord(names.length)} (${reads} чтение/аналитика + ${writes} записей)`,
+    );
     expect(readme).toContain(`У всех ${names.length} инструментов`);
     expect(pkg.description).toContain(`${names.length} tools`);
-    expect(manifest.long_description).toContain(`${names.length} инструментов`);
+    expect(manifest.long_description).toContain(`${names.length} ${toolsWord(names.length)}`);
   });
 
   it("каждый инструмент упомянут в README полным именем", () => {
     expect(names.filter((n) => !readme.includes(`\`${n}\``))).toEqual([]);
+  });
+
+  it("сценарии (prompts): manifest.json совпадает с кодом, каждый описан в README", () => {
+    const fromCode = PROMPTS.map((p) => ({
+      name: p.name,
+      arguments: p.arguments.map((a) => a.name),
+      text: p.text,
+    }));
+    expect(manifest.prompts?.map(({ name, arguments: a, text }) => ({ name, arguments: a, text }))).toEqual(
+      fromCode,
+    );
+    expect(PROMPTS.filter((p) => !readme.includes(`\`${p.name}\``)).map((p) => p.name)).toEqual([]);
+  });
+
+  it("сценарии: в тексте только объявленные аргументы и существующие инструменты", () => {
+    for (const p of PROMPTS) {
+      const used = [...p.text.matchAll(/\$\{arguments\.([A-Za-z_]+)\}/g)].map((m) => m[1]);
+      expect(used.filter((u) => !p.arguments.some((a) => a.name === u))).toEqual([]);
+      const tools = [...p.text.matchAll(/\b((?:read|write)\.[a-z_]+\.[a-z_]+)/g)].map((m) => m[1]);
+      expect(tools.filter((t) => !names.includes(t!))).toEqual([]);
+      expect(renderPrompt(p, {})).not.toContain("${arguments.");
+    }
   });
 });

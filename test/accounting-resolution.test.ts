@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { Connection } from "../src/context.js";
 import { parseConfig } from "../src/config/env.js";
-import { accountsByCode, resolveDefaultAccounts } from "../src/odata/accounting.js";
+import {
+  accountsByCode,
+  accountsByRef,
+  resolveAccounts,
+  resolveDefaultAccounts,
+} from "../src/odata/accounting.js";
 const config = () =>
   parseConfig({ ODATA_BASE_URL: "https://example.invalid/odata/", ODATA_USERNAME: "u", ODATA_PASSWORD: "p" });
 function connection() {
@@ -32,13 +37,36 @@ describe("account and metadata resolution", () => {
     await c.client.getMetadata();
     expect(read).toHaveBeenCalledTimes(2);
   });
-  it("deduplicates account codes and bounds requests to 40 candidates", async () => {
+  it("план счетов грузится один раз на подключение и обслуживает все поиски", async () => {
     const c = connection();
     vi.spyOn(c, "available").mockResolvedValue(new Set(["ChartOfAccounts_Хозрасчетный"]));
-    const read = vi.spyOn(c.client, "getCollection").mockResolvedValue({ value: [] });
-    await accountsByCode(c, [...Array.from({ length: 41 }, (_, i) => `${i}`), "0"]);
-    expect(read).toHaveBeenCalledTimes(2);
-    expect(decodeURIComponent(read.mock.calls[1]![0])).toContain("Code eq '40'");
+    const read = vi.spyOn(c.client, "getCollection").mockResolvedValue({
+      value: [
+        { Code: "62.01", Ref_Key: "A1", Description: "Покупатели" },
+        { Code: "60.01", Ref_Key: "b2", Description: "Поставщики" },
+      ],
+    });
+    expect((await accountsByCode(c, ["62.01", "62.01", "99"])).get("62.01")).toBe("A1");
+    expect((await resolveAccounts(c, ["60"])).map((a) => a.key)).toEqual(["b2"]);
+    expect([...(await accountsByRef(c, ["a1"])).values()][0]!.code).toBe("62.01");
+    expect(read).toHaveBeenCalledOnce();
+    expect(decodeURIComponent(read.mock.calls[0]![0])).not.toContain("$filter");
+  });
+  it("кэш — на подключение: другая база грузит свой план счетов", async () => {
+    const a = connection();
+    const b = connection();
+    for (const c of [a, b])
+      vi.spyOn(c, "available").mockResolvedValue(new Set(["ChartOfAccounts_Хозрасчетный"]));
+    const ra = vi
+      .spyOn(a.client, "getCollection")
+      .mockResolvedValue({ value: [{ Code: "51", Ref_Key: "x" }] });
+    const rb = vi
+      .spyOn(b.client, "getCollection")
+      .mockResolvedValue({ value: [{ Code: "51", Ref_Key: "y" }] });
+    expect((await accountsByCode(a, ["51"])).get("51")).toBe("x");
+    expect((await accountsByCode(b, ["51"])).get("51")).toBe("y");
+    expect(ra).toHaveBeenCalledOnce();
+    expect(rb).toHaveBeenCalledOnce();
   });
   it("preserves candidate priority and shares one lookup for groups", async () => {
     const c = connection();

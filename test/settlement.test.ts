@@ -154,7 +154,7 @@ const connWith = (registerRows: unknown[] | undefined, currency = "643") => {
     getCollection,
     conn: {
       cfg: { name: "default" },
-      behavior: { pageSize: 100 },
+      behavior: { pageSize: 100, maxRows: 1000, analyticsMaxRows: 200_000 },
       available: async () => available,
       getMetadata: async () => ({
         entities: new Map([
@@ -427,7 +427,7 @@ describe("copy_document: счета расчётов — как в исходн�
       client: Record<string, unknown>;
     };
     c.cfg = { name: "default", writable: true };
-    c.behavior = { pageSize: 100, writeOperationMarker: false };
+    c.behavior = { pageSize: 100, maxRows: 1000, analyticsMaxRows: 200_000, writeOperationMarker: false };
     const avail = c.available;
     c.available = async () => new Set([...(await avail()), ACT]);
     const getEntity = c.client["getEntity"] as (p: string) => Promise<unknown>;

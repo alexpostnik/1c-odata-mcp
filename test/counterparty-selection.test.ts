@@ -61,8 +61,7 @@ function combinedFixture() {
   };
   const group = { Ref_Key: G, Description: "Synthetic group", IsFolder: true, Parent_Key: P };
   const getCollection = vi.fn(async (path: string) => {
-    if (path.startsWith(CONTRACTS))
-      return { value: [{ Owner_Key: CP, ВидДоговора: "СПоставщиком" }] };
+    if (path.startsWith(CONTRACTS)) return { value: [{ Owner_Key: CP, ВидДоговора: "СПоставщиком" }] };
     const query = decodeURIComponent(path);
     return {
       value: query.includes("IsFolder eq true")

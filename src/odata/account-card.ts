@@ -1,0 +1,181 @@
+import type { Connection } from "../context.js";
+import type { ODataEntity } from "../types/odata.js";
+import { accountingRegister } from "../config/accounting.js";
+import { requireEntity } from "./publication.js";
+import { fetchAllForAggregation, type ScanMeta, emptyMeta, addMeta } from "./aggregate.js";
+import { and, cmp, odataGuid, or } from "./query.js";
+import { num } from "./accounting.js";
+import { entitySetOfType, refOf } from "./settlements-aging.js";
+
+/**
+ * Движения по счёту за период — основа карточки счёта и акта сверки. Источник — виртуальная
+ * таблица «Движения с субконто» (RecordsWithExtDimensions): в отличие от записей регистра
+ * (_RecordType) она отдаёт субконто Дт и Кт с их типами. Отбор по счёту — в $filter (параметр
+ * Account 1С не поддерживает), по контрагенту — cast(guid, 'Catalog_Контрагенты') на любой из
+ * позиций субконто (без cast 1С отвечает 500 на поле неограниченной длины). Конец периода
+ * включительно: проводки закрытия месяца в 23:59:59 попадают в выборку (проверено на живой базе).
+ */
+
+export const RECORDS_WITH_DIMS = "RecordsWithExtDimensions";
+/** Счетов в одном $filter: каждый даёт два условия (Дт и Кт), 1С ограничивает вложенность. */
+export const MOVEMENT_ACCOUNT_BATCH = 10;
+
+const chunks = <T>(xs: readonly T[], n: number): T[][] =>
+  Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+
+export interface Dim {
+  ref: string;
+  set?: string;
+}
+
+/** Одна сторона движения, попавшая в карточку: наш счёт на Дт (debit) или на Кт (credit). */
+export interface CardEntry {
+  period: string;
+  lineNumber?: number;
+  recorder?: string;
+  recorderSet?: string;
+  side: "debit" | "credit";
+  cents: number;
+  account: string;
+  dims: Dim[];
+  corrAccount?: string;
+  corrDims: Dim[];
+  content?: string;
+  org?: string;
+}
+
+function dimsOf(r: ODataEntity, side: "Dr" | "Cr"): Dim[] {
+  const out: Dim[] = [];
+  for (const i of [1, 2, 3]) {
+    const ref = refOf(r[`ExtDimension${side}${i}`]);
+    if (!ref) continue;
+    const set = entitySetOfType(r[`ExtDimension${side}${i}_Type`]);
+    out.push({ ref, ...(set ? { set } : {}) });
+  }
+  return out;
+}
+
+/**
+ * Движения → строки карточки. Сторона попадает в карточку, если её счёт входит в accounts и (при
+ * отборе) среди её субконто есть все refs. Проводка внутри счёта (62.01 ↔ 62.02) даёт две строки.
+ * Неактивные записи пропускаются — в обороты 1С они не входят.
+ */
+export function cardEntries(
+  rows: readonly ODataEntity[],
+  accounts: ReadonlySet<string>,
+  refs: readonly string[] = [],
+): CardEntry[] {
+  const out: CardEntry[] = [];
+  for (const r of rows) {
+    if (r["Active"] === false) continue;
+    const cents = Math.round(num(r["Сумма"]) * 100);
+    const line = Number(r["LineNumber"]);
+    const base = {
+      period: String(r["Period"] ?? ""),
+      ...(Number.isFinite(line) ? { lineNumber: line } : {}),
+      ...(refOf(r["Recorder"]) ? { recorder: refOf(r["Recorder"]) } : {}),
+      ...(entitySetOfType(r["Recorder_Type"]) ? { recorderSet: entitySetOfType(r["Recorder_Type"]) } : {}),
+      ...(typeof r["Содержание"] === "string" && r["Содержание"] ? { content: String(r["Содержание"]) } : {}),
+      ...(refOf(r["Организация_Key"]) ? { org: refOf(r["Организация_Key"]) } : {}),
+      cents,
+    };
+    for (const [side, mine, other] of [
+      ["debit", "Dr", "Cr"],
+      ["credit", "Cr", "Dr"],
+    ] as const) {
+      const account = refOf(r[`Account${mine}_Key`]);
+      if (!account || !accounts.has(account)) continue;
+      const dims = dimsOf(r, mine);
+      if (refs.some((ref) => !dims.some((d) => d.ref === ref))) continue;
+      const corrAccount = refOf(r[`Account${other}_Key`]);
+      out.push({
+        ...base,
+        side,
+        account,
+        dims,
+        ...(corrAccount ? { corrAccount } : {}),
+        corrDims: dimsOf(r, other),
+      });
+    }
+  }
+  return out.sort(
+    (a, b) =>
+      a.period.localeCompare(b.period) ||
+      (a.recorder ?? "").localeCompare(b.recorder ?? "") ||
+      (a.lineNumber ?? 0) - (b.lineNumber ?? 0) ||
+      (a.side === b.side ? 0 : a.side === "debit" ? -1 : 1),
+  );
+}
+
+/**
+ * Все движения по счетам за период (с отбором по организации и контрагенту — на стороне 1С).
+ * Счета — пачками по ACCOUNT_FILTER_BATCH; движение, попавшее в две пачки (Дт и Кт из разных),
+ * берётся один раз.
+ */
+export async function fetchMovements(
+  conn: Connection,
+  p: { accountKeys: readonly string[]; from: string; to: string; orgKey?: string; counterpartyRef?: string },
+): Promise<{ rows: ODataEntity[]; meta: ScanMeta }> {
+  const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
+  const path = `${reg}/${RECORDS_WITH_DIMS}(StartPeriod=datetime'${p.from}T00:00:00',EndPeriod=datetime'${p.to}T23:59:59')`;
+  const cp = p.counterpartyRef
+    ? or(
+        ...(["Dr", "Cr"] as const).flatMap((s) =>
+          [1, 2, 3].map((i) =>
+            cmp(
+              `ExtDimension${s}${i}`,
+              "eq",
+              `cast(${odataGuid(p.counterpartyRef!)}, 'Catalog_Контрагенты')`,
+            ),
+          ),
+        ),
+      )
+    : undefined;
+  const org = p.orgKey ? cmp("Организация_Key", "eq", odataGuid(p.orgKey)) : undefined;
+  // С контрагентом отбор по нему избирателен сам по себе: счета фильтруем у себя (cardEntries),
+  // иначе длинный OR по счетам упирается в лимит вложенности условий 1С («Превышение допустимой
+  // вложенности операций»). Без контрагента — счета пачками по MOVEMENT_ACCOUNT_BATCH.
+  const filters = cp
+    ? [and(org, cp)]
+    : chunks(p.accountKeys, MOVEMENT_ACCOUNT_BATCH).map((batch) =>
+        and(
+          or(
+            ...batch.flatMap((k) => [
+              cmp("AccountDr_Key", "eq", odataGuid(k)),
+              cmp("AccountCr_Key", "eq", odataGuid(k)),
+            ]),
+          ),
+          org,
+        ),
+      );
+  const seen = new Set<string>();
+  const rows: ODataEntity[] = [];
+  let meta = emptyMeta();
+  for (const filter of filters) {
+    const part = await fetchAllForAggregation(
+      conn,
+      path,
+      { filter: filter || undefined },
+      `движения ${p.from}..${p.to}`,
+    );
+    meta = addMeta(meta, part.meta);
+    for (const r of part.rows) {
+      const k = `${String(r["Recorder"])}|${String(r["Recorder_Type"])}|${String(r["LineNumber"])}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      rows.push(r);
+    }
+  }
+  return { rows, meta };
+}
+
+/** Чистое сальдо (Дт − Кт, копейки) строк Balance, где среди субконто есть все refs. */
+export function netBalance(rows: readonly ODataEntity[], refs: readonly string[] = []): number {
+  let cents = 0;
+  for (const r of rows) {
+    const dims = [1, 2, 3].map((i) => refOf(r[`ExtDimension${i}`]));
+    if (refs.some((ref) => !dims.includes(ref))) continue;
+    cents += Math.round(num(r["СуммаBalanceDr"]) * 100) - Math.round(num(r["СуммаBalanceCr"]) * 100);
+  }
+  return cents;
+}
