@@ -32,7 +32,10 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true })));
 });
 
-async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; writable?: boolean } = {}) {
+async function fixture(
+  existing?: ODataEntity,
+  options: { readOnly?: boolean; writable?: boolean; versionless?: boolean } = {},
+) {
   const dir = await mkdtemp(join(tmpdir(), "settings-test-"));
   dirs.push(dir);
   const cfg = parseConfig({
@@ -48,7 +51,12 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
     { ...cfg.connections[0]!, writable: options.writable ?? true },
     { ...cfg.behavior, regulatedCurrencyCode: "933", writeJournalDir: dir },
   );
-  const props = [...dimensions, ...resources, "DataVersion", "СчетПрочихРасчетов_Key"].map((name) => ({
+  const props = [
+    ...dimensions,
+    ...resources,
+    ...(options.versionless ? [] : ["DataVersion"]),
+    "СчетПрочихРасчетов_Key",
+  ].map((name) => ({
     name,
     type: name === "ВидРасчетовПоДоговору" || name === "DataVersion" ? "Edm.String" : "Edm.Guid",
     nullable: true,
@@ -101,7 +109,7 @@ async function fixture(existing?: ODataEntity, options: { readOnly?: boolean; wr
       if (method !== "GET") {
         writes.push({ path, method, body, headers });
         if (writeError) throw writeError;
-        row = { ...row, ...(body as object), DataVersion: "v2" };
+        row = { ...row, ...(body as object), ...(options.versionless ? {} : { DataVersion: "v2" }) };
         if (corruptReadback) row[resources[2]!] = OTHER;
         return {} as never;
       }
@@ -517,5 +525,144 @@ describe("counterparty and group saved settlement scope", () => {
       body: { [resources[2]!]: ACCOUNT },
     });
     expect(data(result).record).toMatchObject({ СчетПрочихРасчетов_Key: OTHER });
+  });
+});
+
+const versionlessSaved = () => {
+  const { DataVersion: _version, ...record } = saved();
+  return record;
+};
+
+describe("saved settings without metadata DataVersion", () => {
+  it.each(["contract", "counterparty", "group"])(
+    "updates %s settings sequentially without If-Match and preserves other resources",
+    async (scope) => {
+      const row = { ...versionlessSaved(), Договор_Key: scope === "contract" ? CTR : EMPTY };
+      const f = await fixture(row, { versionless: true });
+      f.setSubject({ IsFolder: scope === "group" });
+      const args = {
+        mode: "update",
+        scope,
+        contractRef: scope === "contract" ? CTR : undefined,
+        singleWriter: true,
+      };
+      const preview = await f.run(args, false, true);
+      expect(preview.isError).toBeFalsy();
+      expect(data(preview)).toMatchObject({ concurrency: "singleWriter", headers: {} });
+      expect(JSON.stringify(data(preview).notes)).toContain("DataVersion");
+      expect(f.writes).toEqual([]);
+      const result = await f.run(
+        { ...args, confirm: true, operationId: data(preview).operationId },
+        false,
+        true,
+      );
+      expect(result.isError).toBeFalsy();
+      expect(data(result)).toMatchObject({ verified: true, concurrency: "singleWriter" });
+      expect(f.writes[0]).toMatchObject({ method: "PATCH", headers: {}, body: { [resources[2]!]: ACCOUNT } });
+      expect(data(result).record).toMatchObject({ [resources[0]!]: OTHER, СчетПрочихРасчетов_Key: OTHER });
+      const secondArgs = { ...args, accounts: { customerSettlement: ACCOUNT } };
+      const second = await f.run(secondArgs, false, true);
+      expect(second.isError).toBeFalsy();
+      expect(
+        (await f.run({ ...secondArgs, confirm: true, operationId: data(second).operationId }, false, true))
+          .isError,
+      ).toBeFalsy();
+      expect(f.writes).toHaveLength(2);
+      const replay = await f.run(
+        { ...args, confirm: true, operationId: data(preview).operationId },
+        false,
+        true,
+      );
+      expect(data(replay).replayed).toBe(true);
+      expect(f.writes).toHaveLength(2);
+    },
+  );
+  it("requires explicit single-writer confirmation only for versionless updates", async () => {
+    const f = await fixture(versionlessSaved(), { versionless: true });
+    for (const singleWriter of [undefined, false]) {
+      expect((await f.run({ mode: "update", singleWriter })).isError).toBe(true);
+    }
+    expect(f.writes).toEqual([]);
+    const g = await fixture(undefined, { versionless: true });
+    const preview = await g.run();
+    expect(preview.isError).toBeFalsy();
+    expect((await g.run({ confirm: true, operationId: data(preview).operationId })).isError).toBeFalsy();
+  });
+  it.each(["stale", "*", "v1\r\nInjected: true"])(
+    "rejects invented version %j",
+    async (expectedDataVersion) => {
+      const f = await fixture(versionlessSaved(), { versionless: true });
+      expect((await f.run({ mode: "update", singleWriter: true, expectedDataVersion })).isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it.each([{ DataVersion: "v1" }, { DataVersion: null }])(
+    "rejects unexpected returned version %j",
+    async (extra) => {
+      const f = await fixture({ ...versionlessSaved(), ...extra }, { versionless: true });
+      expect((await f.run({ mode: "update", singleWriter: true })).isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it("never downgrades published DataVersion even with singleWriter=true", async () => {
+    const f = await fixture(saved());
+    expect((await f.run({ mode: "update", singleWriter: true })).isError).toBe(true);
+    f.setRow(versionlessSaved());
+    expect((await f.run({ mode: "update", singleWriter: true, expectedDataVersion: "v1" })).isError).toBe(
+      true,
+    );
+    expect(f.writes).toEqual([]);
+    f.setRow(saved());
+    const args = { mode: "update", singleWriter: true, expectedDataVersion: "v1" };
+    const preview = await f.run(args);
+    expect(data(preview).concurrency).toBe("dataVersion");
+    expect(
+      (await f.run({ ...args, confirm: true, operationId: data(preview).operationId })).isError,
+    ).toBeFalsy();
+    expect(f.writes[0]!.headers).toEqual({ "If-Match": "v1" });
+  });
+  it.each(["changed-resource", "changed-unpatched", "missing-resource", "deleted"])(
+    "rejects stale preview: %s",
+    async (change) => {
+      const f = await fixture(versionlessSaved(), { versionless: true });
+      const args = { mode: "update", singleWriter: true };
+      const preview = await f.run(args);
+      expect(preview.isError).toBeFalsy();
+      const changed: ODataEntity = { ...versionlessSaved() };
+      if (change === "changed-resource") changed[resources[2]!] = ACCOUNT;
+      if (change === "changed-unpatched") changed.СчетПрочихРасчетов_Key = ACCOUNT;
+      if (change === "missing-resource") delete changed.СчетПрочихРасчетов_Key;
+      f.setRow(change === "deleted" ? undefined : changed);
+      expect((await f.run({ ...args, confirm: true, operationId: data(preview).operationId })).isError).toBe(
+        true,
+      );
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it("rejects update of an absent record without creating it", async () => {
+    const f = await fixture(undefined, { versionless: true });
+    expect((await f.run({ mode: "update", singleWriter: true })).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it.each(["write", "readback"])("holds unknown %s outcomes and prevents replay", async (stage) => {
+    const f = await fixture(versionlessSaved(), { versionless: true });
+    const args = { mode: "update", singleWriter: true };
+    const preview = await f.run(args);
+    expect(preview.isError).toBeFalsy();
+    if (stage === "write") f.failWrite(new ODataError({ kind: "network", message: "Synthetic timeout" }));
+    else f.failReadback(new ODataError({ kind: "auth", message: "Synthetic readback failure" }));
+    const input = { ...args, confirm: true, operationId: data(preview).operationId };
+    expect((await f.run(input)).isError).toBe(true);
+    expect((await f.run(input)).isError).toBe(true);
+    expect((await f.conn.client.operationEntry(input.operationId as string))?.state).toBe("outcome_unknown");
+    expect(f.writes).toHaveLength(1);
+  });
+  it("rejects metadata DataVersion with unsupported type", async () => {
+    const f = await fixture(saved());
+    f.meta.properties.find((p) => p.name === "DataVersion")!.type = "Edm.Guid";
+    expect((await f.run({ mode: "update", singleWriter: true, expectedDataVersion: "v1" })).isError).toBe(
+      true,
+    );
+    expect(f.writes).toEqual([]);
   });
 });
