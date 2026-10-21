@@ -54,13 +54,19 @@ export function registerSettlementSettingsTools(server: McpServer, ctx: ServerCo
       {
         title: "Сохранить точную настройку счетов расчётов",
         description:
-          "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
+          "Создаёт отсутствующую настройку (create) либо меняет явно указанные ресурсы (update) с expectedDataVersion и If-Match, когда DataVersion опубликован. Только если metadata не содержит DataVersion, update требует singleWriter=true (владелец подтвердил отсутствие параллельных изменений); If-Match не отправляется, атомарной защиты от конкуренции нет. Предпросмотр связан с текущей записью. scope=contract требует договор; counterparty/group сохраняет настройку точного контрагента/группы без договора. Проверяет организацию, IsFolder и отсутствие удаления; для договора также владельца, организацию и валюту. Сначала предпросмотр; подтверждение с теми же аргументами и operationId. Глобальные настройки и удаление недоступны. Старое имя set_contract_settlement_settings поддерживает только договор. Прочее не получает толкование займа/расхода.",
         inputSchema: {
           database: databaseField,
           ...scope,
           mode: z.enum(["create", "update"]),
           accounts: savedSettlementAccounts,
           expectedDataVersion: z.string().optional(),
+          singleWriter: z
+            .boolean()
+            .optional()
+            .describe(
+              "Только для update без DataVersion в metadata: подтверждение отсутствия параллельного изменения настроек. Не отменяет CAS при опубликованной версии.",
+            ),
           confirm: z.boolean().default(false),
         },
         outputSchema: patchResultSchema,

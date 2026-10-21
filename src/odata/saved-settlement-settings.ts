@@ -43,6 +43,7 @@ const scopeSchema = z.object(generalSettlementScope).superRefine((p, ctx) => {
 const writeSchema = scopeSchema.safeExtend({
   mode: z.enum(["create", "update"]),
   accounts: savedSettlementAccounts,
+  singleWriter: z.boolean().optional(),
   expectedDataVersion: z
     .string()
     .min(1)
@@ -170,7 +171,7 @@ export async function readSavedSettlementSettings(
   };
 }
 
-/** Creates an absent exact record or CAS-patches explicit resources. Never performs upsert or key edits. */
+/** Creates an absent exact record or patches explicit resources; versioned updates always use CAS. */
 export async function saveSettlementSettings(
   conn: Connection,
   input: unknown,
@@ -178,22 +179,14 @@ export async function saveSettlementSettings(
 ): Promise<Record<string, unknown>> {
   const p = writeSchema.parse(input);
   const snapshot = await readSavedSettlementSettings(conn, p);
-  if (p.mode === "create" && snapshot.found)
-    throw new InputError(
-      "Точная настройка уже существует. Для изменения нужен mode=update и её текущий DataVersion.",
-    );
-  if (
-    p.mode === "update" &&
-    (!snapshot.record || !p.expectedDataVersion || snapshot.record.DataVersion !== p.expectedDataVersion)
-  )
-    throw new InputError(
-      "Изменение требует существующую точную настройку и совпадающий expectedDataVersion (DataVersion из чтения).",
-    );
-  if (p.mode === "create" && p.expectedDataVersion !== undefined)
-    throw new InputError("Для создания отсутствующей настройки expectedDataVersion не используется.");
   const props = new Map(
     (await conn.getMetadata()).entities.get(snapshot.entitySet)!.properties.map((v) => [v.name, v.type]),
   );
+  if (p.mode === "create" && snapshot.found)
+    throw new InputError("Точная настройка уже существует. Для изменения нужен mode=update.");
+  if (p.mode === "create" && p.expectedDataVersion !== undefined)
+    throw new InputError("Для создания отсутствующей настройки expectedDataVersion не используется.");
+  const concurrency = updateConcurrency(p, snapshot, props);
   const patch: Record<string, string> = {};
   for (const [name, ref] of Object.entries(p.accounts)) {
     if (ref === undefined) continue;
@@ -206,20 +199,31 @@ export async function saveSettlementSettings(
   const method = p.mode === "create" ? "POST" : "PATCH";
   const payload = p.mode === "create" ? { ...snapshot.key, ...patch } : patch;
   const path = `${p.mode === "create" ? snapshot.entitySet : snapshot.recordPath}?$format=json`;
-  if (p.mode === "update" && props.get("DataVersion") !== "Edm.String")
-    throw new InputError("В схеме нет DataVersion: безопасное изменение настройки недоступно.");
-  const headers: Record<string, string> = p.mode === "update" ? { "If-Match": p.expectedDataVersion! } : {};
-  const operation = { method, path, payload, headers };
+  const headers: Record<string, string> =
+    concurrency === "dataVersion" ? { "If-Match": p.expectedDataVersion! } : {};
+  // Bind the observed record to the preview without sending it as PATCH data. This is a
+  // stale-preview check, not an atomic lock: versionless writes require a sole operator.
+  const operation = {
+    method,
+    path,
+    payload,
+    headers,
+    ...(concurrency === "singleWriter" ? { expectedRecord: publishedRecord(snapshot.record!, props) } : {}),
+  };
   const notes = [
     "Изменяется только точная сохранённая настройка. Применение счетов к документу отдельно не проверено.",
   ];
+  if (concurrency === "singleWriter")
+    notes.push(
+      "DataVersion отсутствует в metadata: If-Match не отправляется, серверная проверка версии недоступна. singleWriter=true подтверждает, что никто параллельно не меняет эти настройки. Предпросмотр связан с прочитанной записью; изменение после последнего чтения серверной блокировкой не защищено.",
+    );
   if (snapshot.contractKind === "Прочее")
     notes.push(
       "Договор «Прочее»: автоматический подбор счетов поставщика/покупателя не применяется. Ресурсы указаны явно; это не настройка расхода или займа.",
     );
   if (!confirm) {
     await conn.client.prepareCreate(snapshot.entitySet, operation, { withRefKey: false });
-    return { dryRun: true, database: conn.cfg.name, ...snapshot, ...operation, notes };
+    return { dryRun: true, database: conn.cfg.name, ...snapshot, ...operation, concurrency, notes };
   }
   const result = await conn.client.writeRecordOnce(snapshot.entitySet, operation, async () => {
     await conn.client.request(path, method, payload, headers);
@@ -253,8 +257,43 @@ export async function saveSettlementSettings(
     entitySet: snapshot.entitySet,
     recordPath: snapshot.recordPath,
     record: result,
+    concurrency,
     notes,
   };
+}
+
+function updateConcurrency(
+  input: z.infer<typeof writeSchema>,
+  snapshot: SavedSettlementSnapshot,
+  props: Map<string, string>,
+): "create" | "dataVersion" | "singleWriter" {
+  if (input.mode === "create") return "create";
+  if (!snapshot.record)
+    throw new InputError(
+      "Изменение требует существующую точную настройку; отсутствующая запись не создаётся.",
+    );
+  if (props.has("DataVersion")) {
+    if (props.get("DataVersion") !== "Edm.String")
+      throw new InputError("DataVersion опубликован с неподдерживаемым типом; изменение запрещено.");
+    if (!input.expectedDataVersion || snapshot.record.DataVersion !== input.expectedDataVersion)
+      throw new InputError(
+        "Изменение требует совпадающий expectedDataVersion (DataVersion из чтения); singleWriter не отменяет проверку версии.",
+      );
+    return "dataVersion";
+  }
+  if ("DataVersion" in snapshot.record || input.expectedDataVersion !== undefined)
+    throw new InputError(
+      "В metadata нет DataVersion, но версия передана или возвращена в записи. Не подставляйте вымышленную версию; проверьте схему и чтение.",
+    );
+  if (input.singleWriter !== true)
+    throw new InputError(
+      "В metadata нет DataVersion. Для последовательного изменения подтвердите singleWriter=true: никто параллельно не меняет эти настройки.",
+    );
+  return "singleWriter";
+}
+
+function publishedRecord(record: ODataEntity, props: Map<string, string>): ODataEntity {
+  return Object.fromEntries(Object.entries(record).filter(([name]) => props.has(name)));
 }
 
 function assertRecordValues(record: ODataEntity, expected: Record<string, unknown>): void {
