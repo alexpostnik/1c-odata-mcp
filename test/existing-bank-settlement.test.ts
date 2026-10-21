@@ -151,6 +151,8 @@ async function fixture(entitySet = SET) {
   ]);
   vi.spyOn(conn, "getMetadata").mockResolvedValue({ entities, odataVersion: "3.0" });
   let failure: "write" | "readback" | undefined;
+  let currency: ODataEntity | Error = { Code: "933" };
+  const contractReads: string[] = [];
   const writes: Array<{ path: string; method: string; body: unknown; headers: unknown }> = [];
   vi.spyOn(conn.client, "request").mockImplementation(async (path, method = "GET", body, headers) => {
     if (method !== "GET") {
@@ -166,8 +168,14 @@ async function fixture(entitySet = SET) {
         throw new ODataError({ kind: "auth", message: "Synthetic readback failure" });
       return structuredClone(doc) as never;
     }
-    if (path.startsWith("Catalog_Договоры")) return contract as never;
-    if (path.startsWith("Catalog_Валюты")) return { Code: "933" } as never;
+    if (path.startsWith("Catalog_Договоры")) {
+      contractReads.push(path);
+      return contract as never;
+    }
+    if (path.startsWith("Catalog_Валюты")) {
+      if (currency instanceof Error) throw currency;
+      return currency as never;
+    }
     if (path.startsWith("Catalog_Контрагенты"))
       return (
         path.includes(GROUP)
@@ -204,12 +212,14 @@ async function fixture(entitySet = SET) {
     run,
     conn,
     writes,
+    contractReads,
     entities,
     doc: () => structuredClone(doc),
     setDoc: (v: object) => (doc = { ...doc, ...v }),
     setContract: (v: object) => (contract = { ...contract, ...v }),
     setAccount: (v: object) => (account = { ...account, ...v }),
     setSettings: (v: ODataEntity[]) => (settings = v),
+    setCurrency: (v: typeof currency) => (currency = v),
     settings: () => settings,
     fail: (v: typeof failure) => (failure = v),
   };
@@ -321,6 +331,85 @@ describe("existing bank inherited settlement", () => {
     expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
     expect(f.doc().СубконтоДт1).toBe(before.СубконтоДт1);
     expect(f.doc().СуммаДокумента).toBe(before.СуммаДокумента);
+  });
+});
+
+describe("existing bank mutation currency evidence", () => {
+  const unknownCases = [
+    "auth",
+    "timeout",
+    "unpublished",
+    "missing",
+    "nonstring",
+    "empty",
+    "blank",
+    "conditional-missing",
+    "conditional-nonboolean",
+    "conditional-unpublished",
+  ] as const;
+  for (const stage of ["preview", "confirm"] as const) {
+    it.each(unknownCases)(`blocks ${stage} with %s classification evidence without PATCH`, async (reason) => {
+      const f = await fixture();
+      const preview = stage === "confirm" ? await f.run() : undefined;
+      if (preview) expect(preview.isError).toBeFalsy();
+      if (reason === "auth" || reason === "timeout")
+        f.setCurrency(new ODataError({ kind: reason, message: "Synthetic currency lookup failure" }));
+      else if (reason === "unpublished") f.entities.delete("Catalog_Валюты");
+      else if (reason === "missing") f.setCurrency({});
+      else if (reason === "nonstring") f.setCurrency({ Code: 933 });
+      else if (reason === "empty") f.setCurrency({ Code: "" });
+      else if (reason === "blank") f.setCurrency({ Code: " \t " });
+      else if (reason === "conditional-missing") f.setContract({ РасчетыВУсловныхЕдиницах: undefined });
+      else if (reason === "conditional-nonboolean") f.setContract({ РасчетыВУсловныхЕдиницах: "false" });
+      else {
+        const meta = f.entities.get("Catalog_ДоговорыКонтрагентов")!;
+        f.entities.set("Catalog_ДоговорыКонтрагентов", {
+          ...meta,
+          properties: meta.properties.filter((p) => p.name !== "РасчетыВУсловныхЕдиницах"),
+        });
+      }
+      const result = await f.run(preview ? { confirm: true, operationId: data(preview).operationId } : {});
+      expect(result.isError).toBe(true);
+      expect(f.writes).toEqual([]);
+    });
+  }
+  it.each([
+    { code: " 933 ", conditional: false, kind: "РасчетыВВалютеРегламентированногоУчета" },
+    { code: "840", conditional: false, kind: "РасчетыВИностраннойВалюте" },
+    { code: "840", conditional: true, kind: "РасчетыВУсловныхЕдиницах" },
+  ])("previews and confirms known classification $kind", async ({ code, conditional, kind }) => {
+    const f = await fixture();
+    f.setCurrency({ Code: code });
+    f.setContract({ РасчетыВУсловныхЕдиницах: conditional });
+    f.setSettings([{ ...f.settings()[0], ВидРасчетовПоДоговору: kind }]);
+    const p = await f.run();
+    expect(p.isError).toBeFalsy();
+    expect(data(p).resolution).toMatchObject({ kind, choice: { settle: ACCOUNT } });
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+    expect(f.writes).toHaveLength(1);
+  });
+  it("does not substitute a regulated-only setting for known foreign currency", async () => {
+    const f = await fixture();
+    f.setCurrency({ Code: "840" });
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it("requires currency code evidence even when conditional units are true", async () => {
+    const f = await fixture();
+    f.setContract({ РасчетыВУсловныхЕдиницах: true });
+    f.setSettings([{ ...f.settings()[0], ВидРасчетовПоДоговору: "РасчетыВУсловныхЕдиницах" }]);
+    f.setCurrency({});
+    expect((await f.run()).isError).toBe(true);
+    expect(f.writes).toEqual([]);
+  });
+  it("uses the exact validated contract snapshot for classification on each invocation", async () => {
+    const f = await fixture();
+    const p = await f.run();
+    expect(p.isError).toBeFalsy();
+    expect(f.contractReads).toHaveLength(1);
+    expect((await f.run({ confirm: true, operationId: data(p).operationId })).isError).toBeFalsy();
+    expect(f.contractReads).toHaveLength(2);
+    expect(f.writes).toHaveLength(1);
   });
 });
 
