@@ -43,6 +43,8 @@ export interface AgedDocument {
 }
 
 export const OVERDUE_BUCKETS = ["1-30", "31-60", "61-90", "90+"] as const;
+/** Долг старше этого числа дней — подозрительно старый: часто незакрытые взаиморасчёты, а не реальный долг. */
+export const STALE_DAYS = 365;
 export type OverdueBucket = (typeof OVERDUE_BUCKETS)[number];
 /** Возраст долга от даты документа — считается и там, где срок оплаты не задан. */
 export const AGE_BUCKETS = ["0-30", "31-60", "61-90", "90+"] as const;
@@ -58,6 +60,9 @@ export interface CounterpartyAging {
   noDocumentCents: number;
   /** Документы с датой позже asOf — аномалия учёта (ошибка в дате), не долг «в срок». */
   futureDatedCents: number;
+  /** Долг по документам старше STALE_DAYS. */
+  staleCents: number;
+  oldestDate?: string;
   buckets: Record<OverdueBucket, number>;
   ageBuckets: Record<AgeBucket, number>;
   maxOverdueDays?: number;
@@ -172,6 +177,7 @@ export function ageCounterparty(
     noTermCents: 0,
     noDocumentCents: 0,
     futureDatedCents: 0,
+    staleCents: 0,
     buckets: { "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0 },
     ageBuckets: { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 },
     documents: [],
@@ -208,6 +214,8 @@ export function ageCounterparty(
       continue;
     }
     res.ageBuckets[ageBucket(ageDays)] += r.cents;
+    if (ageDays > STALE_DAYS) res.staleCents += r.cents;
+    if (!res.oldestDate || info.date < res.oldestDate) res.oldestDate = info.date;
     const fromContract = r.contract ? terms.get(r.contract) : undefined;
     const termDays = fromContract ?? defaultTermDays;
     const doc = { ...base, date: info.date, ...(info.number ? { number: info.number } : {}), ageDays };

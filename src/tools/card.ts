@@ -14,12 +14,16 @@ import {
   type Account,
 } from "../odata/accounting.js";
 import { cardEntries, fetchMovements, netBalance, type CardEntry, type Dim } from "../odata/account-card.js";
-import { addDays } from "../odata/settlements-aging.js";
+import { addDays, localToday } from "../odata/settlements-aging.js";
 import { listOrganizations, resolveOrganization } from "../odata/orgs.js";
 import { createdAt, documentTitle, printNumber } from "../odata/names.js";
 import { refOf } from "../odata/settlements-aging.js";
 import { InputError } from "../errors.js";
-import { accountCardResultSchema, reconciliationResultSchema } from "../schemas/output.js";
+import {
+  accountCardResultSchema,
+  balanceOriginResultSchema,
+  reconciliationResultSchema,
+} from "../schemas/output.js";
 
 const rub = (c: number): number => Math.round(c) / 100;
 const GUID = /^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?$/;
@@ -41,6 +45,7 @@ async function orgOf(conn: Connection, organization?: string) {
 async function describeRefs(
   conn: Connection,
   entries: readonly CardEntry[],
+  extraDims: readonly Dim[] = [],
 ): Promise<{
   name: (d: Dim) => string;
   doc: (set?: string, ref?: string) => { number?: string; date?: string };
@@ -49,13 +54,15 @@ async function describeRefs(
   const documents = new Map<string, Set<string>>();
   const add = (m: Map<string, Set<string>>, set: string, ref: string) =>
     m.set(set, (m.get(set) ?? new Set()).add(ref));
+  const addDim = (d: Dim) => {
+    if (d.set?.startsWith("Catalog_")) add(catalogs, d.set, d.ref);
+    else if (d.set?.startsWith("Document_")) add(documents, d.set, d.ref);
+  };
   for (const e of entries) {
     if (e.recorderSet && e.recorder) add(documents, e.recorderSet, e.recorder);
-    for (const d of [...e.dims, ...e.corrDims]) {
-      if (d.set?.startsWith("Catalog_")) add(catalogs, d.set, d.ref);
-      else if (d.set?.startsWith("Document_")) add(documents, d.set, d.ref);
-    }
+    for (const d of [...e.dims, ...e.corrDims]) addDim(d);
   }
+  for (const d of extraDims) addDim(d);
   const names = new Map<string, string>();
   for (const [set, refs] of catalogs)
     for (const [k, v] of await resolveNames(conn, set, refs)) names.set(k, v);
@@ -424,6 +431,241 @@ async function reconciliation(
   };
 }
 
+// ─── Откуда сложилось сальдо ─────────────────────────────────────────────────
+
+/**
+ * Точный состав остатка по документам расчётов: строки сальдо, где среди субконто есть документ.
+ * complete=false — часть остатка без документа (учёт не по документам), тогда — расчёт по движениям.
+ */
+export function originByDocuments(
+  rows: readonly Record<string, unknown>[],
+  refs: readonly string[],
+): { items: Array<{ doc: Dim; others: Dim[]; cents: number }>; complete: boolean } {
+  const byDoc = new Map<string, { doc: Dim; others: Dim[]; cents: number }>();
+  let withoutDoc = 0;
+  for (const r of rows) {
+    const cents = netBalance([r as never], refs);
+    if (cents === 0) continue;
+    const dims: Dim[] = [];
+    for (const i of [1, 2, 3]) {
+      const ref = refOf(r[`ExtDimension${i}`]);
+      const set = String(r[`ExtDimension${i}_Type`] ?? "");
+      if (ref) dims.push({ ref, ...(set ? { set: set.slice(set.lastIndexOf(".") + 1) } : {}) });
+    }
+    const doc = dims.find((d) => d.set?.startsWith("Document_"));
+    if (!doc) {
+      withoutDoc += cents;
+      continue;
+    }
+    const cur = byDoc.get(doc.ref) ?? { doc, others: dims.filter((d) => d !== doc), cents: 0 };
+    cur.cents += cents;
+    byDoc.set(doc.ref, cur);
+  }
+  return { items: [...byDoc.values()].filter((x) => x.cents !== 0), complete: withoutDoc === 0 };
+}
+
+/**
+ * Какие движения образовали остаток B, который висит сейчас. entries — все движения по счёту
+ * (по возрастанию времени). Идём назад от B, пока остаток не обнулится или не сменит знак — с
+ * этого движения (crossing) остаток держится непрерывно. Дальше вперёд: доля движения в остатке —
+ * насколько оно подняло «нижнюю границу» остатка до даты расчёта (минимум остатка от этого
+ * движения до конца). Сумма долей = |B|; это точный расчёт по истории движений, без допущений.
+ * found=false — момент появления раньше переданных движений: carried — часть остатка старше их.
+ */
+export function persistentOrigin(
+  entries: readonly CardEntry[],
+  balanceCents: number,
+): { found: boolean; carried: number; items: Array<{ e: CardEntry; cents: number }> } {
+  const sign = balanceCents > 0 ? 1 : -1;
+  const delta = (e: CardEntry) => (e.side === "debit" ? e.cents : -e.cents);
+  let bal = balanceCents;
+  let start = 0;
+  let found = false;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const before = bal - delta(entries[i]!);
+    if (before === 0 || Math.sign(before) !== sign) {
+      start = i;
+      found = true;
+      bal = before;
+      break;
+    }
+    bal = before;
+  }
+  // bal — остаток перед первым учитываемым движением; в нашу сторону (sign) или 0.
+  const v0 = Math.max(0, sign * bal);
+  const tail = entries.slice(start);
+  const after: number[] = [];
+  let running = bal;
+  for (const e of tail) {
+    running += delta(e);
+    after.push(sign * running);
+  }
+  const suffixMin: number[] = new Array<number>(after.length);
+  let m = Infinity;
+  for (let i = after.length - 1; i >= 0; i--) {
+    m = Math.min(m, after[i]!);
+    suffixMin[i] = m;
+  }
+  const items: Array<{ e: CardEntry; cents: number }> = [];
+  let prev = found ? 0 : Math.min(v0, suffixMin[0] ?? v0);
+  for (let i = 0; i < tail.length; i++) {
+    const cur = Math.max(0, suffixMin[i]!);
+    if (cur > prev) items.push({ e: tail[i]!, cents: cur - prev });
+    prev = Math.max(prev, cur);
+  }
+  return { found, carried: found ? 0 : Math.min(v0, suffixMin[0] ?? v0), items };
+}
+
+async function balanceOrigin(
+  conn: Connection,
+  o: {
+    organization?: string | undefined;
+    account: string;
+    asOf: string;
+    counterpartyRef?: string | undefined;
+    dimensionRef?: string | undefined;
+    maxYears: number;
+  },
+) {
+  const t0 = Date.now();
+  const org = await orgOf(conn, o.organization);
+  const accounts = await resolveAccounts(conn, [o.account]);
+  if (!accounts.length) throw new InputError(`Счёт "${o.account}" не найден в плане счетов «Хозрасчётный».`);
+  const keys = accounts.map((a) => a.key);
+  const refs = [o.counterpartyRef, o.dimensionRef].filter((r): r is string => !!r);
+  const balRows = await balanceByAccounts(conn, keys, org?.ref, o.asOf);
+  const balance = netBalance(balRows, refs);
+  const head = {
+    database: conn.cfg.name,
+    ...(org ? { organization: org.name } : {}),
+    account: o.account,
+    asOf: o.asOf,
+    balance: rub(balance),
+    side: balance >= 0 ? "debit" : "credit",
+  };
+  if (balance === 0) {
+    return {
+      ...head,
+      method: "none",
+      count: 0,
+      items: [],
+      note: "Остатка на дату нет.",
+      scan: { elapsedMs: Date.now() - t0 },
+    };
+  }
+
+  // 1. Точно — по документам расчётов в самом сальдо.
+  const byDocs = originByDocuments(balRows, refs);
+  if (byDocs.complete && byDocs.items.length) {
+    const names = await describeRefs(
+      conn,
+      [],
+      byDocs.items.flatMap((x) => [x.doc, ...x.others]),
+    );
+    const items = byDocs.items
+      .map((x) => {
+        const info = names.doc(x.doc.set, x.doc.ref);
+        return {
+          date: info.date ?? "",
+          document: (x.doc.set ?? "").replace(/^Document_/, ""),
+          documentTitle: documentTitle(x.doc.set ?? ""),
+          ...(info.number ? { number: info.number } : {}),
+          documentRef: x.doc.ref,
+          ...(createdAt(x.doc.ref) ? { documentCreatedAt: createdAt(x.doc.ref) } : {}),
+          ...(x.others.length ? { analytics: x.others.map(names.name) } : {}),
+          amount: rub(x.cents),
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return {
+      ...head,
+      method: "documents",
+      since: items[0]?.date,
+      count: items.length,
+      items,
+      note:
+        "Точный состав остатка по документам расчётов из сальдо 1С. Отрицательная сумма — аванс или оплата, " +
+        "ещё не закрытая встречным документом.",
+      scan: { elapsedMs: Date.now() - t0 },
+    };
+  }
+
+  // 2. По истории движений — назад окнами 3, 6, 12… месяцев, пока не найдём момент появления.
+  const limitDate = addDays(o.asOf, -Math.round(o.maxYears * 365.25));
+  let collected: CardEntry[] = [];
+  let windowEnd = o.asOf;
+  let days = 91;
+  let scanned = 0;
+  let origin = persistentOrigin([], balance);
+  while (windowEnd > limitDate) {
+    const from = addDays(windowEnd, -days) < limitDate ? limitDate : addDays(windowEnd, -days);
+    const moves = await fetchMovements(conn, {
+      accountKeys: keys,
+      from,
+      to: windowEnd,
+      ...(org ? { orgKey: org.ref } : {}),
+      ...(o.counterpartyRef ? { counterpartyRef: o.counterpartyRef } : {}),
+    });
+    scanned += moves.meta.rowsScanned;
+    collected = [...cardEntries(moves.rows, new Set(keys), refs), ...collected];
+    origin = persistentOrigin(collected, balance);
+    if (origin.found) break;
+    windowEnd = addDays(from, -1);
+    days *= 2;
+  }
+  const taken = origin.items;
+  const names = await describeRefs(
+    conn,
+    taken.map((t) => t.e),
+  );
+  const code = await codesOf(
+    conn,
+    accounts,
+    taken.map((t) => t.e),
+  );
+  const items = taken
+    .map(({ e, cents }) => {
+      const info = names.doc(e.recorderSet, e.recorder);
+      return {
+        date: e.period.slice(0, 10),
+        ...(e.recorderSet
+          ? { document: e.recorderSet.replace(/^Document_/, ""), documentTitle: documentTitle(e.recorderSet) }
+          : {}),
+        ...(info.number ? { number: info.number } : {}),
+        ...(e.recorder ? { documentRef: e.recorder } : {}),
+        ...(createdAt(e.recorder) ? { documentCreatedAt: createdAt(e.recorder) } : {}),
+        ...(e.content ? { content: e.content } : {}),
+        account: code(e.account),
+        ...(e.corrAccount ? { corrAccount: code(e.corrAccount) } : {}),
+        ...(e.side === "debit" ? { debit: rub(e.cents) } : { credit: rub(e.cents) }),
+        amount: rub(cents),
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const notes = [
+    "Расчёт по истории движений: найден момент, с которого остаток держится непрерывно (since), и доля " +
+      "каждого документа, дожившая до даты расчёта (amount; debit/credit — полная сумма движения). Движения " +
+      "одного дня делят остаток по порядку записи: для счетов, закрываемых в конце месяца (20–26, 44), какие " +
+      "документы не попали в закрытие, точнее покажет documentCreatedAt позже closingCreatedAt.",
+  ];
+  if (!origin.found) {
+    notes.push(
+      `Остаток появился раньше, чем ${o.maxYears} г. назад: ${rub(origin.carried)} — с более ранних периодов, ` +
+        "увеличьте maxYears.",
+    );
+  }
+  return {
+    ...head,
+    method: "movements",
+    since: items[0]?.date,
+    ...(origin.found ? {} : { olderThanSearch: rub(origin.carried) }),
+    count: items.length,
+    items,
+    note: notes.join(" "),
+    scan: { rowsScanned: scanned, elapsedMs: Date.now() - t0 },
+  };
+}
+
 export function registerCardTools(server: McpServer, ctx: ServerContext): void {
   server.registerTool(
     "read.accounting.get_account_card",
@@ -473,6 +715,52 @@ export function registerCardTools(server: McpServer, ctx: ServerContext): void {
           }),
         );
       }),
+  );
+
+  server.registerTool(
+    "read.accounting.get_balance_origin",
+    {
+      title: "Откуда сложилось сальдо",
+      description:
+        "Из каких документов состоит остаток по счёту на дату и с какого времени он висит — для старых " +
+        "хвостов, которых не видно в карточке за месяц. Где учёт ведётся по документам расчётов (62, 60, 76 " +
+        "в БП), состав — из сальдо 1С (method = documents). Иначе — по истории движений (method = movements): " +
+        "момент, с которого остаток держится непрерывно, и доля каждого документа, дожившая до даты; поиск " +
+        "назад до maxYears лет. since — дата самого " +
+        "старого документа остатка, documentCreatedAt — когда документ создан. Отбор: counterpartyRef — " +
+        "контрагент, dimensionRef — договор, номенклатура, банковский счёт.",
+      inputSchema: {
+        database: databaseField,
+        organization: organizationField,
+        account: z
+          .string()
+          .trim()
+          .min(1)
+          .max(20)
+          .regex(ACCOUNT_CODE_RE, "Код счёта: цифры/буквы через точку, напр. 62.01, 26")
+          .describe("Код счёта или префикс субсчетов"),
+        asOf: dateField("Остаток на конец этой даты (без параметра — сегодня)").optional(),
+        counterpartyRef: guidField("Ref_Key контрагента (из find_counterparty)").optional(),
+        dimensionRef: guidField(
+          "Ref_Key другого субконто: договор, номенклатура, банковский счёт",
+        ).optional(),
+        maxYears: z.number().int().min(1).max(10).default(3).describe("Как далеко назад искать по движениям"),
+      },
+      outputSchema: balanceOriginResultSchema,
+    },
+    ({ database, organization, account, asOf, counterpartyRef, dimensionRef, maxYears }) =>
+      guard("read.accounting.get_balance_origin", async () =>
+        ok(
+          await balanceOrigin(ctx.db(database), {
+            organization,
+            account,
+            asOf: asOf ?? localToday(),
+            counterpartyRef,
+            dimensionRef,
+            maxYears,
+          }),
+        ),
+      ),
   );
 
   server.registerTool(

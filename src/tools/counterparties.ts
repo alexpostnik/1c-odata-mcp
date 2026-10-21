@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Connection, ServerContext } from "../context.js";
 import { ok, fail, guard, withTruncationNote, databaseField, organizationField } from "./_shared.js";
 import { fetchAll } from "../odata/pagination.js";
-import { and, cmp, contains, odataGuid, odataString, buildQuery } from "../odata/query.js";
+import { and, cmp, contains, odataGuid, odataString, or, buildQuery } from "../odata/query.js";
 import {
   CATALOGS,
   COUNTERPARTY_FIELDS as CF,
@@ -29,6 +29,57 @@ function toCounterparty(r: ODataEntity): Counterparty {
   };
 }
 
+/** Вид договора БП → роль контрагента. Неизвестный вид — как есть (не угадываем). */
+const CONTRACT_ROLES: Record<string, string> = {
+  СПокупателем: "покупатель",
+  СПоставщиком: "поставщик",
+  СКомитентом: "комитент",
+  СКомиссионером: "комиссионер",
+  СКомитентомНаЗакупку: "комитент на закупку",
+  СКомиссионеромНаЗакупку: "комиссионер на закупку",
+  СФакторинговойКомпанией: "факторинговая компания",
+  СЛизингодателем: "лизингодатель",
+  Прочее: "прочее",
+};
+
+/**
+ * Роли контрагентов по видам их договоров — признака «покупатель/поставщик» в справочнике
+ * контрагентов БП нет. Договоры, помеченные на удаление, не учитываются.
+ */
+export async function counterpartyRoles(
+  conn: Connection,
+  refs: readonly string[],
+): Promise<Map<string, { roles: string[]; contracts: number }>> {
+  const out = new Map<string, { roles: string[]; contracts: number }>();
+  const set = resolveEntity(CATALOGS.contracts, await conn.available());
+  if (!set || refs.length === 0) return out;
+  const BATCH = 20;
+  for (let i = 0; i < refs.length; i += BATCH) {
+    const batch = refs.slice(i, i + BATCH);
+    const filter = and(
+      or(...batch.map((k) => cmp("Owner_Key", "eq", odataGuid(k)))),
+      cmp("DeletionMark", "eq", "false"),
+    );
+    const { rows } = await fetchAll(
+      conn.client,
+      set,
+      { filter, select: ["Owner_Key", "ВидДоговора"] },
+      conn.behavior.pageSize,
+      conn.behavior.maxRows,
+    );
+    for (const row of rows) {
+      const owner = String(row["Owner_Key"] ?? "");
+      const kind = String(row["ВидДоговора"] ?? "");
+      const cur = out.get(owner) ?? { roles: [], contracts: 0 };
+      cur.contracts += 1;
+      const role = kind ? (CONTRACT_ROLES[kind] ?? kind) : undefined;
+      if (role && !cur.roles.includes(role)) cur.roles.push(role);
+      out.set(owner, cur);
+    }
+  }
+  return out;
+}
+
 const counterpartySet = (conn: Connection): Promise<string> =>
   requireEntity(conn, CATALOGS.counterparties, "Справочник «Контрагенты»");
 
@@ -39,7 +90,9 @@ export function registerCounterpartyTools(server: McpServer, ctx: ServerContext)
       title: "Поиск контрагента",
       description:
         "Ищет контрагентов по части названия или по ИНН. Возвращает список совпадений " +
-        "с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов). " +
+        "с Ref_Key (используйте его в get_counterparty и истории взаиморасчётов), полным наименованием " +
+        "и ролями по видам договоров (roles: покупатель, поставщик, комитент…; contracts — число договоров) — " +
+        "помогает выбрать из однофамильцев. " +
         "Пример: «найди контрагента Ромашка» или «контрагент с ИНН 7701234567».",
       inputSchema: {
         database: databaseField,
@@ -58,12 +111,20 @@ export function registerCounterpartyTools(server: McpServer, ctx: ServerContext)
         const { rows, truncated } = await fetchAll(
           conn.client,
           set,
-          { filter, select: [CF.ref, CF.name, CF.code, CF.inn, CF.kpp, CF.isFolder] },
+          { filter, select: [CF.ref, CF.name, CF.code, CF.inn, CF.kpp, CF.fullName, CF.isFolder] },
           conn.behavior.pageSize,
           Math.min(limit, conn.behavior.maxRows),
         );
 
-        const items = rows.map(toCounterparty).filter((c) => !c.isFolder);
+        const found = rows.map(toCounterparty).filter((c) => !c.isFolder);
+        const roles = await counterpartyRoles(
+          conn,
+          found.map((c) => c.ref),
+        );
+        const items = found.map((c) => {
+          const r = roles.get(c.ref);
+          return { ...c, roles: r?.roles ?? [], contracts: r?.contracts ?? 0 };
+        });
         return ok(withTruncationNote(items, truncated, limit));
       }),
   );

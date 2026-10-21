@@ -254,6 +254,15 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
     );
   }
   const futureDated = sum((a) => a.futureDatedCents);
+  const stale = sum((a) => a.staleCents);
+  const staleCps = aged.filter((x) => x.a.staleCents > 0).length;
+  if (stale > 0) {
+    notes.push(
+      `Долг старше года — ${rub(stale)} у ${staleCps} контрагентов (olderThanYear). Такие суммы часто не ` +
+        "реальный долг, а незакрытые взаиморасчёты: не сделан зачёт аванса, корректировка или списание. " +
+        "Проверьте актом сверки или карточкой счёта.",
+    );
+  }
   if (futureDated > 0) {
     notes.push(
       `Документы с датой позже ${asOf} на ${rub(futureDated)} (status future_dated) — вероятно, ошибка в дате ` +
@@ -286,6 +295,8 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
       noTerm: rub(a.noTermCents),
       withoutDocument: rub(a.noDocumentCents),
       ...(a.futureDatedCents ? { futureDated: rub(a.futureDatedCents) } : {}),
+      ...(a.staleCents ? { olderThanYear: rub(a.staleCents) } : {}),
+      ...(a.oldestDate ? { oldestDocumentDate: a.oldestDate } : {}),
       overdueByDays: bucketsOut(OVERDUE_BUCKETS, a.buckets),
       byAge: bucketsOut(AGE_BUCKETS, a.ageBuckets),
       ...(a.maxOverdueDays !== undefined ? { maxOverdueDays: a.maxOverdueDays } : {}),
@@ -305,6 +316,7 @@ async function settlementsReport(conn: Connection, side: SettlementSide, o: Sett
         totalNoTerm: rub(noTerm),
         totalWithoutDocument: rub(withoutDocument),
         ...(futureDated ? { totalFutureDated: rub(futureDated) } : {}),
+        ...(stale ? { totalOlderThanYear: rub(stale), counterpartiesOlderThanYear: staleCps } : {}),
         ...(fallback ? { fallback: "byAge" } : {}),
         counterpartiesOverdue: aged.filter((x) => x.a.overdueCents > 0).length,
       },
@@ -706,7 +718,8 @@ export function registerDebtTools(server: McpServer, ctx: ServerContext): void {
       "указанной даты (для аудита/исторических отчётов). Возвращает только долг > 0. " +
       "aging=true — по срокам: просрочено / в срок / срок не задан, просрочка по дням, возраст долга " +
       "от даты документа (byAge — работает и без срока в договоре) и документы расчётов; срок оплаты = дата документа + дни из договора (флаг «Установлен срок оплаты»). " +
-      "overdueOnly=true — «кто просрочил оплату», по убыванию просрочки.",
+      "overdueOnly=true — «кто просрочил оплату», по убыванию просрочки (без сроков в договорах — долги старше " +
+      "60 дней, fallback). olderThanYear — долг старше года: часто незакрытые взаиморасчёты, а не реальный долг.",
   });
 
   settlementsTool(server, ctx, "payable", {
@@ -720,6 +733,7 @@ export function registerDebtTools(server: McpServer, ctx: ServerContext): void {
       "авансы поставщику (вычитаются). Возвращает только долг > 0. asOf=YYYY-MM-DD — на конец даты. " +
       "aging=true — по срокам: что уже пора платить (просрочено), что в срок, где срок не задан, с " +
       "документами поступления и датой оплаты по договору; overdueOnly=true — только просроченные. " +
+      "olderThanYear — долг старше года: часто незакрытые взаиморасчёты, а не реальный долг. " +
       "Расчёты по счёту 76 (аренда, связь и прочие) сюда не входят — для них ОСВ по счёту 76.",
   });
 

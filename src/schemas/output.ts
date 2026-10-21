@@ -375,6 +375,22 @@ export const accountCardResultSchema = z
   })
   .passthrough();
 
+export const balanceOriginResultSchema = z
+  .object({
+    database: z.string(),
+    organization: z.string().optional(),
+    account: z.string(),
+    asOf: z.string(),
+    balance: z.number(),
+    side: z.enum(["debit", "credit"]),
+    method: z.enum(["documents", "movements", "none"]),
+    since: z.string().optional(),
+    count: z.number(),
+    items: z.array(z.object({ date: z.string(), amount: z.number() }).passthrough()),
+    scan: scanSchema,
+  })
+  .passthrough();
+
 const favorSchema = z.object({
   amount: z.number(),
   inFavorOf: z.enum(["организации", "контрагента"]).nullable(),
