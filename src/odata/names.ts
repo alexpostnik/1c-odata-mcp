@@ -11,7 +11,9 @@ import { uuidTimestamp } from "./uuid.js";
  */
 export function documentTitle(entitySetOrName: string): string {
   const name = entitySetOrName.replace(/^(Document|Catalog)_/, "");
-  const words = name.split(/(?<=[а-яёa-z0-9])(?=[А-ЯЁA-Z])/u);
+  // Граница слова: «строчная → Заглавная» и «Заглавная → Заглавная+строчная» — второе отделяет
+  // однобуквенные предлоги: «СРасчетного» → «С Расчетного», «ОПродажах» → «О Продажах».
+  const words = name.split(/(?<=[а-яёa-z0-9])(?=[А-ЯЁA-Z])|(?<=[А-ЯЁA-Z])(?=[А-ЯЁA-Z][а-яёa-z])/u);
   return words.map((w, i) => (i === 0 || /^[А-ЯЁA-Z]{2,}$/u.test(w) ? w : w.toLowerCase())).join(" ");
 }
 

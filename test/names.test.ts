@@ -7,6 +7,9 @@ describe("documentTitle", () => {
     expect(documentTitle("Document_ПоступлениеНаРасчетныйСчет")).toBe("Поступление на расчетный счет");
     expect(documentTitle("РеализацияТоваровУслуг")).toBe("Реализация товаров услуг");
     expect(documentTitle("Document_ОперацияБух")).toBe("Операция бух");
+    expect(documentTitle("Document_СписаниеСРасчетногоСчета")).toBe("Списание с расчетного счета");
+    expect(documentTitle("Document_ОтчетКомитентуОПродажах")).toBe("Отчет комитенту о продажах");
+    expect(documentTitle("Document_СчетФактураВыданный")).toBe("Счет фактура выданный");
   });
 });
 
