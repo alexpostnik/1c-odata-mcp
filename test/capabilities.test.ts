@@ -400,3 +400,27 @@ describe("точность свидетельств функций", () => {
     expect(after.operations).toContainEqual(expect.objectContaining({ functionName: "Balance" }));
   });
 });
+
+describe("полнота автоматической проверки и provenance", () => {
+  it("по умолчанию startup и периодика проходят все подходящие статические объекты, а не три", async () => {
+    const f = await setup({ ODATA_CAPABILITY_PROBE_LIMIT: "64", ODATA_CAPABILITY_INTERVAL_MS: "60000" });
+    const { bp30Metadata } = await import("./helpers/metadata-snapshot.js");
+    vi.spyOn(f.conn.client, "getMetadata").mockResolvedValue(bp30Metadata());
+    const requests = vi.spyOn(f.conn.client, "request").mockResolvedValue({ value: [] });
+    vi.useFakeTimers();
+    f.conn.capabilities.start();
+    const first = await f.conn.capabilities.refresh();
+    expect(requests.mock.calls.length).toBeGreaterThan(3);
+    expect(requests.mock.calls.length).toBeLessThanOrEqual(64);
+    expect(first).toHaveProperty("probeCoverage");
+    const initial = requests.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(requests.mock.calls.length).toBe(initial * 2);
+  });
+  it("у последней успешной схемы есть своя версия требований и профиль источника", async () => {
+    const f = await setup();
+    const report = await f.conn.capabilities.refresh();
+    expect(report).toHaveProperty("observationProvenance");
+    expect(Reflect.get(report, "observationProvenance")).toMatchObject({ requirementsRevision: REQUIREMENTS.revision, sourceRef: REQUIREMENTS.sourceRef, profile: { configurationVersion: "unknown" } });
+  });
+});
