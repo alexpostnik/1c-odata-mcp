@@ -101,6 +101,12 @@ describe("документация совпадает с кодом", () => {
     expect(manifest.long_description).toContain(`${names.length} ${toolsWord(names.length)}`);
   });
 
+  it("README заканчивается «Лицензией»: новые разделы — в тело README или в docs/", () => {
+    const tail = readme.slice(readme.lastIndexOf("\n## "));
+    expect(tail.startsWith("\n## Лицензия"), "последний раздел README — не «Лицензия»").toBe(true);
+    expect(tail.match(/^#{2,} .*/gm), "подразделы после «Лицензии»").toEqual(["## Лицензия"]);
+  });
+
   it("каждый инструмент упомянут в README полным именем", () => {
     expect(names.filter((n) => !readme.includes(`\`${n}\``))).toEqual([]);
   });
