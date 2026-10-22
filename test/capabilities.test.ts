@@ -707,6 +707,22 @@ describe("регрессии независимой проверки", () => {
     );
     expect(unknown).toMatchObject({ status: "unknown", unknown: ["parameter_type:Period"] });
   });
+  it("R4: не объявленный тип параметра остаётся unknown после сохранения и повторного подключения", async () => {
+    const first = await setup();
+    first.schema(functionXml().replace('Name="Period" Type="Edm.DateTime"', 'Name="Period"'));
+    const report = await first.conn.capabilities.refresh();
+    expect(report.requirements["accounting.balance"]).toMatchObject({
+      status: "unknown",
+      unknown: ["parameter_type:Period"],
+    });
+    const second = await setup({}, first.dir);
+    const loaded = await second.conn.capabilities.status();
+    expect(loaded.summary.persistence).toBe("loaded");
+    expect(loaded.requirements["accounting.balance"]).toMatchObject({
+      status: "unknown",
+      unknown: ["parameter_type:Period"],
+    });
+  });
   it.each([
     ["write.catalog.update_nomenclature", { name: "sample", fullName: "sample", article: "sample" }],
     [
