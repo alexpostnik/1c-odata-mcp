@@ -82,11 +82,12 @@ export class ODataClient {
     method = "GET",
     body?: unknown,
     headers: Record<string, string> = {},
+    options: { singleAttempt?: boolean } = {},
   ): Promise<T> {
     this.assertWritable(method);
     const url = this.url(path);
     // Любая запись, включая bodyless Post/Unpost, отправляется один раз; retry только чтению.
-    const maxAttempts = READ_METHODS.has(method) ? this.behavior.retries + 1 : 1;
+    const maxAttempts = READ_METHODS.has(method) && !options.singleAttempt ? this.behavior.retries + 1 : 1;
 
     let lastErr: ODataError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

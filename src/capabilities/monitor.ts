@@ -218,6 +218,8 @@ export class CapabilityMonitor {
       },
       requirements,
       lastSuccessfulSchema: this.state.latest,
+      observationProvenance: this.state.provenance ?? null,
+      probeCoverage: this.state.probeCoverage ? { ...this.state.probeCoverage, periodicWorstCaseMs: this.state.probeCoverage.periodicBudget ? Math.ceil(this.state.probeCoverage.candidateCount / this.state.probeCoverage.periodicBudget) * (this.behavior.capabilityIntervalMs ?? 900_000) : null, note: "Последний проход; checked означает попытку ограниченного запроса, а не наличие прав на строки. При меньшем бюджете объекты проверяются по кругу; к интервалу добавляется время запросов." } : null,
       operations,
       events: this.state.events,
       tools: REQUIREMENTS.tools.map((t) => ({
@@ -323,6 +325,7 @@ export class CapabilityMonitor {
       this.state.latest = latest;
       this.state.metadataStatus = "ok";
       this.state.lastSuccessAt = at;
+      this.state.provenance = { requirementsRevision: REQUIREMENTS.revision, sourceVersion: REQUIREMENTS.sourceVersion, sourceRef: REQUIREMENTS.sourceRef, profile: this.cfg.capabilityProfile ?? DEFAULT_PROFILE };
       if (
         oldMetadataStatus === "unknown" &&
         this.state.lastSuccessAt &&
@@ -352,16 +355,19 @@ export class CapabilityMonitor {
         selected.some((name) => !entityName.test(name) || !this.metadata!.entities.has(name))
       )
         throw new Error("invalid_probe_selection");
+      const checked: string[] = [];
       for (const entity of selected) {
         if (this.stopped) break;
         const key = this.metadata.entities.get(entity)?.keys[0];
         if (!key || !entityName.test(key)) continue;
+        checked.push(entity);
         try {
-          await this.client.request(`${entity}?$top=0&$select=${encodeURIComponent(key)}&$format=json`);
+          await this.client.request(`${entity}?$top=0&$select=${encodeURIComponent(key)}&$format=json`, "GET", undefined, {}, { singleAttempt: true });
         } catch {
           /* Клиент записывает лишь классификацию; один отказ не останавливает остальные. */
         }
       }
+      this.state.probeCoverage = { at, candidateCount: candidates.length, checked, fullPass, periodicBudget: this.behavior.capabilityProbeLimit ?? 64 };
       this.cursor = candidates.length ? (this.cursor + selected.length) % candidates.length : 0;
     } catch {
       this.state.metadataStatus = "unknown";
