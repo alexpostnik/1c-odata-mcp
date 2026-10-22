@@ -1525,6 +1525,1024 @@
         "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
         "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/settlement-accounts.ts"
       }
+    },
+    "read.counterparty.get_customer_history.dynamic0.0": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Контрагент_Key",
+        "Date"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.counterparty.get_customer_history.dynamic0.1": {
+      "target": [
+        "Document_СчетНаОплатуПокупателю",
+        "Document_СчетПокупателю"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Контрагент_Key",
+        "Date"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.counterparty.get_supplier_history.dynamic0": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Контрагент_Key",
+        "Date"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_cashflow.dynamic0.0": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_cashflow.dynamic0.1": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_cashflow.dynamic0.2": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_cashflow.dynamic0.3": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_inventory.optional0": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_unpaid_invoices.optional1": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Posted",
+        "Date",
+        "СуммаДокумента",
+        "СчетНаОплатуПокупателю_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "СчетНаОплатуПокупателю_Key present"
+    },
+    "read.accounting.check_month_close.optional0": {
+      "target": [
+        "Document_РегламентнаяОперация"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Date",
+        "Организация_Key",
+        "ВидОперации",
+        "Состояние",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.0": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.1": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.2": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.3": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.4": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.5": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.6": {
+      "target": [
+        "Document_СчетФактураВыданный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.7": {
+      "target": [
+        "Document_СчетФактураПолученный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.8": {
+      "target": [
+        "Document_АктОбОказанииПроизводственныхУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.9": {
+      "target": [
+        "Document_ВозвратТоваровОтПокупателя"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.10": {
+      "target": [
+        "Document_ВозвратТоваровПоставщику"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.11": {
+      "target": [
+        "Document_ПеремещениеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.12": {
+      "target": [
+        "Document_ОприходованиеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.accounting.check_month_close.optional2.13": {
+      "target": [
+        "Document_СписаниеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Number",
+        "Date",
+        "Posted",
+        "DeletionMark"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_payments_breakdown.dynamic0.0": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_payments_breakdown.dynamic0.1": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_payments_breakdown.dynamic0.2": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_payments_breakdown.dynamic0.3": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_deal_history.dynamic0.0": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_deal_history.dynamic0.1": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_deal_history.dynamic0.2": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_deal_history.dynamic0.3": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_taxes_paid.dynamic0.0": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_taxes_paid.dynamic0.1": {
+      "target": [
+        "Document_ПлатежноеПоручение"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_sales_breakdown.dynamic0": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.analytics.get_purchases_breakdown.dynamic0": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.organization.get_organization_card.optional3": {
+      "target": [
+        "Catalog_Банки"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description",
+        "Code"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.organization.get_organization_card.optional4": {
+      "target": [
+        "InformationRegister_ОтветственныеЛицаОрганизаций",
+        "InformationRegister_ОтветственныеЛицаОрганизации"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Организация_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.organization.get_organization_card.optional5": {
+      "target": [
+        "Catalog_ФизическиеЛица"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "read.audit.get_document_history.optional1": {
+      "target": [
+        "Catalog_Пользователи"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.catalog.create_contract.conditional1": {
+      "target": [
+        "Catalog_ТипыЦенНоменклатуры",
+        "Catalog_ТипыЦен"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Code",
+        "Description"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "priceType supplied"
+    },
+    "write.counterparty.update_counterparty.conditional0": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "КонтактнаяИнформация"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "phone/email/address supplied to merge contact information"
+    },
+    "write.purchase.create_purchase.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.sales.create_shipment.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_return_from_customer.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_return_to_supplier.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_transfer.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_surplus.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_writeoff.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.warehouse.create_inventory.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.sales.create_act.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.sales.create_services_act.optional1": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ВидНоменклатуры_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.money.create_payment.conditional2": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "keys": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path"
+    },
+    "write.money.create_bank_writeoff.conditional2": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "keys": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path"
+    },
+    "write.money.create_cash_receipt.conditional2": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "keys": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path"
+    },
+    "write.money.create_cash_payment.conditional2": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "keys": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path"
+    },
+    "write.sales.create_issued_invoice.dynamic0": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Организация_Key",
+        "СуммаДокумента"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.purchase.create_received_invoice.dynamic0": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Организация_Key",
+        "СуммаДокумента"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.counterparty.create_bank_account.conditional0": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ОсновнойБанковскийСчет_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "update"
+      ],
+      "notes": "makeMain=true"
+    },
+    "write.counterparty.create_contact_person.conditional0": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "ОсновноеКонтактноеЛицо_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "update"
+      ],
+      "notes": "makeMain=true"
+    },
+    "write.document.apply_bank_settlement_settings.dynamic0": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет",
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "DataVersion",
+        "Posted",
+        "DeletionMark",
+        "ДоговорКонтрагента_Key",
+        "СчетУчетаРасчетовСКонтрагентом_Key",
+        "Организация_Key",
+        "ВалютаДокумента_Key",
+        "ВидОперации",
+        "РасшифровкаПлатежа"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Only unposted with exact fresh expectedDataVersion; PATCH If-Match + readback. chart additionally requires DeletionMark:Boolean and ЗапретитьИспользоватьВПроводках:Boolean."
+    },
+    "write.counterparty.create_group.dynamic0": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "IsFolder",
+        "Parent_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
+    },
+    "write.counterparty.set_group.dynamic0": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Parent_Key",
+        "DataVersion"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Условный/динамический объект; не обязательный для всех вызовов."
     }
   },
   "tools": [
@@ -1700,7 +2718,11 @@
           "conditionalFields": [
             "Организация_Key when organization supplied"
           ],
-          "orderBy": "Date desc"
+          "orderBy": "Date desc",
+          "requirementIds": [
+            "read.counterparty.get_customer_history.dynamic0.0",
+            "read.counterparty.get_customer_history.dynamic0.1"
+          ]
         }
       ],
       "operations": [
@@ -1743,7 +2765,10 @@
           "conditionalFields": [
             "Организация_Key when organization supplied"
           ],
-          "orderBy": "Date desc"
+          "orderBy": "Date desc",
+          "requirementIds": [
+            "read.counterparty.get_supplier_history.dynamic0"
+          ]
         }
       ],
       "operations": [
@@ -1885,6 +2910,12 @@
             "Date",
             "Posted",
             "СуммаДокумента"
+          ],
+          "requirementIds": [
+            "read.analytics.get_cashflow.dynamic0.0",
+            "read.analytics.get_cashflow.dynamic0.1",
+            "read.analytics.get_cashflow.dynamic0.2",
+            "read.analytics.get_cashflow.dynamic0.3"
           ]
         }
       ],
@@ -2009,7 +3040,10 @@
             "Ref_Key",
             "Description"
           ],
-          "purpose": "optional name enrichment"
+          "purpose": "optional name enrichment",
+          "requirementIds": [
+            "read.analytics.get_inventory.optional0"
+          ]
         }
       ],
       "dynamic": [],
@@ -2171,6 +3205,9 @@
             "Date",
             "СуммаДокумента",
             "СчетНаОплатуПокупателю_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_unpaid_invoices.optional1"
           ]
         }
       ],
@@ -2259,7 +3296,10 @@
             "Posted",
             "DeletionMark"
           ],
-          "purpose": "closing/earlierMonth checks; missing=>skipped"
+          "purpose": "closing/earlierMonth checks; missing=>skipped",
+          "requirementIds": [
+            "read.accounting.check_month_close.optional0"
+          ]
         },
         "accounting.postingRecords",
         {
@@ -2316,7 +3356,23 @@
             "Posted",
             "DeletionMark"
           ],
-          "purpose": "unposted check per published type"
+          "purpose": "unposted check per published type",
+          "requirementIds": [
+            "read.accounting.check_month_close.optional2.0",
+            "read.accounting.check_month_close.optional2.1",
+            "read.accounting.check_month_close.optional2.2",
+            "read.accounting.check_month_close.optional2.3",
+            "read.accounting.check_month_close.optional2.4",
+            "read.accounting.check_month_close.optional2.5",
+            "read.accounting.check_month_close.optional2.6",
+            "read.accounting.check_month_close.optional2.7",
+            "read.accounting.check_month_close.optional2.8",
+            "read.accounting.check_month_close.optional2.9",
+            "read.accounting.check_month_close.optional2.10",
+            "read.accounting.check_month_close.optional2.11",
+            "read.accounting.check_month_close.optional2.12",
+            "read.accounting.check_month_close.optional2.13"
+          ]
         },
         "DOCUMENTS.sales.read",
         "DOCUMENTS.issuedInvoice.read",
@@ -2541,6 +3597,12 @@
             "Контрагент_Key or Контрагент",
             "ВидОперации",
             "СтатьяДвиженияДенежныхСредств_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_payments_breakdown.dynamic0.0",
+            "read.analytics.get_payments_breakdown.dynamic0.1",
+            "read.analytics.get_payments_breakdown.dynamic0.2",
+            "read.analytics.get_payments_breakdown.dynamic0.3"
           ]
         }
       ],
@@ -2613,6 +3675,12 @@
             "Контрагент_Key or Контрагент",
             "ВидОперации",
             "СтатьяДвиженияДенежныхСредств_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_deal_history.dynamic0.0",
+            "read.analytics.get_deal_history.dynamic0.1",
+            "read.analytics.get_deal_history.dynamic0.2",
+            "read.analytics.get_deal_history.dynamic0.3"
           ]
         }
       ],
@@ -2679,6 +3747,10 @@
             "Контрагент_Key or Контрагент",
             "ВидОперации",
             "СтатьяДвиженияДенежныхСредств_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_taxes_paid.dynamic0.0",
+            "read.analytics.get_taxes_paid.dynamic0.1"
           ]
         }
       ],
@@ -2743,6 +3815,9 @@
             "Контрагент_Key or Контрагент",
             "ВидОперации",
             "СтатьяДвиженияДенежныхСредств_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_sales_breakdown.dynamic0"
           ]
         }
       ],
@@ -2807,6 +3882,9 @@
             "Контрагент_Key or Контрагент",
             "ВидОперации",
             "СтатьяДвиженияДенежныхСредств_Key"
+          ],
+          "requirementIds": [
+            "read.analytics.get_purchases_breakdown.dynamic0"
           ]
         }
       ],
@@ -2838,6 +3916,9 @@
           "fields": [
             "Description",
             "Code"
+          ],
+          "requirementIds": [
+            "read.organization.get_organization_card.optional3"
           ]
         },
         {
@@ -2853,7 +3934,10 @@
             "/ФизическоеЛицо|Сотрудник/ _Key or /ФИО/ text",
             "Period optional"
           ],
-          "purpose": "director/accountant enrichment; unknown schema=>note"
+          "purpose": "director/accountant enrichment; unknown schema=>note",
+          "requirementIds": [
+            "read.organization.get_organization_card.optional4"
+          ]
         },
         {
           "target": [
@@ -2866,7 +3950,10 @@
             "Ref_Key",
             "Description"
           ],
-          "purpose": "optional name enrichment"
+          "purpose": "optional name enrichment",
+          "requirementIds": [
+            "read.organization.get_organization_card.optional5"
+          ]
         }
       ],
       "dynamic": [],
@@ -2894,6 +3981,9 @@
           "fields": [
             "Ref_Key",
             "Description"
+          ],
+          "requirementIds": [
+            "read.audit.get_document_history.optional1"
           ]
         },
         "accounting.postingRecords"
@@ -3112,6 +4202,9 @@
           ],
           "operations": [
             "read"
+          ],
+          "requirementIds": [
+            "write.catalog.create_contract.conditional1"
           ]
         }
       ],
@@ -3308,6 +4401,9 @@
           ],
           "fields": [
             "КонтактнаяИнформация"
+          ],
+          "requirementIds": [
+            "write.counterparty.update_counterparty.conditional0"
           ]
         }
       ],
@@ -3377,7 +4473,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.purchase.create_purchase.optional1"
+          ]
         },
         "warehouses.lookup",
         {
@@ -3589,7 +4688,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.sales.create_shipment.optional1"
+          ]
         },
         "warehouses.lookup",
         "bankAccounts.lookup",
@@ -3731,7 +4833,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_return_from_customer.optional1"
+          ]
         },
         "warehouses.lookup",
         {
@@ -3817,7 +4922,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_return_to_supplier.optional1"
+          ]
         },
         "warehouses.lookup",
         {
@@ -3899,7 +5007,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_transfer.optional1"
+          ]
         },
         "warehouses.lookup"
       ],
@@ -3963,7 +5074,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_surplus.optional1"
+          ]
         },
         "warehouses.lookup"
       ],
@@ -4029,7 +5143,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_writeoff.optional1"
+          ]
         },
         "warehouses.lookup"
       ],
@@ -4095,7 +5212,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.warehouse.create_inventory.optional1"
+          ]
         },
         "warehouses.lookup"
       ],
@@ -4324,7 +5444,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.sales.create_act.optional1"
+          ]
         },
         "bankAccounts.lookup",
         {
@@ -4412,7 +5535,10 @@
           "fields": [
             "ВидНоменклатуры_Key"
           ],
-          "purpose": "optional nomenclature kind for account mapping"
+          "purpose": "optional nomenclature kind for account mapping",
+          "requirementIds": [
+            "write.sales.create_services_act.optional1"
+          ]
         },
         {
           "requirement": "contracts.autofill",
@@ -4499,7 +5625,10 @@
           "operations": [
             "metadata"
           ],
-          "fields": []
+          "fields": [],
+          "requirementIds": [
+            "write.money.create_payment.conditional2"
+          ]
         }
       ],
       "optional": [
@@ -4578,7 +5707,10 @@
           "operations": [
             "metadata"
           ],
-          "fields": []
+          "fields": [],
+          "requirementIds": [
+            "write.money.create_bank_writeoff.conditional2"
+          ]
         }
       ],
       "optional": [
@@ -4660,7 +5792,10 @@
           "operations": [
             "metadata"
           ],
-          "fields": []
+          "fields": [],
+          "requirementIds": [
+            "write.money.create_cash_receipt.conditional2"
+          ]
         }
       ],
       "optional": [
@@ -4741,7 +5876,10 @@
           "operations": [
             "metadata"
           ],
-          "fields": []
+          "fields": [],
+          "requirementIds": [
+            "write.money.create_cash_payment.conditional2"
+          ]
         }
       ],
       "optional": [
@@ -4827,6 +5965,9 @@
           "conditionalFields": [
             "ДоговорКонтрагента_Key",
             "Товары/Услуги rows СуммаНДС"
+          ],
+          "requirementIds": [
+            "write.sales.create_issued_invoice.dynamic0"
           ]
         }
       ],
@@ -4901,6 +6042,9 @@
           "conditionalFields": [
             "ДоговорКонтрагента_Key",
             "Товары/Услуги rows СуммаНДС"
+          ],
+          "requirementIds": [
+            "write.purchase.create_received_invoice.dynamic0"
           ]
         }
       ],
@@ -4966,7 +6110,10 @@
           "fields": [
             "ОсновнойБанковскийСчет_Key"
           ],
-          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed."
+          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed.",
+          "requirementIds": [
+            "write.counterparty.create_bank_account.conditional0"
+          ]
         }
       ],
       "optional": [],
@@ -5013,7 +6160,10 @@
           "fields": [
             "ОсновноеКонтактноеЛицо_Key"
           ],
-          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed."
+          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed.",
+          "requirementIds": [
+            "write.counterparty.create_contact_person.conditional0"
+          ]
         }
       ],
       "optional": [],
@@ -5179,7 +6329,10 @@
             "СчетУчетаРасчетовПоАвансам_Key if present",
             "<entity>_РасшифровкаПлатежа metadata when a row exists"
           ],
-          "notes": "Only unposted with exact fresh expectedDataVersion; PATCH If-Match + readback. chart additionally requires DeletionMark:Boolean and ЗапретитьИспользоватьВПроводках:Boolean."
+          "notes": "Only unposted with exact fresh expectedDataVersion; PATCH If-Match + readback. chart additionally requires DeletionMark:Boolean and ЗапретитьИспользоватьВПроводках:Boolean.",
+          "requirementIds": [
+            "write.document.apply_bank_settlement_settings.dynamic0"
+          ]
         }
       ],
       "operations": [
@@ -5380,6 +6533,9 @@
             "Description",
             "IsFolder",
             "Parent_Key"
+          ],
+          "requirementIds": [
+            "write.counterparty.create_group.dynamic0"
           ]
         },
         {
@@ -5431,6 +6587,9 @@
           },
           "keys": [
             "Ref_Key"
+          ],
+          "requirementIds": [
+            "write.counterparty.set_group.dynamic0"
           ]
         }
       ],

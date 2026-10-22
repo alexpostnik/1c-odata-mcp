@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { REQUIREMENTS } from "../capabilities/requirements.js";
-import { inspectRequirement } from "../capabilities/schema.js";
+import { diagnoseDynamic } from "../capabilities/diagnose.js";
 import { databaseField, guard, ok } from "./_shared.js";
 
 const technicalName = z.string().regex(/^[A-Za-z\p{L}_][\p{L}\p{N}_]{0,180}$/u);
@@ -15,7 +15,7 @@ export function registerCapabilityTools(server: McpServer, ctx: ServerContext): 
     const selected = tool ? REQUIREMENTS.tools.filter((t) => t.name === tool) : REQUIREMENTS.tools;
     if (tool && !selected.length) throw new Error("Неизвестный инструмент; см. перечень без фильтра tool.");
     const conn = ctx.db(database);
-    const dynamic = entitySet ? inspectRequirement({ target: [entitySet], fields: fields ?? [], keys: [] }, conn.cfg, await conn.getMetadata()) : undefined;
+    const dynamic = entitySet ? diagnoseDynamic(selected[0], conn.cfg, await conn.getMetadata(), entitySet, fields) : undefined;
     return ok({ ...REQUIREMENTS, tools: selected, ...(dynamic ? { dynamic: { ...dynamic, rights: "unknown", note: "Проверены лишь заданные поля схемы; значения/ключи записей не принимаются." } } : {}) });
   }));
   server.registerTool("read.system.odata_capabilities", {
