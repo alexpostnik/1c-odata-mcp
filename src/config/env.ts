@@ -85,7 +85,7 @@ const CurrencyCodeSchema = z.preprocess(
 
 const BehaviorSchema = z.object({
   ODATA_CAPABILITY_STATE_DIR: z.string().min(1).optional(),
-  ODATA_CAPABILITY_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
+  ODATA_CAPABILITY_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(86_400_000),
   ODATA_CAPABILITY_PROBE_LIMIT: z.coerce.number().int().min(0).max(64).default(64),
   ODATA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   ODATA_RETRIES: z.coerce.number().int().min(0).max(10).default(3),

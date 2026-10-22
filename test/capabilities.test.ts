@@ -303,7 +303,7 @@ describe("наблюдения, сохранение и изменения", () 
       }),
     );
     vi.useFakeTimers();
-    vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000);
+    vi.setSystemTime(Date.now() + 49 * 60 * 60 * 1000);
     expect((await f.conn.capabilities.status()).operations).toContainEqual(
       expect.objectContaining({ operation: "create", effectiveStatus: "unknown", expired: true }),
     );
@@ -348,7 +348,7 @@ describe("автоматический запуск и остановка", () =
     const server = createServer(ctx);
     const logging = vi.spyOn(server, "sendLoggingMessage").mockResolvedValue();
     server.server.oninitialized?.();
-    await ctx.db().capabilities.refresh();
+    await ctx.db().capabilities.start();
     expect(f.requests.some((r) => r.url.includes("$top=0"))).toBe(true);
     expect(logging).toHaveBeenCalled();
     f.schema(xml('<Property Name="Ref_Key" Type="Edm.Guid"/>'));
@@ -408,8 +408,8 @@ describe("полнота автоматической проверки и proven
     vi.spyOn(f.conn.client, "getMetadata").mockResolvedValue(bp30Metadata());
     const requests = vi.spyOn(f.conn.client, "request").mockResolvedValue({ value: [] });
     vi.useFakeTimers();
-    f.conn.capabilities.start();
-    const first = await f.conn.capabilities.refresh();
+    await f.conn.capabilities.start();
+    const first = await f.conn.capabilities.status();
     expect(requests.mock.calls.length).toBeGreaterThan(3);
     expect(requests.mock.calls.length).toBeLessThanOrEqual(64);
     expect(first).toHaveProperty("probeCoverage");
@@ -455,8 +455,8 @@ describe("ежедневное расписание по решению влад
     const firstReport = await first.conn.capabilities.status();
     const second = await setup({}, first.dir);
     await second.conn.capabilities.start();
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    const reused = await second.conn.capabilities.status();
     expect(second.requests.length).toBe(0);
-    expect((await second.conn.capabilities.status()).summary.lastSuccessAt).toBe(firstReport.summary.lastSuccessAt);
+    expect(reused.summary.lastSuccessAt).toBe(firstReport.summary.lastSuccessAt);
   });
 });

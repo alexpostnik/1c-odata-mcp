@@ -189,7 +189,7 @@ export function createServer(ctx: ServerContext): McpServer {
   // Проверка после initialized: startup не задерживает handshake, таймер завершает onclose.
   server.server.oninitialized = () => {
     for (const { name } of ctx.databases()) {
-      ctx.db(name).capabilities.start((events) => {
+      void ctx.db(name).capabilities.start((events) => {
         const data = {
           database: name,
           changes: events.slice(0, 64).map(({ kind, requirement, after }) => ({ kind, requirement, after })),

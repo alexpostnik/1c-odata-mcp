@@ -23,7 +23,7 @@ export interface RequestObservation {
   scope: OperationObservation["scope"];
   error?: ODataError;
 }
-const OBSERVATION_TTL_MS = 24 * 60 * 60 * 1000;
+const OBSERVATION_TTL_MS = 48 * 60 * 60 * 1000;
 const entityName = /^[A-Za-z][\p{L}\p{N}_]{1,180}$/u;
 
 /** HTTP 403/404, сеть и обычный 500 не доказывают отказ роли 1С. */
@@ -48,7 +48,9 @@ export class CapabilityMonitor {
   private persistence: "new" | "loaded" | "saved" | "unavailable" = "new";
   private active = false;
   private cursor = 0;
-  private timer?: ReturnType<typeof setInterval>;
+  private timer?: ReturnType<typeof setTimeout>;
+  private started = false;
+  private startup?: Promise<void>;
   private stopped = false;
   private notify?: (events: CapabilityEvent[]) => void;
 
@@ -160,6 +162,7 @@ export class CapabilityMonitor {
       metadataStatus: this.state.metadataStatus,
       lastAttemptAt: this.state.lastAttemptAt ?? null,
       lastSuccessAt: this.state.lastSuccessAt ?? null,
+      nextRefreshAt: this.state.lastSuccessAt ? new Date(Date.parse(this.state.lastSuccessAt) + (this.behavior.capabilityIntervalMs ?? 86_400_000)).toISOString() : null,
       missing: Object.values(this.state.latest).filter((o) => o.status !== "published").length,
       events: this.state.events.length,
       persistence: this.persistence,
@@ -219,7 +222,7 @@ export class CapabilityMonitor {
       requirements,
       lastSuccessfulSchema: this.state.latest,
       observationProvenance: this.state.provenance ?? null,
-      probeCoverage: this.state.probeCoverage ? { ...this.state.probeCoverage, periodicWorstCaseMs: this.state.probeCoverage.periodicBudget ? Math.ceil(this.state.probeCoverage.candidateCount / this.state.probeCoverage.periodicBudget) * (this.behavior.capabilityIntervalMs ?? 900_000) : null, note: "Последний проход; checked означает попытку ограниченного запроса, а не наличие прав на строки. При меньшем бюджете объекты проверяются по кругу; к интервалу добавляется время запросов." } : null,
+      probeCoverage: this.state.probeCoverage ? { ...this.state.probeCoverage, periodicWorstCaseMs: this.state.probeCoverage.periodicBudget ? Math.ceil(this.state.probeCoverage.candidateCount / this.state.probeCoverage.periodicBudget) * (this.behavior.capabilityIntervalMs ?? 86_400_000) : null, note: "Последний проход; checked означает попытку ограниченного запроса, а не наличие прав на строки. При меньшем бюджете объекты проверяются по кругу; к интервалу добавляется время запросов." } : null,
       operations,
       events: this.state.events,
       tools: REQUIREMENTS.tools.map((t) => ({
@@ -242,7 +245,7 @@ export class CapabilityMonitor {
         initialProbeLimit: 64,
         probeKind: "top_zero_query_only",
         probeLimit: this.behavior.capabilityProbeLimit ?? 64,
-        intervalMs: this.behavior.capabilityIntervalMs ?? 900_000,
+        intervalMs: this.behavior.capabilityIntervalMs ?? 86_400_000,
         observationTtlMs: OBSERVATION_TTL_MS,
         recordDataStored: false,
         allRowPermissionsProven: false,
@@ -285,12 +288,7 @@ export class CapabilityMonitor {
     this.state.lastAttemptAt = at;
     const oldMetadataStatus = this.state.metadataStatus;
     const events: CapabilityEvent[] = [];
-    const signatures = Object.fromEntries(
-      [
-        ...Object.entries(REQUIREMENTS.definitions),
-        ...REQUIREMENTS.tools.map((t) => [`tool:${t.name}`, t] as const),
-      ].map(([id, req]) => [id, fingerprint(req)]),
-    );
+    const signatures = this.signatures();
     if (this.state.revision !== "unknown")
       for (const [id, signature] of Object.entries(signatures))
         if (this.state.fingerprints[id] !== signature)
@@ -387,19 +385,37 @@ export class CapabilityMonitor {
     return this.report();
   }
 
-  start(notify?: (events: CapabilityEvent[]) => void): void {
-    if (this.timer) return;
+  private signatures(): Record<string, string> {
+    return Object.fromEntries([...Object.entries(REQUIREMENTS.definitions), ...REQUIREMENTS.tools.map((t) => [`tool:${t.name}`, t] as const)].map(([id, req]) => [id, fingerprint(req)]));
+  }
+
+  /** Повторное подключение в течение интервала использует датированный baseline той же версии. */
+  start(notify?: (events: CapabilityEvent[]) => void): Promise<void> {
+    if (this.started) return this.startup ?? Promise.resolve();
+    this.started = true;
+    this.active = true;
     this.stopped = false;
     this.notify = notify;
-    void this.refresh(undefined, true);
-    this.timer = setInterval(() => {
-      if (!this.stopped) void this.refresh();
-    }, this.behavior.capabilityIntervalMs ?? 900_000);
+    this.startup = this.scheduledScan();
+    return this.startup;
+  }
+  private async scheduledScan(): Promise<void> {
+    await this.load();
+    if (this.stopped) return;
+    const interval = this.behavior.capabilityIntervalMs ?? 86_400_000;
+    const changed = fingerprint(this.state.fingerprints) !== fingerprint(this.signatures()) || fingerprint(this.state.provenance?.profile) !== fingerprint(this.cfg.capabilityProfile ?? DEFAULT_PROFILE);
+    const age = this.state.lastSuccessAt ? Date.now() - Date.parse(this.state.lastSuccessAt) : Infinity;
+    if (changed || this.state.metadataStatus !== "ok" || age >= interval) await this.refresh(undefined, changed || !this.state.lastSuccessAt);
+    if (this.stopped) return;
+    // При неудаче следующая плановая попытка — через интервал, не tight retry loop.
+    const due = this.state.metadataStatus === "ok" && this.state.lastSuccessAt ? Math.max(1, Date.parse(this.state.lastSuccessAt) + interval - Date.now()) : interval;
+    this.timer = setTimeout(() => { void this.scheduledScan(); }, due);
     this.timer.unref();
   }
   stop(): void {
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    this.started = false;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
   }
 }
