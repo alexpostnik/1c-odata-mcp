@@ -443,3 +443,20 @@ describe("изменения формы контракта", () => {
     expect(report.events).toContainEqual(expect.objectContaining({ kind: "newly_missing", requirement: "accounting.balance" }));
   });
 });
+
+describe("ежедневное расписание по решению владельца", () => {
+  it("по умолчанию проверяет раз в24часа и сохраняет ограниченный срок свидетельств", async () => {
+    const f = await setup();
+    expect(f.config.behavior.capabilityIntervalMs).toBe(86400000);
+    expect((await f.conn.capabilities.refresh()).limits.observationTtlMs).toBeGreaterThan(86400000);
+  });
+  it("повторное подключение с тем же перечнем в пределах суток использует датированный отчёт", async () => {
+    const first = await setup(); await first.conn.capabilities.refresh();
+    const firstReport = await first.conn.capabilities.status();
+    const second = await setup({}, first.dir);
+    await second.conn.capabilities.start();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(second.requests.length).toBe(0);
+    expect((await second.conn.capabilities.status()).summary.lastSuccessAt).toBe(firstReport.summary.lastSuccessAt);
+  });
+});
