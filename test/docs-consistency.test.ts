@@ -76,6 +76,22 @@ describe("документация совпадает с кодом", () => {
     expect(changelog).toContain(`[${pkg.version}]: `);
   });
 
+  it("CHANGELOG: один раздел «[Не выпущено]» на русском", () => {
+    expect(changelog, "раздел «Unreleased» — переименуйте в «[Не выпущено]»").not.toMatch(
+      /^## \[?Unreleased\]?/im,
+    );
+    expect(changelog.match(/^## \[Не выпущено\]/gm) ?? []).toHaveLength(1);
+    const start = changelog.indexOf("## [Не выпущено]");
+    const end = changelog.indexOf("\n## [", start + 1);
+    const section = changelog.slice(start, end < 0 ? undefined : end);
+    // Каждая строка с текстом — с русскими словами: код и имена в `кавычках` не считаются.
+    const english = section
+      .split("\n")
+      .filter((l) => /[A-Za-z]{3}/.test(l.replace(/`[^`]*`|\[[^\]]*\]\([^)]*\)|https?:\S+/g, "")))
+      .filter((l) => !/[А-Яа-яЁё]/.test(l));
+    expect(english, "строки CHANGELOG без русского текста").toEqual([]);
+  });
+
   it("число инструментов в README, package.json и manifest.json", () => {
     expect(readme).toContain(
       `${names.length} ${toolsWord(names.length)} (${reads} чтение/аналитика + ${writes} записей)`,

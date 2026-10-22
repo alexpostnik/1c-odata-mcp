@@ -4,7 +4,7 @@
 
 ## Проверки
 
-- [ ] Полный гейт локально: `npm run lint && npm run format:check && npm run typecheck && npm run build && npm test`
+- [ ] `npm run check` зелёный (линтер, форматирование, типы, сборка, тесты — то же, что CI)
 - [ ] Новый или изменённый инструмент записи описан в `CREATE_CASES` / `ARGS` (`test/metadata-snapshot.test.ts`, `test/write-reconciliation.test.ts`)
 - [ ] Поля и виды операций сверены со снимком схемы (`test/fixtures/metadata/bp30.xml`), а не с рукописными заглушками
 - [ ] Новый инструмент проходит «поддельную 1С» (`test/fake-1c.test.ts`); если норма запросов выросла — `npm run budget:update`, и рост объяснён ниже
