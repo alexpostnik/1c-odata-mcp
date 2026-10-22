@@ -98,7 +98,10 @@ export function inspectRequirement(
         entitySet: entity.entitySet,
         missing,
         ...observedShape(req, { ...entity, properties: fn.properties, keys: [] }),
-        functionParameters: fn.parameters,
+        functionParameters: fn.parameters.map((parameter) => ({
+          ...parameter,
+          type: parameter.type || "unknown",
+        })),
         unknown: [...unknownParams, ...(fn.properties.length ? [] : ["function_result_schema"])],
         ...(fact ? { factConflict: true } : {}),
       };
