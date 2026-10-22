@@ -617,8 +617,11 @@ describe("регрессии независимой проверки", () => {
       await second.conn.capabilities.start();
       expect(second.requests.some((r) => r.url.endsWith("$metadata"))).toBe(true);
       const report = await second.conn.capabilities.status();
+      const packageVersion = JSON.parse(
+        await readFile(new URL("../package.json", import.meta.url), "utf8"),
+      ).version;
       expect(report.observationProvenance).toMatchObject({
-        mcpVersion: "0.10.0",
+        mcpVersion: packageVersion,
         requirementsRevision: REQUIREMENTS.revision,
         sourceVersion: REQUIREMENTS.sourceVersion,
         sourceRef: REQUIREMENTS.sourceRef,
