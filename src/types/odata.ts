@@ -67,7 +67,17 @@ export interface EntityMeta {
 }
 
 /** Полная карта сущностей базы, построенная из $metadata. */
+export interface MetaFunction {
+  name: string;
+  bindingType?: string;
+  parameters: Array<{ name: string; type: string }>;
+  returnType?: string;
+  properties: MetaProperty[];
+}
+
 export interface MetadataMap {
+  /** Объявления не доказывают права вызова; отсутствие объявления может быть неполной схемой. */
+  functions?: MetaFunction[];
   /** Версия OData (напр. "3.0"). */
   odataVersion: string;
   /** Все сущности по имени EntitySet. */

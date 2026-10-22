@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { ODataClient } from "./client.js";
 import { logger } from "../logger.js";
-import type { EntityClass, EntityMeta, MetadataMap, MetaNavigation, MetaProperty } from "../types/odata.js";
+import type { EntityClass, EntityMeta, MetadataMap, MetaNavigation, MetaProperty, MetaFunction } from "../types/odata.js";
 
 /** Сопоставление префикса EntitySet → класс объекта 1С. */
 const PREFIX_TO_CLASS: Array<[string, EntityClass]> = [
@@ -72,6 +72,7 @@ export function parseMetadata(xml: string): MetadataMap {
 
   const schema = findSchema(doc);
   const odataVersion = detectVersion(doc);
+  if (!schema?.EntityContainer) throw new Error("Ответ metadata не содержит EntityContainer");
 
   // EntityType по полному имени (Namespace.TypeName и просто TypeName).
   const typeByName = new Map<string, RawEntityType>();
@@ -116,7 +117,7 @@ export function parseMetadata(xml: string): MetadataMap {
   }
 
   logger.info({ count: entities.size, odataVersion }, "metadata loaded");
-  return { odataVersion, entities };
+  return { odataVersion, entities, functions: parseFunctions(schema) };
 }
 
 function stripNamespace(name: string): string {
@@ -127,6 +128,7 @@ function stripNamespace(name: string): string {
 function findSchema(doc: Record<string, unknown>):
   | {
       EntityType?: RawEntityType | RawEntityType[];
+      [key: string]: unknown;
       EntityContainer?: { EntitySet?: RawEntitySet | RawEntitySet[] };
     }
   | undefined {
@@ -142,4 +144,19 @@ function detectVersion(doc: Record<string, unknown>): string {
   const edmx = (doc.Edmx ?? doc["edmx:Edmx"]) as Record<string, unknown> | undefined;
   const services = (edmx?.DataServices ?? edmx?.["edmx:DataServices"]) as Record<string, string> | undefined;
   return services?.["@_DataServiceVersion"] ?? services?.["@_m:DataServiceVersion"] ?? "3.0";
+}
+
+/** Функции v3 / bound actions: поля результата принадлежат ReturnType, а не корню регистра. */
+function parseFunctions(schema: Record<string, unknown> | undefined): MetaFunction[] {
+  if (!schema) return [];
+  const types = new Map(asArray(schema.ComplexType as RawEntityType | RawEntityType[]).concat(asArray(schema.EntityType as RawEntityType | RawEntityType[])).map((t) => [t["@_Name"], t]));
+  const container = schema.EntityContainer as Record<string, unknown> | undefined;
+  const declarations = [...asArray(container?.FunctionImport as Record<string, unknown> | Record<string, unknown>[]), ...asArray(schema.Function as Record<string, unknown> | Record<string, unknown>[])];
+  return declarations.map((fn) => {
+    const params = asArray(fn.Parameter as RawProp | RawProp[]).map((p) => ({ name: p["@_Name"], type: p["@_Type"] }));
+    const returnType = typeof fn["@_ReturnType"] === "string" ? fn["@_ReturnType"] : undefined;
+    const result = returnType && types.get(stripNamespace(returnType.replace(/^Collection\((.*)\)$/, "$1")));
+    const binding = params.find((p) => /binding/i.test(p.name)) ?? (fn["@_IsBindable"] === "true" ? params[0] : undefined);
+    return { name: String(fn["@_Name"]), ...(binding ? { bindingType: stripNamespace(binding.type.replace(/^Collection\((.*)\)$/, "$1")) } : {}), parameters: params, returnType, properties: result ? asArray(result.Property).map((p) => ({ name: p["@_Name"], type: p["@_Type"], nullable: p["@_Nullable"] !== "false" })) : [] };
+  });
 }

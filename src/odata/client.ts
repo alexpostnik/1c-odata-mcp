@@ -1,3 +1,4 @@
+import type { RequestObservation } from "../capabilities/monitor.js";
 import type { Behavior, ConnectionConfig } from "../config/env.js";
 import { logger } from "../logger.js";
 import { ODataError, fromHttpStatus } from "./errors.js";
@@ -24,7 +25,11 @@ export class ODataClient {
     this.authHeader = `Basic ${token}`;
   }
 
-  getMetadata(): Promise<MetadataMap> {
+  /** Наблюдатель получает только классификацию, никогда URL/ключ/тело запроса или ответа. */
+  observeRequest?: (input: RequestObservation) => Promise<void>;
+
+  getMetadata(refresh = false): Promise<MetadataMap> {
+    if (refresh) this.metaPromise = undefined;
     this.metaPromise ??= loadMetadata(this).catch((error) => {
       this.metaPromise = undefined;
       throw error;
@@ -118,7 +123,9 @@ export class ODataClient {
         logger.debug({ url, status: res.status, ms }, "odata ok");
         // Действия (Post/Unpost) могут вернуть пустое тело — это не ошибка.
         const text = await res.text();
-        return (text ? JSON.parse(text) : undefined) as T;
+        const result = (text ? JSON.parse(text) : undefined) as T;
+        await this.observe(path, method);
+        return result;
       } catch (e) {
         const err = normalize(e, url);
         if (err.retryable && attempt < maxAttempts) {
@@ -127,12 +134,24 @@ export class ODataClient {
           await backoff(attempt);
           continue;
         }
+        await this.observe(path, method, err);
         throw err;
       } finally {
         clearTimeout(timer);
       }
     }
     throw lastErr ?? new ODataError({ kind: "unknown", message: "Запрос не выполнен", url });
+  }
+
+  private async observe(path: string, method: string, error?: ODataError): Promise<void> {
+    if (!this.observeRequest) return;
+    const match = /^([A-Za-z][\p{L}\p{N}_]*)([?(]|$)/u.exec(path);
+    if (!match) return;
+    const action = /\)\/(Post|Unpost)(?:\?|$)/.exec(path)?.[1];
+    const operation = action === "Post" ? "post" : action === "Unpost" ? "unpost" : method === "GET" || method === "HEAD" ? "read" : method === "PATCH" ? "update" : method === "DELETE" ? "delete" : "create";
+    const scope = operation === "read" ? path.startsWith(`${match[1]}(`) ? "one_record" : "collection_query" : "one_operation";
+    // Диагностика не должна менять результат нормального запроса при недоступном диске.
+    try { await this.observeRequest({ entitySet: match[1]!, operation, scope, error }); } catch { /* advisory */ }
   }
 
   /** Запрос коллекции (массив в поле value). */

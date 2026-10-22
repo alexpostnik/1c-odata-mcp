@@ -1,3 +1,6 @@
+import { registerCapabilityTools } from "../tools/capabilities.js";
+import { assertToolRequirement } from "../capabilities/requirements.js";
+import { logger } from "../logger.js";
 import { registerExistingBankSettlementTools } from "../tools/existing-bank-settlement.js";
 import { registerCounterpartyGroupTools } from "../tools/counterparty-groups.js";
 import { registerSettlementSettingsTools } from "../tools/settlement-settings.js";
@@ -74,7 +77,7 @@ function annotationsFor(name: string) {
 export function createServer(ctx: ServerContext): McpServer {
   const server = new McpServer(
     { name: "1c-odata-mcp", version: readVersion() },
-    { instructions: INSTRUCTIONS, capabilities: { extensions: { [APPS_EXTENSION_ID]: {} } } },
+    { instructions: INSTRUCTIONS, capabilities: { logging: {}, extensions: { [APPS_EXTENSION_ID]: {} } } },
   );
 
   // Оборачиваем registerTool, чтобы каждому инструменту проставить аннотации по имени.
@@ -88,6 +91,7 @@ export function createServer(ctx: ServerContext): McpServer {
     config: Record<string, unknown>,
     cb: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>,
   ) => {
+    assertToolRequirement(name);
     const appMeta = appMetaFor(name);
     const annotatedConfig = {
       ...config,
@@ -164,6 +168,7 @@ export function createServer(ctx: ServerContext): McpServer {
   );
 
   registerMetaTools(server, ctx);
+  registerCapabilityTools(server, ctx);
   registerCounterpartyTools(server, ctx);
   registerDocumentTools(server, ctx);
   registerRegisterTools(server, ctx);
@@ -181,5 +186,20 @@ export function createServer(ctx: ServerContext): McpServer {
   registerPrompts(server);
   registerApps(server);
 
+  // Проверка после initialized: startup не задерживает handshake, таймер завершает onclose.
+  server.server.oninitialized = () => {
+    for (const { name } of ctx.databases()) {
+      ctx.db(name).capabilities.start((events) => {
+        const data = { database: name, changes: events.length, diagnosticsTool: "read.system.odata_capabilities" };
+        logger.warn(data, "Изменились требования или доступность OData; проверьте диагностику возможностей");
+        void server.sendLoggingMessage({ level: "warning", logger: "odata-capabilities", data }).catch(() => {});
+      });
+    }
+  };
+  const previousClose = server.server.onclose;
+  server.server.onclose = () => {
+    for (const { name } of ctx.databases()) ctx.db(name).capabilities.stop();
+    previousClose?.();
+  };
   return server;
 }

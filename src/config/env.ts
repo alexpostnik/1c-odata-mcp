@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { JsonCapabilityProfileSchema, type CapabilityProfile } from "../capabilities/config.js";
 import { AccountingSchema, type AccountingConfig } from "./accounting.js";
 import { homedir } from "node:os";
 import { resolve, join } from "node:path";
@@ -25,11 +26,15 @@ export interface ConnectionConfig {
   /** Разрешена ли запись в эту базу (POST/PATCH). По умолчанию false. */
   writable: boolean;
   accounting?: AccountingConfig;
+  capabilityProfile?: CapabilityProfile;
   /** Явное значение только для этой базы; иначе используется общая настройка. */
   regulatedCurrencyCode?: string;
 }
 
 export interface Behavior {
+  capabilityStateDir?: string;
+  capabilityIntervalMs?: number;
+  capabilityProbeLimit?: number;
   timeoutMs: number;
   retries: number;
   pageSize: number;
@@ -79,6 +84,9 @@ const CurrencyCodeSchema = z.preprocess(
 );
 
 const BehaviorSchema = z.object({
+  ODATA_CAPABILITY_STATE_DIR: z.string().min(1).optional(),
+  ODATA_CAPABILITY_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
+  ODATA_CAPABILITY_PROBE_LIMIT: z.coerce.number().int().min(0).max(10).default(3),
   ODATA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   ODATA_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
   ODATA_PAGE_SIZE: z.coerce.number().int().positive().max(5_000).default(100),
@@ -106,6 +114,7 @@ const JsonAccountingSchema = z.preprocess((value, ctx) => {
 
 const ConnSchema = z.object({
   accounting: JsonAccountingSchema,
+  capabilityProfile: JsonCapabilityProfileSchema,
   regulatedCurrencyCode: CurrencyCodeSchema,
   name: z.string().min(1),
   label: z.string().min(1).optional(),
@@ -134,6 +143,7 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       password: env[`ODATA_DB_${tag}_PASSWORD`],
       writable: env[`ODATA_DB_${tag}_WRITABLE`],
       regulatedCurrencyCode: env[`ODATA_DB_${tag}_REGULATED_CURRENCY_CODE`],
+      capabilityProfile: nonblank(env[`ODATA_DB_${tag}_CAPABILITY_PROFILE`]) ?? nonblank(env.ODATA_CAPABILITY_PROFILE),
       accounting: nonblank(env[`ODATA_DB_${tag}_ACCOUNTING_CONFIG`]) ?? nonblank(env.ODATA_ACCOUNTING_CONFIG),
     });
   }
@@ -148,6 +158,7 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       password: env.ODATA_PASSWORD,
       writable: env.ODATA_WRITABLE,
       accounting: nonblank(env.ODATA_ACCOUNTING_CONFIG),
+      capabilityProfile: nonblank(env.ODATA_CAPABILITY_PROFILE),
     });
   }
 
@@ -209,6 +220,9 @@ export function parseConfig(env: Env): RuntimeConfig {
     defaultName,
     logLevel: b.LOG_LEVEL,
     behavior: {
+      capabilityStateDir: resolve(b.ODATA_CAPABILITY_STATE_DIR ?? join(homedir(), ".1c-odata-mcp", "capabilities")),
+      capabilityIntervalMs: b.ODATA_CAPABILITY_INTERVAL_MS,
+      capabilityProbeLimit: b.ODATA_CAPABILITY_PROBE_LIMIT,
       timeoutMs: b.ODATA_TIMEOUT_MS,
       retries: b.ODATA_RETRIES,
       pageSize: b.ODATA_PAGE_SIZE,

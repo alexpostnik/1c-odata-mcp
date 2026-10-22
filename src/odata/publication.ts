@@ -9,7 +9,7 @@ import { resolveEntity } from "../config/mapping.js";
 export class NotPublishedError extends Error {
   readonly missing: Array<{ label: string; candidates: readonly string[] }>;
   constructor(missing: Array<{ label: string; candidates: readonly string[] }>) {
-    super("Требуемые объекты не опубликованы в OData");
+    super("Требуемые объекты не видны в доступной схеме OData");
     this.name = "NotPublishedError";
     this.missing = missing;
   }
@@ -40,8 +40,10 @@ export function ensurePublished(available: ReadonlySet<string>, entitySet: strin
 export function publicationHelp(missing: NotPublishedError["missing"]): string {
   const lines = missing.map((m) => `  • ${m.label} (${m.candidates.join(" или ")})`).join("\n");
   return (
-    "Эти объекты 1С не опубликованы в OData, поэтому операция недоступна. " +
-    "Добавьте их в 1С: «Все функции → Обработки → Настройка стандартного интерфейса OData → вкладка Состав», затем сохраните:\n" +
+    "Эти объекты не видны в доступной схеме OData; причина и наличие в конфигурации пока неизвестны. " +
+    "Установка MCP не меняет публикацию и роли 1С. Проверьте точные имена и версию конфигурации с администратором/поддержкой; " +
+    "если объекты реализованы и у вас есть административные права, проверьте «Все функции → Обработки → Настройка стандартного интерфейса OData → вкладка Состав». " +
+    "Права на публикацию и на чтение/запись данных различаются. Подробности: read.system.odata_capabilities.\n" +
     lines
   );
 }

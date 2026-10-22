@@ -1,3 +1,4 @@
+import { CapabilityMonitor } from "./capabilities/monitor.js";
 import type { Behavior, ConnectionConfig, RuntimeConfig } from "./config/env.js";
 import { ODataClient } from "./odata/client.js";
 import { ODataError } from "./odata/errors.js";
@@ -11,6 +12,7 @@ export class Connection {
   readonly cfg: ConnectionConfig;
   readonly behavior: Behavior;
   readonly client: ODataClient;
+  readonly capabilities: CapabilityMonitor;
   readonly regulatedCurrencySource: "database" | "global" | "default";
 
   constructor(cfg: ConnectionConfig, behavior: Behavior) {
@@ -23,6 +25,8 @@ export class Connection {
       ? "database"
       : (behavior.regulatedCurrencySource ?? (behavior.regulatedCurrencyCode ? "global" : "default"));
     this.client = new ODataClient(cfg, this.behavior);
+    this.capabilities = new CapabilityMonitor(cfg, this.behavior, this.client);
+    this.client.observeRequest = (input) => this.capabilities.observe(input);
   }
 
   getMetadata(): Promise<MetadataMap> {

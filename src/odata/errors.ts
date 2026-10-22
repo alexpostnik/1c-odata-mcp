@@ -18,6 +18,7 @@ export type ODataErrorKind =
 export class ODataError extends Error {
   readonly kind: ODataErrorKind;
   readonly status?: number;
+  readonly permissionDenied: boolean;
   readonly retryable: boolean;
   readonly url?: string;
 
@@ -25,6 +26,7 @@ export class ODataError extends Error {
     kind: ODataErrorKind;
     message: string;
     status?: number;
+    permissionDenied?: boolean;
     retryable?: boolean;
     url?: string;
     cause?: unknown;
@@ -33,6 +35,7 @@ export class ODataError extends Error {
     this.name = "ODataError";
     this.kind = opts.kind;
     this.status = opts.status;
+    this.permissionDenied = opts.permissionDenied ?? false;
     this.retryable = opts.retryable ?? RETRYABLE_DEFAULT[opts.kind];
     this.url = opts.url;
   }
@@ -57,6 +60,7 @@ export function fromHttpStatus(status: number, url: string, body?: string): ODat
     new ODataError({
       kind,
       status,
+      permissionDenied: !!detail && /Нарушение прав доступа/i.test(detail),
       url,
       message: detail ? `${msg}: ${detail}` : msg,
     });

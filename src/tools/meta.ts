@@ -69,6 +69,7 @@ export function registerMetaTools(server: McpServer, ctx: ServerContext): void {
           database: conn.cfg.name,
           label: conn.cfg.label,
           odataVersion: meta.odataVersion,
+          odataCapabilities: (await conn.capabilities?.status())?.summary,
           entityCount: meta.entities.size,
           baseUrl: conn.cfg.baseUrl,
           readOnly: conn.behavior.readOnly,

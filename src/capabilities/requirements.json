@@ -1,0 +1,5519 @@
+{
+  "schemaVersion": 1,
+  "revision": "0.10.0-1",
+  "sourceVersion": "0.10.0",
+  "sourceRef": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+  "definitions": {
+    "organizations": {
+      "target": [
+        "Catalog_Организации"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "ИНН"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/orgs.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/orgs.ts"
+      }
+    },
+    "counterparties.basic": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "counterparties.find": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "Code",
+        "ИНН",
+        "КПП",
+        "НаименованиеПолное",
+        "IsFolder",
+        "Parent_Key",
+        "DataVersion",
+        "DeletionMark"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "counterparties.hierarchy": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": {
+        "Ref_Key": "Edm.Guid",
+        "Parent_Key": "Edm.Guid",
+        "IsFolder": "Edm.Boolean",
+        "DeletionMark": "Edm.Boolean"
+      },
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/counterparty-hierarchy.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/counterparty-hierarchy.ts"
+      }
+    },
+    "contracts.roles": {
+      "target": [
+        "Catalog_ДоговорыКонтрагентов",
+        "Catalog_Договоры"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Owner_Key",
+        "ВидДоговора"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "accounting.chart": {
+      "target": [
+        "ChartOfAccounts_Хозрасчетный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Code",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "configurationOverride": "accounting.chart",
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "accounting.register": {
+      "target": [
+        "AccountingRegister_Хозрасчетный"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "Root register publication alone does not prove virtual-table functions or result schema.",
+      "configurationOverride": "accounting.register",
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "accounting.balance": {
+      "target": [
+        "AccountingRegister_Хозрасчетный"
+      ],
+      "kind": "function",
+      "fields": [
+        "Account_Key",
+        "СуммаBalanceDr",
+        "СуммаBalanceCr"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "Resource fields are result shape, not necessarily properties on register root metadata.",
+      "configurationOverride": "accounting.register",
+      "function": {
+        "name": "Balance",
+        "parameters": [
+          "Period (optional Edm.DateTime)"
+        ]
+      },
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "accounting.turnovers": {
+      "target": [
+        "AccountingRegister_Хозрасчетный"
+      ],
+      "kind": "function",
+      "fields": [
+        "Account_Key",
+        "СуммаOpeningBalanceDr",
+        "СуммаOpeningBalanceCr",
+        "СуммаTurnoverDr",
+        "СуммаTurnoverCr",
+        "СуммаClosingBalanceDr",
+        "СуммаClosingBalanceCr"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "",
+      "configurationOverride": "accounting.register",
+      "function": {
+        "name": "BalanceAndTurnovers",
+        "parameters": [
+          "StartPeriod",
+          "EndPeriod"
+        ]
+      },
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "accounting.movements": {
+      "target": [
+        "AccountingRegister_Хозрасчетный"
+      ],
+      "kind": "function",
+      "fields": [
+        "Period",
+        "AccountDr_Key",
+        "AccountCr_Key",
+        "Сумма",
+        "Recorder",
+        "Recorder_Type",
+        "LineNumber"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "",
+      "configurationOverride": "accounting.register",
+      "function": {
+        "name": "RecordsWithExtDimensions",
+        "parameters": [
+          "StartPeriod",
+          "EndPeriod"
+        ]
+      },
+      "conditionalFields": [
+        "Организация_Key when organization supplied",
+        "ExtDimensionDr1..3 / ExtDimensionCr1..3 and _Type for analytics filtering and naming"
+      ],
+      "optionalFields": [
+        "Active",
+        "Содержание"
+      ],
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "accounting.postingRecords": {
+      "target": [
+        "AccountingRegister_Хозрасчетный"
+      ],
+      "kind": "derivedEntityAlternatives",
+      "fields": [
+        "Recorder",
+        "Period",
+        "AccountDr_Key",
+        "AccountCr_Key",
+        "Сумма"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "Choose first candidate containing ALL required fields, not just first name present. recorderFilter casts ref to dynamic Document entity; source labels this LIVE-UNVERIFIED.",
+      "configurationOverride": "accounting.register",
+      "suffixAlternatives": [
+        "_RecordType",
+        ""
+      ],
+      "optionalFields": [
+        "Recorder_Type",
+        "LineNumber",
+        "Active",
+        "Организация_Key",
+        "КоличествоDr",
+        "КоличествоCr",
+        "ВалютнаяСуммаDr",
+        "ВалютнаяСуммаCr",
+        "ПодразделениеDr_Key",
+        "ПодразделениеCr_Key",
+        "Содержание",
+        "ExtDimensionDr1..n",
+        "ExtDimensionCr1..n",
+        "<dimension>_Type"
+      ],
+      "source": {
+        "path": "src/odata/accounting.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/accounting.ts"
+      }
+    },
+    "settlement.exact": {
+      "target": [
+        "InformationRegister_СчетаУчетаРасчетовСКонтрагентами"
+      ],
+      "kind": "entity",
+      "fields": {
+        "Организация_Key": "Edm.Guid",
+        "Контрагент_Key": "Edm.Guid",
+        "Договор_Key": "Edm.Guid",
+        "ВидРасчетовПоДоговору": "Edm.String"
+      },
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Организация_Key",
+        "Контрагент_Key",
+        "Договор_Key",
+        "ВидРасчетовПоДоговору"
+      ],
+      "notes": "Exactly four unique keys required; independent nonperiodic register. 404 on exact record means found=false, NOT missing publication.",
+      "forbiddenFields": [
+        "RecordSet",
+        "Recorder",
+        "Recorder_Key",
+        "Recorder_Type",
+        "Period"
+      ],
+      "source": {
+        "path": "src/odata/saved-settlement-settings.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/saved-settlement-settings.ts"
+      }
+    },
+    "settlement.resources": {
+      "target": [
+        "InformationRegister_СчетаУчетаРасчетовСКонтрагентами"
+      ],
+      "kind": "entity",
+      "fields": {
+        "СчетУчетаРасчетовСПокупателем_Key": "Edm.Guid",
+        "СчетУчетаАвансовПолученных_Key": "Edm.Guid",
+        "СчетУчетаРасчетовСПоставщиком_Key": "Edm.Guid",
+        "СчетУчетаАвансовВыданных_Key": "Edm.Guid"
+      },
+      "operations": [
+        "create",
+        "update"
+      ],
+      "keys": [
+        "Организация_Key",
+        "Контрагент_Key",
+        "Договор_Key",
+        "ВидРасчетовПоДоговору"
+      ],
+      "notes": "Only selected accounts input resources required, not all four for every call. update DataVersion:string when published, otherwise singleWriter=true. No deletion operation.",
+      "source": {
+        "path": "src/odata/saved-settlement-settings.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/saved-settlement-settings.ts"
+      }
+    },
+    "contracts.settlement": {
+      "target": [
+        "Catalog_ДоговорыКонтрагентов",
+        "Catalog_Договоры"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Owner_Key",
+        "Организация_Key",
+        "ВидДоговора",
+        "ВалютаВзаиморасчетов_Key",
+        "РасчетыВУсловныхЕдиницах",
+        "DeletionMark",
+        "IsFolder"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/settlement-accounts.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/settlement-accounts.ts"
+      }
+    },
+    "currencies.code": {
+      "target": [
+        "Catalog_Валюты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Code"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "nomenclature.accounts": {
+      "target": [
+        "InformationRegister_СчетаУчетаНоменклатуры"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Организация_Key",
+        "Номенклатура_Key",
+        "ВидНоменклатуры_Key",
+        "СчетУчета_Key",
+        "СчетУчетаНДСПоПриобретеннымЦенностям_Key",
+        "СчетУчетаНДСПоРеализации_Key",
+        "СчетДоходовОтРеализации_Key",
+        "СчетРасходовОтРеализации_Key"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "Optional enrichment, absent registry falls back to account codes; do not make mandatory."
+    },
+    "contact.kinds": {
+      "target": [
+        "Catalog_ВидыКонтактнойИнформации"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "IsFolder",
+        "Parent_Key",
+        "Тип"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/refdata.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/refdata.ts"
+      }
+    },
+    "contact.additionalProperties": {
+      "target": [
+        "ChartOfCharacteristicTypes_ДополнительныеРеквизитыИСведения"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/refdata.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/refdata.ts"
+      }
+    },
+    "warehouses.lookup": {
+      "target": [
+        "Catalog_Склады",
+        "Catalog_СкладыМеста"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/write.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts"
+      }
+    },
+    "bankAccounts.lookup": {
+      "target": [
+        "Catalog_БанковскиеСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "НомерСчета",
+        "Owner",
+        "Owner_Type",
+        "DeletionMark"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "orgBankAccounts catches failed reads and returns empty; missing optional bank catalog does not make all tools unavailable; explicit name lookup may still fail input resolution.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts"
+      }
+    },
+    "cashflowItems.lookup": {
+      "target": [
+        "Catalog_СтатьиДвиженияДенежныхСредств"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Code",
+        "Description",
+        "IsFolder"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/odata/refilters.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/refilters.ts"
+      }
+    },
+    "DOCUMENTS.sales.read": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.purchases.read": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.customerInvoice.read": {
+      "target": [
+        "Document_СчетНаОплатуПокупателю",
+        "Document_СчетПокупателю"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.supplierInvoice.read": {
+      "target": [
+        "Document_СчетНаОплатуПоставщика"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.bankIn.read": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.bankOut.read": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.cashIn.read": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.cashOut.read": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.paymentOrder.read": {
+      "target": [
+        "Document_ПлатежноеПоручение"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.issuedInvoice.read": {
+      "target": [
+        "Document_СчетФактураВыданный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.receivedInvoice.read": {
+      "target": [
+        "Document_СчетФактураПолученный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.servicesAct.read": {
+      "target": [
+        "Document_АктОбОказанииПроизводственныхУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.returnFromCustomer.read": {
+      "target": [
+        "Document_ВозвратТоваровОтПокупателя"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.returnToSupplier.read": {
+      "target": [
+        "Document_ВозвратТоваровПоставщику"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.transfer.read": {
+      "target": [
+        "Document_ПеремещениеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.surplus.read": {
+      "target": [
+        "Document_ОприходованиеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.writeoff.read": {
+      "target": [
+        "Document_СписаниеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "DOCUMENTS.inventory.read": {
+      "target": [
+        "Document_ИнвентаризацияТоваровНаСкладе"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Exact per-tool read select/filter fields augment this common document shape."
+    },
+    "invoicePayments": {
+      "target": [
+        "AccumulationRegister_ОплатаСчетов_RecordType"
+      ],
+      "kind": "entity",
+      "fields": [
+        "СчетНаОплату",
+        "Сумма",
+        "Active",
+        "Period"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [],
+      "notes": "",
+      "conditionalFields": [
+        "Организация_Key if organization"
+      ],
+      "source": {
+        "path": "src/tools/debts.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/debts.ts"
+      }
+    },
+    "write.counterparty.create_counterparty.target": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description",
+        "ЮридическоеФизическоеЛицо"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.catalog.create_nomenclature.target": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.catalog.create_contract.target": {
+      "target": [
+        "Catalog_ДоговорыКонтрагентов",
+        "Catalog_Договоры"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description",
+        "Номер",
+        "Дата",
+        "Owner_Key",
+        "ВидДоговора",
+        "Организация_Key"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.sales.create_invoice.target": {
+      "target": [
+        "Document_СчетНаОплатуПокупателю",
+        "Document_СчетПокупателю"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.purchase.create_purchase.target": {
+      "target": [
+        "Document_ПоступлениеТоваровУслуг",
+        "Document_ПоступлениеТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.purchase.create_supplier_invoice.target": {
+      "target": [
+        "Document_СчетНаОплатуПоставщика"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.money.create_payout_order.target": {
+      "target": [
+        "Document_ПлатежноеПоручение"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент",
+        "Контрагент_Type",
+        "СуммаДокумента",
+        "СтавкаНДС",
+        "ВидОперации",
+        "ОчередностьПлатежа",
+        "ТекстПлательщика"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.sales.create_shipment.target": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_return_from_customer.target": {
+      "target": [
+        "Document_ВозвратТоваровОтПокупателя"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_return_to_supplier.target": {
+      "target": [
+        "Document_ВозвратТоваровПоставщику"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_transfer.target": {
+      "target": [
+        "Document_ПеремещениеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_surplus.target": {
+      "target": [
+        "Document_ОприходованиеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_writeoff.target": {
+      "target": [
+        "Document_СписаниеТоваров"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "СуммаДокумента",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.warehouse.create_inventory.target": {
+      "target": [
+        "Document_ИнвентаризацияТоваровНаСкладе"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Товары"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.sales.create_act.target": {
+      "target": [
+        "Document_РеализацияТоваровУслуг",
+        "Document_РеализацияТоваровИУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидОперации",
+        "Организация_Key",
+        "Контрагент_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Услуги"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.sales.create_services_act.target": {
+      "target": [
+        "Document_АктОбОказанииПроизводственныхУслуг"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "Организация_Key",
+        "Контрагент_Key",
+        "НоменклатурнаяГруппа_Key",
+        "СуммаВключаетНДС",
+        "СуммаДокумента",
+        "Услуги"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.money.create_payment.target": {
+      "target": [
+        "Document_ПоступлениеНаРасчетныйСчет"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидОперации",
+        "Организация_Key",
+        "Контрагент",
+        "СуммаДокумента",
+        "РасшифровкаПлатежа"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.money.create_bank_writeoff.target": {
+      "target": [
+        "Document_СписаниеСРасчетногоСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидОперации",
+        "Организация_Key",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.money.create_cash_receipt.target": {
+      "target": [
+        "Document_ПриходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидОперации",
+        "Организация_Key",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.money.create_cash_payment.target": {
+      "target": [
+        "Document_РасходныйКассовыйОрдер"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидОперации",
+        "Организация_Key",
+        "СуммаДокумента"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.sales.create_issued_invoice.target": {
+      "target": [
+        "Document_СчетФактураВыданный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидСчетаФактуры",
+        "Организация_Key",
+        "Контрагент_Key",
+        "ДокументОснование",
+        "ДокументОснование_Type",
+        "КодВидаОперации",
+        "СуммаДокумента",
+        "СуммаНДСДокумента",
+        "ДокументыОснования"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.purchase.create_received_invoice.target": {
+      "target": [
+        "Document_СчетФактураПолученный"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Date",
+        "Posted",
+        "ВидСчетаФактуры",
+        "Организация_Key",
+        "Контрагент_Key",
+        "ДокументОснование",
+        "ДокументОснование_Type",
+        "КодВидаОперации",
+        "СуммаДокумента",
+        "СуммаНДСДокумента",
+        "ДокументыОснования"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.counterparty.create_bank_account.target": {
+      "target": [
+        "Catalog_БанковскиеСчета"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description",
+        "Owner",
+        "Owner_Type",
+        "НомерСчета",
+        "Банк_Key",
+        "ВалютаДенежныхСредств_Key"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "write.counterparty.create_contact_person.target": {
+      "target": [
+        "Catalog_КонтактныеЛица"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Description",
+        "ОбъектВладелец",
+        "ОбъектВладелец_Type"
+      ],
+      "operations": [
+        "create"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": "Concrete payload field facts attached to tool; only supplied optional fields are required for that invocation."
+    },
+    "banks.lookup": {
+      "target": [
+        "Catalog_Банки"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Code",
+        "IsFolder",
+        "Ref_Key",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "currencies.lookup": {
+      "target": [
+        "Catalog_Валюты"
+      ],
+      "kind": "entity",
+      "fields": [
+        "Ref_Key",
+        "Code",
+        "Description"
+      ],
+      "operations": [
+        "read"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "write.counterparty.update_counterparty.target": {
+      "target": [
+        "Catalog_Контрагенты"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "operations": [
+        "update"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "write.catalog.update_nomenclature.target": {
+      "target": [
+        "Catalog_Номенклатура"
+      ],
+      "kind": "entity",
+      "fields": [],
+      "operations": [
+        "update"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "notes": ""
+    },
+    "contracts.autofill": {
+      "target": [
+        "Catalog_ДоговорыКонтрагентов",
+        "Catalog_Договоры"
+      ],
+      "fields": [
+        "Ref_Key",
+        "Description",
+        "Owner_Key",
+        "ВидДоговора",
+        "DeletionMark",
+        "Организация_Key"
+      ],
+      "keys": [
+        "Ref_Key"
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Only when contract absent and target listed in CONTRACT_KIND_BY_DOC. No published contracts => no lookup.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts"
+      }
+    },
+    "settlement.lookup": {
+      "target": [
+        "InformationRegister_СчетаУчетаРасчетовСКонтрагентами"
+      ],
+      "fields": [
+        "Организация_Key",
+        "Контрагент_Key",
+        "Договор_Key",
+        "ВидРасчетовПоДоговору",
+        "СчетУчетаРасчетовСПокупателем_Key",
+        "СчетУчетаАвансовПолученных_Key",
+        "СчетУчетаРасчетовСПоставщиком_Key",
+        "СчетУчетаАвансовВыданных_Key"
+      ],
+      "keys": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Legacy create lookup reads whole register rows after bounded filter. Does NOT require exact 4-key schema. Missing => fallback. Resources relevant to selected side; groups followed only mutation path.",
+      "source": {
+        "path": "src/odata/settlement-accounts.ts",
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/odata/settlement-accounts.ts"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "read.system.list_databases",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [],
+      "notes": "Local configured connection names; no OData request or metadata required.",
+      "localOnly": true,
+      "source": {
+        "path": "src/tools/meta.ts",
+        "line": 34,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/meta.ts#L34"
+      }
+    },
+    {
+      "name": "read.system.health_check",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "getMetadata may return cache. health_check also reads local write-journal summary.",
+      "noDataRead": true,
+      "source": {
+        "path": "src/tools/meta.ts",
+        "line": 51,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/meta.ts#L51"
+      }
+    },
+    {
+      "name": "read.system.list_organizations",
+      "required": [
+        "organizations"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/meta.ts",
+        "line": 99,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/meta.ts#L99"
+      }
+    },
+    {
+      "name": "read.schema.list_entities",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "getMetadata may return cache. health_check also reads local write-journal summary.",
+      "noDataRead": true,
+      "source": {
+        "path": "src/tools/meta.ts",
+        "line": 117,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/meta.ts#L117"
+      }
+    },
+    {
+      "name": "read.schema.describe_entity",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "metadata"
+          ],
+          "when": "describe_entity only; resolved from metadata map without data GET"
+        }
+      ],
+      "operations": [
+        "metadata"
+      ],
+      "notes": "getMetadata may return cache. health_check also reads local write-journal summary.",
+      "noDataRead": true,
+      "source": {
+        "path": "src/tools/meta.ts",
+        "line": 161,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/meta.ts#L161"
+      }
+    },
+    {
+      "name": "read.counterparty.find_counterparty",
+      "required": [
+        "counterparties.find"
+      ],
+      "conditional": [],
+      "optional": [
+        "contracts.roles"
+      ],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Counterparty roles use contracts if published; missing contracts yields no role enrichment.",
+      "source": {
+        "path": "src/tools/counterparties.ts",
+        "line": 90,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparties.ts#L90"
+      }
+    },
+    {
+      "name": "read.counterparty.get_counterparty",
+      "required": [
+        "counterparties.basic"
+      ],
+      "conditional": [],
+      "optional": [
+        "contracts.roles"
+      ],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "GET exact counterparty without select; roles optional; actual catalog key Ref_Key required.",
+      "source": {
+        "path": "src/tools/counterparties.ts",
+        "line": 159,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparties.ts#L159"
+      }
+    },
+    {
+      "name": "read.counterparty.get_customer_history",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_РеализацияТоваровУслуг",
+              "Document_РеализацияТоваровИУслуг"
+            ],
+            [
+              "Document_СчетНаОплатуПокупателю",
+              "Document_СчетПокупателю"
+            ]
+          ],
+          "combination": "all published candidates independently",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Контрагент_Key",
+            "Date"
+          ],
+          "conditionalFields": [
+            "Организация_Key when organization supplied"
+          ],
+          "orderBy": "Date desc"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Counterparty ref used in document filter; does not itself read counterparty catalog.",
+      "source": {
+        "path": "src/tools/counterparties.ts",
+        "line": 244,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparties.ts#L244"
+      }
+    },
+    {
+      "name": "read.counterparty.get_supplier_history",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_ПоступлениеТоваровУслуг",
+              "Document_ПоступлениеТоваровИУслуг"
+            ]
+          ],
+          "combination": "all published candidates independently",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Контрагент_Key",
+            "Date"
+          ],
+          "conditionalFields": [
+            "Организация_Key when organization supplied"
+          ],
+          "orderBy": "Date desc"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Counterparty ref used in document filter; does not itself read counterparty catalog.",
+      "source": {
+        "path": "src/tools/counterparties.ts",
+        "line": 278,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparties.ts#L278"
+      }
+    },
+    {
+      "name": "read.document.search_documents",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Date"
+          ],
+          "conditionalFields": [
+            "Posted if postedOnly",
+            "СуммаДокумента if minAmount",
+            "Организация_Key if organization",
+            "Контрагент_Key or Контрагент if counterpartyRef"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "GET collection without select; typed counterparty server filter or polymorphic client filter; no field => warns filter ignored.",
+      "source": {
+        "path": "src/tools/documents.ts",
+        "line": 29,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/documents.ts#L29"
+      }
+    },
+    {
+      "name": "read.document.get_document",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [],
+          "representation": "full entity including nested rows"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/documents.ts",
+        "line": 110,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/documents.ts#L110"
+      }
+    },
+    {
+      "name": "read.analytics.get_sales",
+      "required": [
+        "DOCUMENTS.sales.read"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Iterates all published sales candidates; at least one required, no counterparty or accounting register dependency.",
+      "source": {
+        "path": "src/tools/registers.ts",
+        "line": 453,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/registers.ts#L453"
+      }
+    },
+    {
+      "name": "read.analytics.get_cashflow",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_ПоступлениеНаРасчетныйСчет"
+            ],
+            [
+              "Document_СписаниеСРасчетногоСчета"
+            ],
+            [
+              "Document_ПриходныйКассовыйОрдер"
+            ],
+            [
+              "Document_РасходныйКассовыйОрдер"
+            ]
+          ],
+          "combination": "at least one published of all bank/cash candidates",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/registers.ts",
+        "line": 489,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/registers.ts#L489"
+      }
+    },
+    {
+      "name": "read.accounting.get_account_turnover",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.turnovers"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/registers.ts",
+        "line": 532,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/registers.ts#L532"
+      }
+    },
+    {
+      "name": "read.accounting.get_document_postings",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.postingRecords"
+      ],
+      "conditional": [],
+      "optional": [
+        "organizations"
+      ],
+      "dynamic": [
+        {
+          "argument": "documentEntity",
+          "class": "document",
+          "notTabularRow": true,
+          "keys": [
+            "Ref_Key"
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key"
+          ],
+          "optionalFields": [
+            "Number",
+            "Date",
+            "Posted",
+            "DeletionMark",
+            "Организация_Key",
+            "ВидОперации",
+            "Состояние",
+            "Комментарий"
+          ]
+        },
+        {
+          "from": "postings ExtDimension*_Type",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "purpose": "optional naming"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/registers.ts",
+        "line": 607,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/registers.ts#L607"
+      }
+    },
+    {
+      "name": "read.analytics.get_inventory",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "purpose": "optional name enrichment"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Does NOT read stock accumulation registers from config mapping.",
+      "resultFields": [
+        "ExtDimension1",
+        "КоличествоBalanceDr",
+        "КоличествоBalanceCr",
+        "СуммаBalanceDr",
+        "СуммаBalanceCr"
+      ],
+      "source": {
+        "path": "src/tools/registers.ts",
+        "line": 641,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/registers.ts#L641"
+      }
+    },
+    {
+      "name": "read.analytics.get_debtors",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic"
+      ],
+      "dynamic": [
+        {
+          "from": "Balance ExtDimension1..3_Type",
+          "when": "aging=true and positive debt rows",
+          "operations": [
+            "read"
+          ],
+          "purpose": "document dates/number, contract names and terms",
+          "documentFields": [
+            "Ref_Key",
+            "Date",
+            "Number"
+          ],
+          "contractFields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "conditionalFields": [
+            "УстановленСрокОплаты + СрокОплаты when both present"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "resultFields": [
+        "Account_Key",
+        "ExtDimension1..3",
+        "ExtDimension1..3_Type",
+        "СуммаBalanceDr",
+        "СуммаBalanceCr"
+      ],
+      "source": {
+        "path": "src/tools/debts.ts",
+        "line": 352,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/debts.ts#L352"
+      }
+    },
+    {
+      "name": "read.analytics.get_creditors",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic"
+      ],
+      "dynamic": [
+        {
+          "from": "Balance ExtDimension1..3_Type",
+          "when": "aging=true and positive debt rows",
+          "operations": [
+            "read"
+          ],
+          "purpose": "document dates/number, contract names and terms",
+          "documentFields": [
+            "Ref_Key",
+            "Date",
+            "Number"
+          ],
+          "contractFields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "conditionalFields": [
+            "УстановленСрокОплаты + СрокОплаты when both present"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "resultFields": [
+        "Account_Key",
+        "ExtDimension1..3",
+        "ExtDimension1..3_Type",
+        "СуммаBalanceDr",
+        "СуммаBalanceCr"
+      ],
+      "source": {
+        "path": "src/tools/debts.ts",
+        "line": 352,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/debts.ts#L352"
+      }
+    },
+    {
+      "name": "read.analytics.get_unpaid_invoices",
+      "required": [
+        "DOCUMENTS.customerInvoice.read",
+        "invoicePayments",
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        {
+          "target": [
+            "Document_РеализацияТоваровУслуг",
+            "Document_РеализацияТоваровИУслуг"
+          ],
+          "when": "СчетНаОплатуПокупателю_Key present",
+          "fields": [
+            "Posted",
+            "Date",
+            "СуммаДокумента",
+            "СчетНаОплатуПокупателю_Key"
+          ]
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Customer invoice fields Ref_Key,Number,Date,Контрагент_Key,СуммаДокумента,DeletionMark; current customer balance always read.",
+      "source": {
+        "path": "src/tools/debts.ts",
+        "line": 740,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/debts.ts#L740"
+      }
+    },
+    {
+      "name": "read.analytics.get_cash_balance",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "currencies.code"
+      ],
+      "dynamic": [
+        {
+          "from": "Balance ExtDimension1_Type and currency references",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "purpose": "holder/currency naming"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "resultFields": [
+        "Account_Key",
+        "ExtDimension1",
+        "ExtDimension1_Type",
+        "Валюта_Key",
+        "СуммаBalanceDr",
+        "СуммаBalanceCr",
+        "ВалютнаяСуммаBalanceDr",
+        "ВалютнаяСуммаBalanceCr"
+      ],
+      "source": {
+        "path": "src/tools/debts.ts",
+        "line": 771,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/debts.ts#L771"
+      }
+    },
+    {
+      "name": "read.accounting.check_month_close",
+      "required": [
+        "organizations",
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance"
+      ],
+      "conditional": [],
+      "optional": [
+        {
+          "target": [
+            "Document_РегламентнаяОперация"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Date",
+            "Организация_Key",
+            "ВидОперации",
+            "Состояние",
+            "Posted",
+            "DeletionMark"
+          ],
+          "purpose": "closing/earlierMonth checks; missing=>skipped"
+        },
+        "accounting.postingRecords",
+        {
+          "candidateGroups": [
+            [
+              "Document_РеализацияТоваровУслуг",
+              "Document_РеализацияТоваровИУслуг"
+            ],
+            [
+              "Document_ПоступлениеТоваровУслуг",
+              "Document_ПоступлениеТоваровИУслуг"
+            ],
+            [
+              "Document_ПоступлениеНаРасчетныйСчет"
+            ],
+            [
+              "Document_СписаниеСРасчетногоСчета"
+            ],
+            [
+              "Document_ПриходныйКассовыйОрдер"
+            ],
+            [
+              "Document_РасходныйКассовыйОрдер"
+            ],
+            [
+              "Document_СчетФактураВыданный"
+            ],
+            [
+              "Document_СчетФактураПолученный"
+            ],
+            [
+              "Document_АктОбОказанииПроизводственныхУслуг"
+            ],
+            [
+              "Document_ВозвратТоваровОтПокупателя"
+            ],
+            [
+              "Document_ВозвратТоваровПоставщику"
+            ],
+            [
+              "Document_ПеремещениеТоваров"
+            ],
+            [
+              "Document_ОприходованиеТоваров"
+            ],
+            [
+              "Document_СписаниеТоваров"
+            ]
+          ],
+          "fields": [
+            "Ref_Key",
+            "Number",
+            "Date",
+            "Posted",
+            "DeletionMark"
+          ],
+          "purpose": "unposted check per published type"
+        },
+        "DOCUMENTS.sales.read",
+        "DOCUMENTS.issuedInvoice.read",
+        "counterparties.basic"
+      ],
+      "dynamic": [
+        {
+          "from": "balance ExtDimension*_Type and accounting Recorder_Type",
+          "operations": [
+            "read"
+          ],
+          "purpose": "names and late document headers"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Individual checks can be skipped/unsupported. Optional VAT check needs sales + issued invoice basis links, not supplier invoices.",
+      "source": {
+        "path": "src/tools/month-close.ts",
+        "line": 960,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/month-close.ts#L960"
+      }
+    },
+    {
+      "name": "read.accounting.get_account_card",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance",
+        "accounting.movements"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles"
+      ],
+      "dynamic": [
+        {
+          "from": "movement Recorder_Type / ExtDimensionDr1..3_Type / ExtDimensionCr1..3_Type",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "documentFields": [
+            "Ref_Key",
+            "Number",
+            "Date"
+          ],
+          "purpose": "optional result naming"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/card.ts",
+        "line": 670,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/card.ts#L670"
+      }
+    },
+    {
+      "name": "read.accounting.get_balance_origin",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance",
+        "accounting.movements"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles"
+      ],
+      "dynamic": [
+        {
+          "from": "movement Recorder_Type / ExtDimensionDr1..3_Type / ExtDimensionCr1..3_Type",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "documentFields": [
+            "Ref_Key",
+            "Number",
+            "Date"
+          ],
+          "purpose": "optional result naming"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/card.ts",
+        "line": 720,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/card.ts#L720"
+      }
+    },
+    {
+      "name": "read.counterparty.get_reconciliation",
+      "required": [
+        "accounting.chart",
+        "accounting.register",
+        "accounting.balance",
+        "accounting.movements"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles"
+      ],
+      "dynamic": [
+        {
+          "from": "movement Recorder_Type / ExtDimensionDr1..3_Type / ExtDimensionCr1..3_Type",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "documentFields": [
+            "Ref_Key",
+            "Number",
+            "Date"
+          ],
+          "purpose": "optional result naming"
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/card.ts",
+        "line": 766,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/card.ts#L766"
+      }
+    },
+    {
+      "name": "read.analytics.get_payments_breakdown",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        },
+        {
+          "requirement": "cashflowItems.lookup",
+          "when": "cashflowItem argument supplied (cashflow tools)"
+        },
+        {
+          "requirement": "counterparties.basic",
+          "when": "counterpartyKind argument supplied (with category-specific fields; see categoryFields)"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles",
+        "cashflowItems.lookup"
+      ],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_ПоступлениеНаРасчетныйСчет"
+            ],
+            [
+              "Document_СписаниеСРасчетногоСчета"
+            ],
+            [
+              "Document_ПриходныйКассовыйОрдер"
+            ],
+            [
+              "Document_РасходныйКассовыйОрдер"
+            ]
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "Number for deal history",
+            "Контрагент_Key + ДоговорКонтрагента_Key always selected for sales/purchases breakdown",
+            "ВидОперации required for taxes",
+            "НазначениеПлатежа if purposeContains/dealKey",
+            "ДоговорКонтрагента_Key if contractRef",
+            "СтатьяДвиженияДенежныхСредств_Key if cashflowItem"
+          ],
+          "optionalFields": [
+            "Контрагент_Key or Контрагент",
+            "ВидОперации",
+            "СтатьяДвиженияДенежныхСредств_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Independent published types read; no accounting chart/register dependency. Metadata absence of category catalog currently returns empty set, must not claim actual no data.",
+      "source": {
+        "path": "src/tools/cashflow.ts",
+        "line": 69,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/cashflow.ts#L69"
+      }
+    },
+    {
+      "name": "read.analytics.get_deal_history",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        },
+        {
+          "requirement": "cashflowItems.lookup",
+          "when": "cashflowItem argument supplied (cashflow tools)"
+        },
+        {
+          "requirement": "counterparties.basic",
+          "when": "counterpartyKind argument supplied (with category-specific fields; see categoryFields)"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles",
+        "cashflowItems.lookup"
+      ],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_ПоступлениеНаРасчетныйСчет"
+            ],
+            [
+              "Document_СписаниеСРасчетногоСчета"
+            ],
+            [
+              "Document_ПриходныйКассовыйОрдер"
+            ],
+            [
+              "Document_РасходныйКассовыйОрдер"
+            ]
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "Number for deal history",
+            "Контрагент_Key + ДоговорКонтрагента_Key always selected for sales/purchases breakdown",
+            "ВидОперации required for taxes",
+            "НазначениеПлатежа if purposeContains/dealKey",
+            "ДоговорКонтрагента_Key if contractRef",
+            "СтатьяДвиженияДенежныхСредств_Key if cashflowItem"
+          ],
+          "optionalFields": [
+            "Контрагент_Key or Контрагент",
+            "ВидОперации",
+            "СтатьяДвиженияДенежныхСредств_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Independent published types read; no accounting chart/register dependency. Metadata absence of category catalog currently returns empty set, must not claim actual no data.",
+      "source": {
+        "path": "src/tools/cashflow.ts",
+        "line": 308,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/cashflow.ts#L308"
+      }
+    },
+    {
+      "name": "read.analytics.get_taxes_paid",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        },
+        {
+          "requirement": "cashflowItems.lookup",
+          "when": "cashflowItem argument supplied (cashflow tools)"
+        },
+        {
+          "requirement": "counterparties.basic",
+          "when": "counterpartyKind argument supplied (with category-specific fields; see categoryFields)"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles",
+        "cashflowItems.lookup"
+      ],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_СписаниеСРасчетногоСчета"
+            ],
+            [
+              "Document_ПлатежноеПоручение"
+            ]
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "Number for deal history",
+            "Контрагент_Key + ДоговорКонтрагента_Key always selected for sales/purchases breakdown",
+            "ВидОперации required for taxes",
+            "НазначениеПлатежа if purposeContains/dealKey",
+            "ДоговорКонтрагента_Key if contractRef",
+            "СтатьяДвиженияДенежныхСредств_Key if cashflowItem"
+          ],
+          "optionalFields": [
+            "Контрагент_Key or Контрагент",
+            "ВидОперации",
+            "СтатьяДвиженияДенежныхСредств_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Independent published types read; no accounting chart/register dependency. Metadata absence of category catalog currently returns empty set, must not claim actual no data.",
+      "source": {
+        "path": "src/tools/cashflow.ts",
+        "line": 469,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/cashflow.ts#L469"
+      }
+    },
+    {
+      "name": "read.analytics.get_sales_breakdown",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        },
+        {
+          "requirement": "cashflowItems.lookup",
+          "when": "cashflowItem argument supplied (cashflow tools)"
+        },
+        {
+          "requirement": "counterparties.basic",
+          "when": "counterpartyKind argument supplied (with category-specific fields; see categoryFields)"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles",
+        "cashflowItems.lookup"
+      ],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_РеализацияТоваровУслуг",
+              "Document_РеализацияТоваровИУслуг"
+            ]
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "Number for deal history",
+            "Контрагент_Key + ДоговорКонтрагента_Key always selected for sales/purchases breakdown",
+            "ВидОперации required for taxes",
+            "НазначениеПлатежа if purposeContains/dealKey",
+            "ДоговорКонтрагента_Key if contractRef",
+            "СтатьяДвиженияДенежныхСредств_Key if cashflowItem"
+          ],
+          "optionalFields": [
+            "Контрагент_Key or Контрагент",
+            "ВидОперации",
+            "СтатьяДвиженияДенежныхСредств_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Independent published types read; no accounting chart/register dependency. Metadata absence of category catalog currently returns empty set, must not claim actual no data.",
+      "source": {
+        "path": "src/tools/sales.ts",
+        "line": 172,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/sales.ts#L172"
+      }
+    },
+    {
+      "name": "read.analytics.get_purchases_breakdown",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organization argument supplied; resolveOrganization reads full list even if GUID input"
+        },
+        {
+          "requirement": "cashflowItems.lookup",
+          "when": "cashflowItem argument supplied (cashflow tools)"
+        },
+        {
+          "requirement": "counterparties.basic",
+          "when": "counterpartyKind argument supplied (with category-specific fields; see categoryFields)"
+        }
+      ],
+      "optional": [
+        "counterparties.basic",
+        "contracts.roles",
+        "cashflowItems.lookup"
+      ],
+      "dynamic": [
+        {
+          "candidateGroups": [
+            [
+              "Document_ПоступлениеТоваровУслуг",
+              "Document_ПоступлениеТоваровИУслуг"
+            ]
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Date",
+            "Posted",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "Number for deal history",
+            "Контрагент_Key + ДоговорКонтрагента_Key always selected for sales/purchases breakdown",
+            "ВидОперации required for taxes",
+            "НазначениеПлатежа if purposeContains/dealKey",
+            "ДоговорКонтрагента_Key if contractRef",
+            "СтатьяДвиженияДенежныхСредств_Key if cashflowItem"
+          ],
+          "optionalFields": [
+            "Контрагент_Key or Контрагент",
+            "ВидОперации",
+            "СтатьяДвиженияДенежныхСредств_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Independent published types read; no accounting chart/register dependency. Metadata absence of category catalog currently returns empty set, must not claim actual no data.",
+      "source": {
+        "path": "src/tools/sales.ts",
+        "line": 191,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/sales.ts#L191"
+      }
+    },
+    {
+      "name": "read.organization.get_organization_card",
+      "required": [
+        "organizations"
+      ],
+      "conditional": [],
+      "optional": [
+        "contact.kinds",
+        "bankAccounts.lookup",
+        "currencies.code",
+        {
+          "target": [
+            "Catalog_Банки"
+          ],
+          "fields": [
+            "Description",
+            "Code"
+          ]
+        },
+        {
+          "target": [
+            "InformationRegister_ОтветственныеЛицаОрганизаций",
+            "InformationRegister_ОтветственныеЛицаОрганизации"
+          ],
+          "fields": [
+            "Организация_Key"
+          ],
+          "dynamicFields": [
+            "non-key /Вид/i kind",
+            "/ФизическоеЛицо|Сотрудник/ _Key or /ФИО/ text",
+            "Period optional"
+          ],
+          "purpose": "director/accountant enrichment; unknown schema=>note"
+        },
+        {
+          "target": [
+            "Catalog_ФизическиеЛица"
+          ],
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ],
+          "purpose": "optional name enrichment"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Full organization entity GET; optional contacts/bank/director do not block core card. Belarus selected register has СтруктурнаяЕдиница, ОтветственноеЛицо keys; cannot infer compatible role fields from name alone.",
+      "source": {
+        "path": "src/tools/organization.ts",
+        "line": 133,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/organization.ts#L133"
+      }
+    },
+    {
+      "name": "read.audit.get_document_history",
+      "required": [],
+      "conditional": [],
+      "optional": [
+        "organizations",
+        {
+          "target": [
+            "Catalog_Пользователи"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description"
+          ]
+        },
+        "accounting.postingRecords"
+      ],
+      "dynamic": [
+        {
+          "argument": "documentEntity",
+          "operations": [
+            "read"
+          ],
+          "class": "document",
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Ref_Key"
+          ],
+          "optionalFields": [
+            "Number",
+            "Date",
+            "Posted",
+            "DeletionMark",
+            "Организация_Key",
+            "ВидОперации",
+            "Состояние",
+            "Комментарий",
+            "Ответственный_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read"
+      ],
+      "notes": "Audit movements optional top=1; unsupported/error preserved without blocking header. UUID creation timestamp derived locally, not audit log.",
+      "source": {
+        "path": "src/tools/audit.ts",
+        "line": 383,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/audit.ts#L383"
+      }
+    },
+    {
+      "name": "write.operation.status",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "from": "local journal entry.entitySet / check.recordPath",
+          "when": "entry outcome unresolved and check supports read reconciliation",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key for assigned ref",
+            "record fields chosen by check",
+            "Комментарий + Ref_Key + Number or Code for legacy marker search"
+          ]
+        }
+      ],
+      "operations": [
+        "local-journal-read",
+        "conditional-read",
+        "local-journal-update"
+      ],
+      "notes": "Never calls Create/Post/PATCH. Missing/prepared/succeeded/rejected/manual document-state branches can return locally. Do not declare create right required.",
+      "localOnly": false,
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1515,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1515"
+      }
+    },
+    {
+      "name": "write.counterparty.create_counterparty",
+      "required": [
+        "write.counterparty.create_counterparty.target"
+      ],
+      "conditional": [],
+      "optional": [
+        {
+          "requirement": "contact.kinds",
+          "when": "phone/email/address supplied"
+        },
+        {
+          "requirement": "contact.additionalProperties",
+          "when": "ogrn supplied"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1739,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1739"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Description",
+          "ЮридическоеФизическоеЛицо"
+        ],
+        "conditionalSent": {
+          "ИНН": "inn",
+          "КПП": "kpp",
+          "НаименованиеПолное": "fullName",
+          "КонтактнаяИнформация": "phone/email/address with matching kind; else notes",
+          "ДополнительныеРеквизиты": "ogrn and additional property exists"
+        },
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.entity.mark_for_deletion",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "DeletionMark"
+          ]
+        }
+      ],
+      "operations": [
+        "update"
+      ],
+      "notes": "Dynamic target must be evaluated per input; metadata existence is not permission. No automatic mutation probes.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1782,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1782"
+      }
+    },
+    {
+      "name": "write.catalog.create_nomenclature",
+      "required": [
+        "write.catalog.create_nomenclature.target"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "from": "same target catalog",
+          "when": "folder/parent supplied as name rather than GUID",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description",
+            "IsFolder"
+          ]
+        }
+      ],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1824,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1824"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Description"
+        ],
+        "conditionalSent": {
+          "НаименованиеПолное": "fullName",
+          "Артикул": "article",
+          "Parent_Key": "folder resolved",
+          "Услуга": "isService=true"
+        },
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.catalog.create_contract",
+      "required": [
+        "write.catalog.create_contract.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "currencies.code",
+          "when": "currency supplied"
+        },
+        {
+          "target": [
+            "Catalog_ТипыЦенНоменклатуры",
+            "Catalog_ТипыЦен"
+          ],
+          "when": "priceType supplied",
+          "fields": [
+            "Ref_Key",
+            "Code",
+            "Description"
+          ],
+          "operations": [
+            "read"
+          ]
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1863,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1863"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Description",
+          "Номер",
+          "Дата",
+          "Owner_Key",
+          "ВидДоговора",
+          "Организация_Key"
+        ],
+        "conditionalSent": {
+          "ВалютаВзаиморасчетов_Key": "currency resolved",
+          "ТипЦен_Key": "priceType resolved",
+          "РуководительКонтрагента": "headName",
+          "ДолжностьРуководителяКонтрагента": "headPosition",
+          "Валютный": "currency resolved with code known"
+        },
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.sales.create_invoice",
+      "required": [
+        "write.sales.create_invoice.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "bankAccounts.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 1955,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L1955"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "СтруктурнаяЕдиница_Key": "organization bank account resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура",
+              "Номенклатура_Type",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.document.post_document",
+      "required": [],
+      "conditional": [],
+      "optional": [
+        "accounting.postingRecords",
+        "accounting.chart"
+      ],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "post",
+            "unpost"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "functions": [
+            {
+              "name": "Post",
+              "method": "POST"
+            },
+            {
+              "name": "Unpost",
+              "method": "POST"
+            }
+          ],
+          "conditionalFields": [
+            "DataVersion,Posted,DeletionMark if expectedDataVersion supplied",
+            "Контрагент_Key + ДоговорКонтрагента_Key when both metadata present and post=true"
+          ]
+        }
+      ],
+      "operations": [
+        "post",
+        "unpost"
+      ],
+      "notes": "expectedDataVersion path requires full versioned GET before/after action. Legacy path conditional missing-contract GET then action; optional postings read after Post failure does NOT undo posting.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2016,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2016"
+      }
+    },
+    {
+      "name": "write.entity.update_entity",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "input.fields keys"
+          ]
+        }
+      ],
+      "operations": [
+        "update"
+      ],
+      "notes": "Dynamic target must be evaluated per input; metadata existence is not permission. No automatic mutation probes.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2093,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2093"
+      }
+    },
+    {
+      "name": "write.counterparty.update_counterparty",
+      "required": [
+        "write.counterparty.update_counterparty.target"
+      ],
+      "conditional": [
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "phone/email/address supplied to merge contact information",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "КонтактнаяИнформация"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "requirement": "contact.kinds",
+          "when": "phone/email/address supplied"
+        },
+        {
+          "requirement": "contact.additionalProperties",
+          "when": "ogrn supplied"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "update"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2121,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2121"
+      }
+    },
+    {
+      "name": "write.catalog.update_nomenclature",
+      "required": [
+        "write.catalog.update_nomenclature.target"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "update"
+      ],
+      "notes": "",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2185,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2185"
+      }
+    },
+    {
+      "name": "write.purchase.create_purchase",
+      "required": [
+        "write.purchase.create_purchase.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2248,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2248"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "Склад_Key": "warehouse resolved",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+          "БанковскийСчетОрганизации_Key": "shipment bank account resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.purchase.create_supplier_invoice",
+      "required": [
+        "write.purchase.create_supplier_invoice.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2296,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2296"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "БанковскийСчетКонтрагента_Key": "supplierBankAccountRef",
+          "НомерВходящегоДокумента": "incomingNumber",
+          "ДатаВходящегоДокумента": "incomingDate",
+          "Комментарий": "comment"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.money.create_payout_order",
+      "required": [
+        "write.money.create_payout_order.target",
+        "organizations"
+      ],
+      "conditional": [],
+      "optional": [
+        "bankAccounts.lookup",
+        "currencies.code"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2366,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2366"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент",
+          "Контрагент_Type",
+          "СуммаДокумента",
+          "СтавкаНДС",
+          "ВидОперации",
+          "ОчередностьПлатежа",
+          "ТекстПлательщика"
+        ],
+        "conditionalSent": {
+          "Number": "number",
+          "СчетОрганизации_Key": "resolvedOrgAccount",
+          "СчетКонтрагента_Key": "counterpartyAccountRef",
+          "ДоговорКонтрагента_Key": "contractRef",
+          "НазначениеПлатежа": "purposeText",
+          "ТекстПолучателя": "recipientText",
+          "ИННПолучателя": "recipientInn",
+          "КПППолучателя": "recipientKpp",
+          "ИННПлательщика": "payerInn or resolved organization INN",
+          "Ответственный_Key": "responsibleRef",
+          "СтатьяДвиженияДенежныхСредств_Key": "cashflowItemRef",
+          "ВалютаДокумента_Key": "currencyRef or default resolves",
+          "Комментарий": "comment"
+        },
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.sales.create_shipment",
+      "required": [
+        "write.sales.create_shipment.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup",
+        "bankAccounts.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2485,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2485"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "Склад_Key": "warehouse resolved",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+          "БанковскийСчетОрганизации_Key": "shipment bank account resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.document.update_document_lines",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "accounting defaults/overrides required for chosen document kind"
+        },
+        {
+          "requirement": "nomenclature.accounts",
+          "when": "goods/service rebuild and register published"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read",
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Posted",
+            "Организация_Key",
+            "Товары or Услуги",
+            "СуммаДокумента"
+          ],
+          "rowFields": [
+            "LineNumber",
+            "Номенклатура_Key or Номенклатура/_Type",
+            "Количество",
+            "Цена",
+            "Сумма",
+            "СтавкаНДС"
+          ],
+          "notes": "Read full entity to preserve other fields. rebuild supports invoice/purchase/sales/servicesAct/returns/transfer/surplus/writeoff; inventory is not rebuild-supported."
+        }
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Copy preserves all eligible header/row fields except system IDs; dynamic field closure cannot be globally guessed. add/remove uses durable local journal; only unposted document line edits.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2541,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2541"
+      }
+    },
+    {
+      "name": "write.warehouse.create_return_from_customer",
+      "required": [
+        "write.warehouse.create_return_from_customer.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2611,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2611"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "Склад_Key": "warehouse resolved",
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.warehouse.create_return_to_supplier",
+      "required": [
+        "write.warehouse.create_return_to_supplier.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2663,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2663"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "Склад_Key": "warehouse resolved",
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.warehouse.create_transfer",
+      "required": [
+        "write.warehouse.create_transfer.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2701,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2701"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "СкладОтправитель_Key": "fromWarehouse resolved",
+          "СкладПолучатель_Key": "toWarehouse resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена"
+            ],
+            "conditionalSent": {
+              "СчетУчета_Key": "account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.warehouse.create_surplus",
+      "required": [
+        "write.warehouse.create_surplus.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2750,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2750"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "Склад_Key": "warehouse resolved",
+          "ИнвентаризацияТоваровНаСкладе_Key": "inventoryRef"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма"
+            ],
+            "conditionalSent": {
+              "СчетУчета_Key": "account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.warehouse.create_writeoff",
+      "required": [
+        "write.warehouse.create_writeoff.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2798,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2798"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "СуммаДокумента",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "Склад_Key": "warehouse resolved",
+          "ИнвентаризацияТоваровНаСкладе_Key": "inventoryRef"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма"
+            ],
+            "conditionalSent": {
+              "СчетУчета_Key": "account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.warehouse.create_inventory",
+      "required": [
+        "write.warehouse.create_inventory.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "warehouses.lookup"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2846,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2846"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Товары"
+        ],
+        "conditionalSent": {
+          "Склад_Key": "warehouse resolved"
+        },
+        "rows": {
+          "Товары": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "КоличествоУчет",
+              "Цена",
+              "Сумма",
+              "СуммаУчет"
+            ],
+            "conditionalSent": {
+              "СчетУчета_Key": "account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.document.add_document_line",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "accounting defaults/overrides required for chosen document kind"
+        },
+        {
+          "requirement": "nomenclature.accounts",
+          "when": "goods/service rebuild and register published"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read",
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Posted",
+            "Организация_Key",
+            "Товары or Услуги",
+            "СуммаДокумента"
+          ],
+          "rowFields": [
+            "LineNumber",
+            "Номенклатура_Key or Номенклатура/_Type",
+            "Количество",
+            "Цена",
+            "Сумма",
+            "СтавкаНДС"
+          ],
+          "notes": "Read full entity to preserve other fields. rebuild supports invoice/purchase/sales/servicesAct/returns/transfer/surplus/writeoff; inventory is not rebuild-supported."
+        }
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Copy preserves all eligible header/row fields except system IDs; dynamic field closure cannot be globally guessed. add/remove uses durable local journal; only unposted document line edits.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2919,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2919"
+      }
+    },
+    {
+      "name": "write.document.copy_document",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "accounting defaults/overrides required for chosen document kind"
+        },
+        {
+          "requirement": "nomenclature.accounts",
+          "when": "goods/service rebuild and register published"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read",
+            "create"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Posted",
+            "Организация_Key",
+            "Товары or Услуги",
+            "СуммаДокумента"
+          ],
+          "rowFields": [
+            "LineNumber",
+            "Номенклатура_Key or Номенклатура/_Type",
+            "Количество",
+            "Цена",
+            "Сумма",
+            "СтавкаНДС"
+          ],
+          "notes": "Read full entity to preserve other fields. rebuild supports invoice/purchase/sales/servicesAct/returns/transfer/surplus/writeoff; inventory is not rebuild-supported."
+        }
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "notes": "Copy preserves all eligible header/row fields except system IDs; dynamic field closure cannot be globally guessed. add/remove uses durable local journal; only unposted document line edits.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 2965,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2965"
+      }
+    },
+    {
+      "name": "write.document.remove_document_line",
+      "required": [],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "accounting defaults/overrides required for chosen document kind"
+        },
+        {
+          "requirement": "nomenclature.accounts",
+          "when": "goods/service rebuild and register published"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "read",
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Posted",
+            "Организация_Key",
+            "Товары or Услуги",
+            "СуммаДокумента"
+          ],
+          "rowFields": [
+            "LineNumber",
+            "Номенклатура_Key or Номенклатура/_Type",
+            "Количество",
+            "Цена",
+            "Сумма",
+            "СтавкаНДС"
+          ],
+          "notes": "Read full entity to preserve other fields. rebuild supports invoice/purchase/sales/servicesAct/returns/transfer/surplus/writeoff; inventory is not rebuild-supported."
+        }
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Copy preserves all eligible header/row fields except system IDs; dynamic field closure cannot be globally guessed. add/remove uses durable local journal; only unposted document line edits.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3062,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3062"
+      }
+    },
+    {
+      "name": "write.sales.create_act",
+      "required": [
+        "write.sales.create_act.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        "bankAccounts.lookup",
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3105,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3105"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидОперации",
+          "Организация_Key",
+          "Контрагент_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Услуги"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+          "БанковскийСчетОрганизации_Key": "bank resolved"
+        },
+        "rows": {
+          "Услуги": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.sales.create_services_act",
+      "required": [
+        "write.sales.create_services_act.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "account codes/defaults must be resolved; strictDefaults/explicit references change needed groups"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "withSettlementAccounts has contract and emits account-code notes, even invoice creation can read chart"
+        }
+      ],
+      "optional": [
+        "nomenclature.accounts",
+        {
+          "target": [
+            "Catalog_Номенклатура"
+          ],
+          "fields": [
+            "ВидНоменклатуры_Key"
+          ],
+          "purpose": "optional nomenclature kind for account mapping"
+        },
+        {
+          "requirement": "contracts.autofill",
+          "when": "contractRef absent: look up unique contract by owner/kind/org"
+        },
+        {
+          "requirement": "settlement.lookup",
+          "when": "contractRef exists and target payload has settlement header or payment rows; legacy lookup may fallback, unlike exact saved-setting tool"
+        }
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3186,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3186"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "Организация_Key",
+          "Контрагент_Key",
+          "НоменклатурнаяГруппа_Key",
+          "СуммаВключаетНДС",
+          "СуммаДокумента",
+          "Услуги"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "contractRef or helper unique contract",
+          "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved"
+        },
+        "rows": {
+          "Услуги": {
+            "alwaysSent": [
+              "LineNumber",
+              "Номенклатура_Key",
+              "Количество",
+              "Цена",
+              "Сумма",
+              "СтавкаНДС",
+              "НоменклатурнаяГруппа_Key"
+            ],
+            "conditionalSent": {
+              "Содержание": "line content supplied",
+              "СчетУчета_Key": "resolved goods account, not services",
+              "СчетУчетаНДС_Key": "purchase VAT account resolved",
+              "СчетДоходов_Key": "sales/service income account resolved",
+              "СчетРасходов_Key": "sales/service expense account resolved",
+              "СчетУчетаНДСПоРеализации_Key": "VAT sales account resolved",
+              "Субконто": "nomenclatureGroups metadata published",
+              "Субконто_Type": "nomenclatureGroups metadata published"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.money.create_payment",
+      "required": [
+        "write.money.create_payment.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "non-strict defaults requested for customer/supplier settlement"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "contractRef supplied and settlement lookup used"
+        },
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path",
+          "operations": [
+            "metadata"
+          ],
+          "fields": []
+        }
+      ],
+      "optional": [
+        "bankAccounts.lookup",
+        "settlement.lookup",
+        "currencies.code"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3277,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3277"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидОперации",
+          "Организация_Key",
+          "Контрагент",
+          "СуммаДокумента",
+          "РасшифровкаПлатежа"
+        ],
+        "conditionalSent": {
+          "Контрагент_Type": "counterparty catalog exists in metadata",
+          "СчетОрганизации_Key": "bank resolved",
+          "ДоговорКонтрагента_Key": "contractRef"
+        },
+        "rows": {
+          "РасшифровкаПлатежа": {
+            "alwaysSent": [
+              "LineNumber",
+              "СпособПогашенияЗадолженности",
+              "СуммаПлатежа",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "ДоговорКонтрагента_Key": "contractRef",
+              "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+              "СчетУчетаРасчетовПоАвансам_Key": "advance resolved",
+              "СуммаВзаиморасчетов": "regulated currency AND row metadata field AND not supplied",
+              "КурсВзаиморасчетов": "regulated currency AND metadata field",
+              "КратностьВзаиморасчетов": "regulated currency AND metadata field"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.money.create_bank_writeoff",
+      "required": [
+        "write.money.create_bank_writeoff.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "non-strict defaults requested for customer/supplier settlement"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "contractRef supplied and settlement lookup used"
+        },
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path",
+          "operations": [
+            "metadata"
+          ],
+          "fields": []
+        }
+      ],
+      "optional": [
+        "bankAccounts.lookup",
+        "settlement.lookup",
+        "currencies.code"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3400,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3400"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидОперации",
+          "Организация_Key",
+          "СуммаДокумента"
+        ],
+        "conditionalSent": {
+          "СчетОрганизации_Key": "bank resolved",
+          "Контрагент": "counterpartyRef supplied",
+          "Контрагент_Type": "counterpartyRef supplied AND counterparty metadata exists",
+          "ДоговорКонтрагента_Key": "contractRef",
+          "НазначениеПлатежа": "purposeText",
+          "СтатьяДвиженияДенежныхСредств_Key": "cashflowItemRef",
+          "Комментарий": "comment",
+          "РасшифровкаПлатежа": "contractRef AND operationKind /Поставщик|Покупател/"
+        },
+        "rows": {
+          "РасшифровкаПлатежа": {
+            "alwaysSent": [
+              "LineNumber",
+              "СпособПогашенияЗадолженности",
+              "СуммаПлатежа",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "ДоговорКонтрагента_Key": "contractRef",
+              "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+              "СчетУчетаРасчетовПоАвансам_Key": "advance resolved",
+              "СуммаВзаиморасчетов": "regulated currency AND row metadata field AND not supplied",
+              "КурсВзаиморасчетов": "regulated currency AND metadata field",
+              "КратностьВзаиморасчетов": "regulated currency AND metadata field"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.money.create_cash_receipt",
+      "required": [
+        "write.money.create_cash_receipt.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "non-strict defaults requested for customer/supplier settlement"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "contractRef supplied and settlement lookup used"
+        },
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path",
+          "operations": [
+            "metadata"
+          ],
+          "fields": []
+        }
+      ],
+      "optional": [
+        "settlement.lookup",
+        "currencies.code"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3514,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3514"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидОперации",
+          "Организация_Key",
+          "СуммаДокумента"
+        ],
+        "conditionalSent": {
+          "СчетКасса_Key": "cashRef input",
+          "Контрагент": "counterpartyRef supplied",
+          "Контрагент_Type": "counterpartyRef supplied AND counterparty metadata exists",
+          "ДоговорКонтрагента_Key": "contractRef",
+          "Основание": "basis",
+          "СтатьяДвиженияДенежныхСредств_Key": "cashflowItemRef",
+          "Комментарий": "comment",
+          "РасшифровкаПлатежа": "contractRef AND operationKind /Поставщик|Покупател/"
+        },
+        "rows": {
+          "РасшифровкаПлатежа": {
+            "alwaysSent": [
+              "LineNumber",
+              "СпособПогашенияЗадолженности",
+              "СуммаПлатежа",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "ДоговорКонтрагента_Key": "contractRef",
+              "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+              "СчетУчетаРасчетовПоАвансам_Key": "advance resolved",
+              "СуммаВзаиморасчетов": "regulated currency AND row metadata field AND not supplied",
+              "КурсВзаиморасчетов": "regulated currency AND metadata field",
+              "КратностьВзаиморасчетов": "regulated currency AND metadata field"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.money.create_cash_payment",
+      "required": [
+        "write.money.create_cash_payment.target",
+        "organizations"
+      ],
+      "conditional": [
+        {
+          "requirement": "accounting.chart",
+          "when": "non-strict defaults requested for customer/supplier settlement"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "contractRef supplied and settlement lookup used"
+        },
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "metadata type for polymorphic reference only; no counterparty record read from supplied ref in legacy create path",
+          "operations": [
+            "metadata"
+          ],
+          "fields": []
+        }
+      ],
+      "optional": [
+        "settlement.lookup",
+        "currencies.code"
+      ],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3537,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3537"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидОперации",
+          "Организация_Key",
+          "СуммаДокумента"
+        ],
+        "conditionalSent": {
+          "СчетКасса_Key": "cashRef input",
+          "Контрагент": "counterpartyRef supplied",
+          "Контрагент_Type": "counterpartyRef supplied AND counterparty metadata exists",
+          "ДоговорКонтрагента_Key": "contractRef",
+          "Основание": "basis",
+          "СтатьяДвиженияДенежныхСредств_Key": "cashflowItemRef",
+          "Комментарий": "comment",
+          "РасшифровкаПлатежа": "contractRef AND operationKind /Поставщик|Покупател/"
+        },
+        "rows": {
+          "РасшифровкаПлатежа": {
+            "alwaysSent": [
+              "LineNumber",
+              "СпособПогашенияЗадолженности",
+              "СуммаПлатежа",
+              "СтавкаНДС"
+            ],
+            "conditionalSent": {
+              "ДоговорКонтрагента_Key": "contractRef",
+              "СчетУчетаРасчетовСКонтрагентом_Key": "account resolved",
+              "СчетУчетаРасчетовПоАвансам_Key": "advance resolved",
+              "СуммаВзаиморасчетов": "regulated currency AND row metadata field AND not supplied",
+              "КурсВзаиморасчетов": "regulated currency AND metadata field",
+              "КратностьВзаиморасчетов": "regulated currency AND metadata field"
+            }
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.sales.create_issued_invoice",
+      "required": [
+        "write.sales.create_issued_invoice.target"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "baseDocumentEntity",
+          "defaultCandidates": [
+            "Document_РеализацияТоваровУслуг",
+            "Document_РеализацияТоваровИУслуг"
+          ],
+          "operations": [
+            "read"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Организация_Key",
+            "Контрагент_Key or Контрагент",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "ДоговорКонтрагента_Key",
+            "Товары/Услуги rows СуммаНДС"
+          ]
+        }
+      ],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3560,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3560"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидСчетаФактуры",
+          "Организация_Key",
+          "Контрагент_Key",
+          "ДокументОснование",
+          "ДокументОснование_Type",
+          "КодВидаОперации",
+          "СуммаДокумента",
+          "СуммаНДСДокумента",
+          "ДокументыОснования"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "basis has contract",
+          "ДатаВыставления": "issued invoice only (always)",
+          "ДатаВходящегоДокумента": "received invoice incomingDate supplied",
+          "НДСПредъявленКВычету": "received invoice only (always true)"
+        },
+        "rows": {
+          "ДокументыОснования": {
+            "alwaysSent": [
+              "LineNumber",
+              "ДокументОснование",
+              "ДокументОснование_Type"
+            ]
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.purchase.create_received_invoice",
+      "required": [
+        "write.purchase.create_received_invoice.target"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "baseDocumentEntity",
+          "defaultCandidates": [
+            "Document_ПоступлениеТоваровУслуг",
+            "Document_ПоступлениеТоваровИУслуг"
+          ],
+          "operations": [
+            "read"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Организация_Key",
+            "Контрагент_Key or Контрагент",
+            "СуммаДокумента"
+          ],
+          "conditionalFields": [
+            "ДоговорКонтрагента_Key",
+            "Товары/Услуги rows СуммаНДС"
+          ]
+        }
+      ],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3617,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3617"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Date",
+          "Posted",
+          "ВидСчетаФактуры",
+          "Организация_Key",
+          "Контрагент_Key",
+          "ДокументОснование",
+          "ДокументОснование_Type",
+          "КодВидаОперации",
+          "СуммаДокумента",
+          "СуммаНДСДокумента",
+          "ДокументыОснования"
+        ],
+        "conditionalSent": {
+          "ДоговорКонтрагента_Key": "basis has contract",
+          "ДатаВыставления": "issued invoice only (always)",
+          "ДатаВходящегоДокумента": "received invoice incomingDate supplied",
+          "НДСПредъявленКВычету": "received invoice only (always true)"
+        },
+        "rows": {
+          "ДокументыОснования": {
+            "alwaysSent": [
+              "LineNumber",
+              "ДокументОснование",
+              "ДокументОснование_Type"
+            ]
+          }
+        },
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.counterparty.create_bank_account",
+      "required": [
+        "write.counterparty.create_bank_account.target",
+        "banks.lookup",
+        "currencies.lookup"
+      ],
+      "conditional": [
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "makeMain=true",
+          "operations": [
+            "update"
+          ],
+          "fields": [
+            "ОсновнойБанковскийСчет_Key"
+          ],
+          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed."
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3681,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3681"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Description",
+          "Owner",
+          "Owner_Type",
+          "НомерСчета",
+          "Банк_Key",
+          "ВалютаДенежныхСредств_Key"
+        ],
+        "conditionalSent": {},
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.counterparty.create_contact_person",
+      "required": [
+        "write.counterparty.create_contact_person.target"
+      ],
+      "conditional": [
+        {
+          "target": [
+            "Catalog_Контрагенты"
+          ],
+          "when": "makeMain=true",
+          "operations": [
+            "update"
+          ],
+          "fields": [
+            "ОсновноеКонтактноеЛицо_Key"
+          ],
+          "notes": "After creating subordinate catalog entry, second PATCH owner; may partially succeed."
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "create"
+      ],
+      "notes": "POST collection on confirm; preview prepares local journal. Does not post document automatically.",
+      "writeEvidencePolicy": "Only actual normal authorized request; no automatic mutation probe",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3733,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3733"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [
+          "Description",
+          "ОбъектВладелец",
+          "ОбъектВладелец_Type"
+        ],
+        "conditionalSent": {
+          "Фамилия": "lastName",
+          "Имя": "firstName",
+          "Должность": "position"
+        },
+        "rows": {},
+        "note": "These are actual source payload fields. Optional fields only required when input/helper supplies them. Metadata presence does not prove allowed mutation."
+      }
+    },
+    {
+      "name": "write.entity.create_folder",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "create"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Description",
+            "IsFolder",
+            "Parent_Key"
+          ]
+        },
+        {
+          "from": "same target catalog",
+          "when": "folder/parent supplied as name rather than GUID",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description",
+            "IsFolder"
+          ]
+        }
+      ],
+      "operations": [
+        "create"
+      ],
+      "notes": "Dynamic target must be evaluated per input; metadata existence is not permission. No automatic mutation probes.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3780,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3780"
+      }
+    },
+    {
+      "name": "write.entity.move_to_folder",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "operations": [
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Parent_Key"
+          ]
+        },
+        {
+          "from": "same target catalog",
+          "when": "folder/parent supplied as name rather than GUID",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description",
+            "IsFolder"
+          ]
+        }
+      ],
+      "operations": [
+        "update"
+      ],
+      "notes": "Dynamic target must be evaluated per input; metadata existence is not permission. No automatic mutation probes.",
+      "source": {
+        "path": "src/tools/write.ts",
+        "line": 3810,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L3810"
+      }
+    },
+    {
+      "name": "write.document.apply_bank_settlement_settings",
+      "required": [
+        "contracts.settlement",
+        "counterparties.hierarchy",
+        "accounting.chart",
+        "settlement.exact"
+      ],
+      "conditional": [
+        {
+          "requirement": "currencies.code",
+          "when": "settlement kind needs currency code"
+        }
+      ],
+      "optional": [],
+      "dynamic": [
+        {
+          "argument": "entitySet",
+          "restrictedCandidates": [
+            "Document_ПоступлениеНаРасчетныйСчет",
+            "Document_СписаниеСРасчетногоСчета"
+          ],
+          "operations": [
+            "read",
+            "update"
+          ],
+          "keys": [
+            "Ref_Key"
+          ],
+          "fields": [
+            "Ref_Key",
+            "DataVersion",
+            "Posted",
+            "DeletionMark",
+            "ДоговорКонтрагента_Key",
+            "СчетУчетаРасчетовСКонтрагентом_Key",
+            "Организация_Key",
+            "ВалютаДокумента_Key",
+            "ВидОперации",
+            "РасшифровкаПлатежа"
+          ],
+          "alternativeFields": [
+            "Контрагент_Key:Edm.Guid",
+            "Контрагент:Edm.String AND Контрагент_Type:Edm.String"
+          ],
+          "conditionalFields": [
+            "СчетУчетаРасчетовПоАвансам_Key if present",
+            "<entity>_РасшифровкаПлатежа metadata when a row exists"
+          ],
+          "notes": "Only unposted with exact fresh expectedDataVersion; PATCH If-Match + readback. chart additionally requires DeletionMark:Boolean and ЗапретитьИспользоватьВПроводках:Boolean."
+        }
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Mutation uses counterparty hierarchy (groups), legacy create settlement lookup intentionally does not. Unknown currency/contract fields block this mutation only.",
+      "source": {
+        "path": "src/tools/existing-bank-settlement.ts",
+        "line": 7,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/existing-bank-settlement.ts#L7"
+      }
+    },
+    {
+      "name": "read.accounting.get_contract_settlement_settings",
+      "required": [
+        "settlement.exact",
+        "counterparties.hierarchy"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organizationRef not empty GUID"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "currencies.code",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "settlement.resources",
+          "when": "write only; selected accounts fields"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "write only; validate selected account refs"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "Legacy alias scope=contract only. Exact composite-key GET; write mode=create -> POST collection; mode=update -> PATCH exact path and If-Match when DataVersion exists; no deletion.",
+      "source": {
+        "path": "src/tools/settlement-settings.ts",
+        "line": 13,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/settlement-settings.ts#L13"
+      }
+    },
+    {
+      "name": "write.accounting.set_contract_settlement_settings",
+      "required": [
+        "settlement.exact",
+        "counterparties.hierarchy"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organizationRef not empty GUID"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "currencies.code",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "settlement.resources",
+          "when": "write only; selected accounts fields"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "write only; validate selected account refs"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "notes": "Legacy alias scope=contract only. Exact composite-key GET; write mode=create -> POST collection; mode=update -> PATCH exact path and If-Match when DataVersion exists; no deletion.",
+      "source": {
+        "path": "src/tools/settlement-settings.ts",
+        "line": 13,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/settlement-settings.ts#L13"
+      }
+    },
+    {
+      "name": "read.accounting.get_settlement_settings",
+      "required": [
+        "settlement.exact",
+        "counterparties.hierarchy"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organizationRef not empty GUID"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "currencies.code",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "settlement.resources",
+          "when": "write only; selected accounts fields"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "write only; validate selected account refs"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read"
+      ],
+      "notes": "scope=contract/counterparty/group. Exact composite-key GET; write mode=create -> POST collection; mode=update -> PATCH exact path and If-Match when DataVersion exists; no deletion.",
+      "source": {
+        "path": "src/tools/settlement-settings.ts",
+        "line": 13,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/settlement-settings.ts#L13"
+      }
+    },
+    {
+      "name": "write.accounting.set_settlement_settings",
+      "required": [
+        "settlement.exact",
+        "counterparties.hierarchy"
+      ],
+      "conditional": [
+        {
+          "requirement": "organizations",
+          "when": "organizationRef not empty GUID"
+        },
+        {
+          "requirement": "contracts.settlement",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "currencies.code",
+          "when": "legacy or scope=contract"
+        },
+        {
+          "requirement": "settlement.resources",
+          "when": "write only; selected accounts fields"
+        },
+        {
+          "requirement": "accounting.chart",
+          "when": "write only; validate selected account refs"
+        }
+      ],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "notes": "scope=contract/counterparty/group. Exact composite-key GET; write mode=create -> POST collection; mode=update -> PATCH exact path and If-Match when DataVersion exists; no deletion.",
+      "source": {
+        "path": "src/tools/settlement-settings.ts",
+        "line": 13,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/settlement-settings.ts#L13"
+      }
+    },
+    {
+      "name": "write.counterparty.create_group",
+      "required": [
+        "counterparties.hierarchy"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "from": "Catalog_Контрагенты",
+          "operations": [
+            "create"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Description",
+            "IsFolder",
+            "Parent_Key"
+          ]
+        },
+        {
+          "from": "parent hierarchy",
+          "when": "parentRef nonempty",
+          "operations": [
+            "read"
+          ],
+          "fields": [
+            "Ref_Key",
+            "Parent_Key",
+            "IsFolder",
+            "DeletionMark"
+          ]
+        }
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "notes": "Description:string required, explicit generated Ref_Key, POST then GET verification. Group creation not group movement.",
+      "source": {
+        "path": "src/tools/counterparty-groups.ts",
+        "line": 93,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparty-groups.ts#L93"
+      }
+    },
+    {
+      "name": "write.counterparty.set_group",
+      "required": [
+        "counterparties.hierarchy"
+      ],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [
+        {
+          "from": "Catalog_Контрагенты",
+          "operations": [
+            "read",
+            "update"
+          ],
+          "fields": [
+            "Parent_Key",
+            "DataVersion"
+          ],
+          "types": {
+            "DataVersion": "Edm.String"
+          },
+          "keys": [
+            "Ref_Key"
+          ]
+        }
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "notes": "Only nonfolder counterparty subject; full entity GET, ancestors GET, PATCH Parent_Key with If-Match expectedDataVersion, verification preserves other fields.",
+      "source": {
+        "path": "src/tools/counterparty-groups.ts",
+        "line": 130,
+        "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
+        "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/counterparty-groups.ts#L130"
+      }
+    },
+    {
+      "name": "read.system.odata_requirements",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [],
+      "localOnly": true,
+      "notes": "Диагностика; запись в 1С не выполняется. Refresh использует только metadata и ограниченные GET."
+    },
+    {
+      "name": "read.system.odata_capabilities",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "metadata"
+      ],
+      "localOnly": false,
+      "notes": "Диагностика; запись в 1С не выполняется. Refresh использует только metadata и ограниченные GET."
+    },
+    {
+      "name": "read.system.odata_refresh",
+      "required": [],
+      "conditional": [],
+      "optional": [],
+      "dynamic": [],
+      "operations": [
+        "metadata"
+      ],
+      "localOnly": false,
+      "notes": "Диагностика; запись в 1С не выполняется. Refresh использует только metadata и ограниченные GET."
+    }
+  ],
+  "rules": [
+    "metadata absence => absent_from_accessible_metadata, not proven unimplemented",
+    "read success => limited current read observation only; empty rows do not prove global/all-row read rights",
+    "separate schema, metadata publication, observed operation evidence and local READ_ONLY/writable flags",
+    "no automatic create/update/post/unpost/delete probes",
+    "dynamic inputs and conditional dependencies must be resolved for invocation; optional misses cannot blanket-block independent feature",
+    "functions and result fields may not be declared on register root entity; preserve unknown until safe operation evidence",
+    "proven maintenance/network/5xx errors are availability evidence, not rights denial",
+    "404 record read => record missing/unknown; not absent collection",
+    "old observed write evidence needs timestamp/TTL and endpoint+principal scope; no blanket permanent authorization",
+    "new versioned requirements should create newly-required drift entries even if no old tool/requirement existed"
+  ],
+  "categoryFields": {
+    "all": [
+      "IsFolder",
+      "Ref_Key"
+    ],
+    "ИП": [
+      "ЮридическоеФизическоеЛицо",
+      "ИндивидуальныйПредприниматель"
+    ],
+    "ЮрЛицо": [
+      "ЮридическоеФизическоеЛицо"
+    ],
+    "ФизЛицо": [
+      "ЮридическоеФизическоеЛицо",
+      "ИндивидуальныйПредприниматель"
+    ],
+    "Нерезидент": [
+      "НаименованиеНерезидентаРус"
+    ],
+    "Госорган": [
+      "ВидГосударственногоОргана"
+    ]
+  }
+}
