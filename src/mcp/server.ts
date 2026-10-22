@@ -190,9 +190,16 @@ export function createServer(ctx: ServerContext): McpServer {
   server.server.oninitialized = () => {
     for (const { name } of ctx.databases()) {
       ctx.db(name).capabilities.start((events) => {
-        const data = { database: name, changes: events.length, diagnosticsTool: "read.system.odata_capabilities" };
+        const data = {
+          database: name,
+          changes: events.slice(0, 64).map(({ kind, requirement, after }) => ({ kind, requirement, after })),
+          totalChanges: events.length,
+          diagnosticsTool: "read.system.odata_capabilities",
+        };
         logger.warn(data, "Изменились требования или доступность OData; проверьте диагностику возможностей");
-        void server.sendLoggingMessage({ level: "warning", logger: "odata-capabilities", data }).catch(() => {});
+        void server
+          .sendLoggingMessage({ level: "warning", logger: "odata-capabilities", data })
+          .catch(() => {});
       });
     }
   };

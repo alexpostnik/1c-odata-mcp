@@ -86,7 +86,7 @@ const CurrencyCodeSchema = z.preprocess(
 const BehaviorSchema = z.object({
   ODATA_CAPABILITY_STATE_DIR: z.string().min(1).optional(),
   ODATA_CAPABILITY_INTERVAL_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(900_000),
-  ODATA_CAPABILITY_PROBE_LIMIT: z.coerce.number().int().min(0).max(10).default(3),
+  ODATA_CAPABILITY_PROBE_LIMIT: z.coerce.number().int().min(0).max(64).default(64),
   ODATA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   ODATA_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
   ODATA_PAGE_SIZE: z.coerce.number().int().positive().max(5_000).default(100),
@@ -143,7 +143,8 @@ function collectRawConnections(env: Env): Array<Record<string, unknown>> {
       password: env[`ODATA_DB_${tag}_PASSWORD`],
       writable: env[`ODATA_DB_${tag}_WRITABLE`],
       regulatedCurrencyCode: env[`ODATA_DB_${tag}_REGULATED_CURRENCY_CODE`],
-      capabilityProfile: nonblank(env[`ODATA_DB_${tag}_CAPABILITY_PROFILE`]) ?? nonblank(env.ODATA_CAPABILITY_PROFILE),
+      capabilityProfile:
+        nonblank(env[`ODATA_DB_${tag}_CAPABILITY_PROFILE`]) ?? nonblank(env.ODATA_CAPABILITY_PROFILE),
       accounting: nonblank(env[`ODATA_DB_${tag}_ACCOUNTING_CONFIG`]) ?? nonblank(env.ODATA_ACCOUNTING_CONFIG),
     });
   }
@@ -220,7 +221,9 @@ export function parseConfig(env: Env): RuntimeConfig {
     defaultName,
     logLevel: b.LOG_LEVEL,
     behavior: {
-      capabilityStateDir: resolve(b.ODATA_CAPABILITY_STATE_DIR ?? join(homedir(), ".1c-odata-mcp", "capabilities")),
+      capabilityStateDir: resolve(
+        b.ODATA_CAPABILITY_STATE_DIR ?? join(homedir(), ".1c-odata-mcp", "capabilities"),
+      ),
       capabilityIntervalMs: b.ODATA_CAPABILITY_INTERVAL_MS,
       capabilityProbeLimit: b.ODATA_CAPABILITY_PROBE_LIMIT,
       timeoutMs: b.ODATA_TIMEOUT_MS,

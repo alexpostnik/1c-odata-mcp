@@ -57,11 +57,12 @@ export const fingerprint = (value: unknown): string =>
 
 /** Учитывает те же настройки плана счетов, что используют сами инструменты. */
 export function targets(req: Requirement, cfg: ConnectionConfig): string[] {
-  const base = req.configurationOverride === "accounting.chart"
-    ? [cfg.accounting?.chart ?? req.target[0]!]
-    : req.configurationOverride === "accounting.register"
-      ? [cfg.accounting?.register ?? req.target[0]!]
-      : req.target;
+  const base =
+    req.configurationOverride === "accounting.chart"
+      ? [cfg.accounting?.chart ?? req.target[0]!]
+      : req.configurationOverride === "accounting.register"
+        ? [cfg.accounting?.register ?? req.target[0]!]
+        : req.target;
   return req.suffixAlternatives ? base.flatMap((b) => req.suffixAlternatives!.map((s) => b + s)) : base;
 }
 

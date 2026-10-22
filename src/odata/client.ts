@@ -145,13 +145,34 @@ export class ODataClient {
 
   private async observe(path: string, method: string, error?: ODataError): Promise<void> {
     if (!this.observeRequest) return;
-    const match = /^([A-Za-z][\p{L}\p{N}_]*)([?(]|$)/u.exec(path);
+    const match = /^([A-Za-z][\p{L}\p{N}_]*)([?(/]|$)/u.exec(path);
     if (!match) return;
+    const functionName = /^\w[\p{L}\p{N}_]*\/([A-Za-z][A-Za-z0-9_]*)\(/u.exec(path)?.[1];
     const action = /\)\/(Post|Unpost)(?:\?|$)/.exec(path)?.[1];
-    const operation = action === "Post" ? "post" : action === "Unpost" ? "unpost" : method === "GET" || method === "HEAD" ? "read" : method === "PATCH" ? "update" : method === "DELETE" ? "delete" : "create";
-    const scope = operation === "read" ? path.startsWith(`${match[1]}(`) ? "one_record" : "collection_query" : "one_operation";
+    const operation =
+      action === "Post"
+        ? "post"
+        : action === "Unpost"
+          ? "unpost"
+          : method === "GET" || method === "HEAD"
+            ? "read"
+            : method === "PATCH"
+              ? "update"
+              : method === "DELETE"
+                ? "delete"
+                : "create";
+    const scope =
+      operation === "read"
+        ? path.startsWith(`${match[1]}(`)
+          ? "one_record"
+          : "collection_query"
+        : "one_operation";
     // Диагностика не должна менять результат нормального запроса при недоступном диске.
-    try { await this.observeRequest({ entitySet: match[1]!, operation, scope, error }); } catch { /* advisory */ }
+    try {
+      await this.observeRequest({ entitySet: match[1]!, operation, scope, functionName, error });
+    } catch {
+      /* advisory */
+    }
   }
 
   /** Запрос коллекции (массив в поле value). */
