@@ -424,3 +424,22 @@ describe("полнота автоматической проверки и proven
     expect(Reflect.get(report, "observationProvenance")).toMatchObject({ requirementsRevision: REQUIREMENTS.revision, sourceRef: REQUIREMENTS.sourceRef, profile: { configurationVersion: "unknown" } });
   });
 });
+
+describe("изменения формы контракта", () => {
+  it("изменение типа используемого поля видно даже когда имя осталось", async () => {
+    const f = await setup(); await f.conn.capabilities.refresh();
+    f.schema(xml('<Property Name="Ref_Key" Type="Edm.Guid"/><Property Name="Description" Type="Edm.Int32"/><Property Name="ИНН" Type="Edm.String"/>'));
+    const report = await f.conn.capabilities.refresh();
+    expect(report.events).toContainEqual(expect.objectContaining({ kind: "changed", requirement: "organizations" }));
+    expect(report.requirements.organizations).toHaveProperty("observedFields.Description", "Edm.Int32");
+  });
+  it("отозванное объявление функции становится unknown и не исчезает из истории", async () => {
+    const f = await setup();
+    const fnXml = `<Edmx><DataServices><Schema Namespace="S"><EntityType Name="Register"/><ComplexType Name="B"><Property Name="Account_Key" Type="Edm.Guid"/><Property Name="СуммаBalanceDr" Type="Edm.Decimal"/><Property Name="СуммаBalanceCr" Type="Edm.Decimal"/></ComplexType><EntityContainer><EntitySet Name="AccountingRegister_Хозрасчетный" EntityType="S.Register"/><FunctionImport Name="Balance" ReturnType="Collection(S.B)" IsBindable="true"><Parameter Name="bindingParameter" Type="S.Register"/><Parameter Name="Period" Type="Edm.DateTime"/></FunctionImport></EntityContainer></Schema></DataServices></Edmx>`;
+    f.schema(fnXml); await f.conn.capabilities.refresh();
+    f.schema(fnXml.replace(/<FunctionImport[\s\S]*?<\/FunctionImport>/, ""));
+    const report = await f.conn.capabilities.refresh();
+    expect(report.requirements["accounting.balance"]?.status).toBe("unknown");
+    expect(report.events).toContainEqual(expect.objectContaining({ kind: "newly_missing", requirement: "accounting.balance" }));
+  });
+});
