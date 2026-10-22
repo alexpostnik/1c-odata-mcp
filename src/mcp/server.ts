@@ -17,6 +17,7 @@ import { registerDebtTools } from "../tools/debts.js";
 import { registerMonthCloseTools } from "../tools/month-close.js";
 import { registerCardTools } from "../tools/card.js";
 import { registerPrompts } from "./prompts.js";
+import { APPS_EXTENSION_ID, appMetaFor, registerApps } from "./apps.js";
 import { registerCashflowTools } from "../tools/cashflow.js";
 import { registerSalesTools } from "../tools/sales.js";
 import { registerOrganizationTools } from "../tools/organization.js";
@@ -73,7 +74,7 @@ function annotationsFor(name: string) {
 export function createServer(ctx: ServerContext): McpServer {
   const server = new McpServer(
     { name: "1c-odata-mcp", version: readVersion() },
-    { instructions: INSTRUCTIONS },
+    { instructions: INSTRUCTIONS, capabilities: { extensions: { [APPS_EXTENSION_ID]: {} } } },
   );
 
   // Оборачиваем registerTool, чтобы каждому инструменту проставить аннотации по имени.
@@ -87,12 +88,14 @@ export function createServer(ctx: ServerContext): McpServer {
     config: Record<string, unknown>,
     cb: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>,
   ) => {
+    const appMeta = appMetaFor(name);
     const annotatedConfig = {
       ...config,
       annotations: {
         ...annotationsFor(name),
         ...(config.annotations as Record<string, unknown> | undefined),
       },
+      ...(appMeta ? { _meta: { ...(config._meta as Record<string, unknown> | undefined), ...appMeta } } : {}),
     };
     const isCreateTool = name.startsWith("write.") && config.outputSchema === createResultSchema;
     if (!isCreateTool && !JOURNALED_UPDATE_TOOLS.has(name)) return original(name, annotatedConfig, cb);
@@ -176,6 +179,7 @@ export function createServer(ctx: ServerContext): McpServer {
   registerSettlementSettingsTools(server, ctx);
   registerCounterpartyGroupTools(server, ctx);
   registerPrompts(server);
+  registerApps(server);
 
   return server;
 }

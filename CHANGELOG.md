@@ -3,32 +3,40 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 версии — по [семантическому версионированию](https://semver.org/lang/ru/).
 
-## Unreleased
-
-- Existing-bank settlement application accepts optional explicit `counterpartyRef` to fill only an observed zero-GUID document counterparty. It validates the actual nondeleted, nonfolder item and exact contract owner/organization/currency, rejects replacement and unknown document references, and binds the selected item to preview confirmation. Account selection still comes solely from saved settings; other headers and the sole payment row, including zero amounts, VAT and articles, are preserved. Local synthetic validation only; this change performs no live operation.
-
-- Saved settlement-account read/create/update tools for contracts, counterparties and groups: strict independent-register metadata, preview/confirmation journal and verified readback. Updates use DataVersion/If-Match when published; versionless independent-register updates require explicit `singleWriter=true` and checks between reads, without an atomic lock. Unknown write or readback outcomes hold retries pending manual reconciliation.
-- Apply inherited settlement accounts and the selected contract to existing unposted bank receipts/payments, with explicit settlement side, DataVersion/If-Match, preview/confirmation journal and readback of changed and preserved fields.
-- Separate guarded Post/Unpost operations have their own preview, journal, operation ID and state readback; posting verification is a separate read. The version is checked before the action; atomic If-Match protection for Post/Unpost is not claimed. Unknown outcomes hold dependent actions and retries.
-- Targeted TEST validation (Belarus Accounting 2.1.62.5 / platform 8.3.25.1546, versions provided by the owner): a contract-scoped account 26 setting was created and read back; group account 67.2 was selected without an account argument and applied to a loan receipt, then a separate Post and accounting-row read verified the selected contract and account. Full native 1C priority rules and concurrent-create behavior remain unverified; these checks do not establish acceptance of all accounting scenarios.
-- Contract creation compares currency with configured regulated currency instead of hardcoded643; unknown explicit currency codes are rejected.
-- Contracts of kind `Other` receive no new automatic supplier/customer interpretation.
-
 ## [Не выпущено]
+
+## [0.10.0] — 2026-10-22
+
+Настройки счетов расчётов с контрагентами и перенос счетов в уже созданные банковские документы — от [@alexpostnik](https://github.com/alexpostnik) (PR #43). Карточка «Долги по срокам» прямо в ответе (MCP Apps). Проверки для контрибуторов: снимок схемы БП 3.0 и тест сверки записи.
+
+### Добавлено
+
+- **Настройки счетов расчётов** — `read.accounting.get_settlement_settings` / `write.accounting.set_settlement_settings` (и прежние имена `get_contract_settlement_settings` / `set_contract_settlement_settings` только для договора): чтение, создание и изменение точной записи регистра «Счета учёта расчётов с контрагентами» для договора, контрагента или группы. Изменение — с `expectedDataVersion` и If-Match, если версия опубликована; без версии — только с явным `singleWriter=true`. Предпросмотр, журнал операции и контрольное чтение; неизвестный исход удерживает повтор до ручной сверки.
+- **Перенос счетов в существующий банковский документ** — `write.document.apply_bank_settlement_settings`: для непроведённого поступления или списания подбирает счёт расчётов и счёт авансов по сохранённым настройкам (договор → контрагент → группы → организация → общая) и ставит выбранный договор. Нужны явная сторона расчётов и `expectedDataVersion`; пустой контрагент заполняется только явно указанным `counterpartyRef`, заполненный не заменяется; остальные поля шапки и единственной строки платежа сохраняются и проверяются контрольным чтением. Договоры в условных единицах отклоняются понятным сообщением.
+- **Группы контрагентов** — `write.counterparty.create_group` (новая группа с проверкой родителя и глубины) и `write.counterparty.set_group` (перенос отдельного контрагента в группу с If-Match; перемещение самих групп запрещено). `find_counterparty` ищет и группы (`subjectKind`) и возвращает родителя и версию объекта.
+- **Проведение с проверкой версии** — `write.document.post_document` с `expectedDataVersion`: свой предпросмотр, журнал и чтение состояния после проведения или отмены. Без параметра работает как раньше.
+- **Валюта регламентированного учёта по базе** — `ODATA_DB_<ИМЯ>_REGULATED_CURRENCY_CODE` (иначе общая `ODATA_REGULATED_CURRENCY_CODE`, затем 643); создание договора сравнивает валюту с ней, а не с жёстким 643.
+- **Карточка «Долги по срокам» прямо в ответе** (MCP Apps) у `read.analytics.get_debtors` и `read.analytics.get_creditors`: итог, просрочено и в срок, полоса по срокам оплаты (без сроков в договорах — по возрасту долга), должники с мини-полосами, авансами и пометкой «старше года». Показывается в клиентах с поддержкой MCP Apps (проверено в MCPJam Inspector); **в Claude Desktop и Claude Code пока не показывается** — приложение не рисует карточку у инструментов с точкой в имени, ошибка передана Anthropic ([anthropics/claude-code#104045](https://github.com/anthropics/claude-code/issues/104045)). Клиенты без MCP Apps получают прежний текстовый ответ. Самодостаточный HTML без внешних загрузок, строки из 1С выводятся только как текст.
 
 ### Исправлено
 
-- PR #43: применение банковских настроек поддерживает GUID-контрагента Беларуси 2.1 и составную ссылку БП 3.0, точный вид операции `ОплатаПокупателя`, обновляет найденный счёт авансов вместе со счётом расчётов и допускает пересчёт трёх зависимых реквизитов взаиморасчётов при проверке результата. Разные валюты договора в условных единицах и документа явно отклоняются; вычисление курса не реализовано.
-- Потерянный ответ создания группы сверяется по назначенной ссылке, запись регистра — по точному составному ключу и отпечатку проверяемых значений. Несовпадение, отсутствие или ошибка чтения удерживают повтор; правка принадлежности требует ручной сверки. Старые инструменты создания не обходят группы и сохраняют прежний ограниченный подбор/поведение при усечении регистра. Неизвестный результат больше не требует проверять «документ» при записи настройки регистра.
-- Добавлена схема Беларуси 2.1.62.5 / платформы 8.3.25.1546, полученная адресным read-only чтением TEST 2026-10-21 (только поля, типы и ключи, без данных). Новый код проверен локально по обеим схемам; живые записи новой версии не выполнялись.
-
 - **Отказ 1С в правах больше не «неизвестный исход».** Ответ 500 «Нарушение прав доступа!» (у пользователя OData нет прав на объект или действие) теперь — однозначный отказ с понятным текстом «Нет прав в 1С…»: операция записи помечается отклонённой, `write.operation.status` отвечает «1С отклонила запись», можно исправить права и сделать новый предпросмотр. Раньше такая запись блокировалась как «результат неизвестен, сверьте вручную».
+- Пишущие запросы, включая проведение и отмену проведения без тела, больше не повторяются автоматически; повтор по таймауту — только для чтения.
+
+### Проверки
+
+- Живая проверка новых инструментов на БП 3.0.208.14 / платформе 8.5.1.1302 (облако): перенос счетов в списание (оплата поставщику) и поступление (оплата покупателя) — запись подтверждена контрольным чтением; потерянный ответ при создании группы сверяется без дубля; отказ в правах на регистр настроек возвращается понятным отказом. Существующие инструменты записи — `test:live` 38 из 38.
+- Белорусская Бухгалтерия 2.1.62.5 / платформа 8.3.25.1546 (тестовая база автора PR, предыдущие версии изменений): создание настройки договора, подбор счёта из настройки группы, перенос в банковские документы и проведение с чтением проводок.
+- Не проверено вживую: подбор из особой настройки договора или группы на БП 3.0 (у нашего пользователя OData нет прав на запись регистра настроек); полное совпадение с правилами приоритета самой 1С и одновременная запись несколькими пользователями.
 
 ### Прочее
 
-- **Снимок схемы БП 3.0 для тестов** (`test/fixtures/metadata/bp30.xml`, только схема без данных): инструменты создания проверяются в режиме предпросмотра по настоящим полям объектов и значениям перечислений, а не по рукописным заглушкам. Обновление — `npm run snapshot:metadata`; как пользоваться в своих тестах — в CONTRIBUTING.
+- **Снимок схемы БП 3.0 для тестов** (`test/fixtures/metadata/bp30.xml`, только схема без данных): инструменты создания проверяются в режиме предпросмотра по настоящим полям объектов и значениям перечислений, а не по рукописным заглушкам. Обновление — `npm run snapshot:metadata`; как пользоваться в своих тестах — в CONTRIBUTING. Добавлена и схема белорусской Бухгалтерии 2.1 (`test/fixtures/metadata/belarus-2.1.json`).
+- **Поддельная 1С для тестов** (`test/helpers/fake-1c.ts`): все 74 инструмента прогоняются против ответов OData по снимку схемы БП 3.0 — обращение к неизвестному объекту, полю или виду операции роняет тест, как роняло бы настоящую базу. **Бюджет запросов** (`test/fixtures/request-budget.json`): рост числа обращений к 1С у любого инструмента виден в тесте; осознанный рост — `npm run budget:update`.
 - **Тест сверки записи:** каждый инструмент с `operationId` после потерянного ответа 1С оставляет в журнале назначенный `Ref_Key` или проверку, а `write.operation.status` находит созданный объект — защита от дублей при повторе.
-- Для контрибуторов: шаблон PR с проверками и разделом «проверено на живой 1С», раздел «Подводные камни 1С» в CONTRIBUTING (составной контрагент, точные виды операций, сальдо на конец дня, ограничения запросов OData, стоимость запросов в облаке).
+- **Документация:** `docs/SETTLEMENTS.md` — настройки счетов расчётов, порядок подбора счетов, группы контрагентов, перенос счетов в банковский документ, что проверено вживую; в README — новые возможности обычным языком и строки в таблице инструментов; в CONNECTING — права на запись регистра настроек.
+- **Одна команда проверки — `npm run check`** (линтер, форматирование, типы, сборка, тесты — то же, что CI). Тест согласованности проверяет, что раздел «[Не выпущено]» в CHANGELOG один и написан по-русски.
+- Для контрибуторов: шаблон PR с проверками и разделом «проверено на живой 1С», раздел «Подводные камни 1С» в CONTRIBUTING (составной контрагент, точные виды операций, сальдо на конец дня, ограничения запросов OData, стоимость запросов в облаке), метка `needs-live-test`.
 
 ## [0.9.0] — 2026-10-21
 
@@ -654,7 +662,8 @@ POST-тестом (create → read → mark) на реальной базе — 
   коды плана счетов); вежливый фоллбэк при отсутствии объекта в «Составе OData».
 - npm-пакет с запуском через `npx 1c-odata-mcp`.
 
-[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.9.0...HEAD
+[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.1...v0.7.0

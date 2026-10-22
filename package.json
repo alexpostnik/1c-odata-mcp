@@ -1,6 +1,6 @@
 {
   "name": "1c-odata-mcp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "MCP server for 1C:Enterprise (1С) over OData. Ask your accounting database in natural language — debtors and creditors by due date, unpaid invoices, cash on hand, month-close checks, account cards, reconciliation statements, sales, taxes, cash flow, account turnover, postings — from any MCP client (Claude, Cursor, VS Code, local models…). 74 tools, run with npx, nothing installed inside 1C; read-only by default with opt-in (gated) write.",
   "type": "module",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "apps",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -29,6 +30,7 @@
     "probe": "node dist/scripts/probe-metadata.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run build && npm test",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -36,6 +38,7 @@
     "prepublishOnly": "npm run build && node --eval \"require('fs').rmSync('dist/scripts',{recursive:true,force:true})\"",
     "manifest": "npm run build && node dist/scripts/gen-manifest.js",
     "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js",
+    "budget:update": "UPDATE_REQUEST_BUDGET=1 vitest run test/fake-1c.test.ts",
     "snapshot:metadata": "npm run build && node --env-file=.env dist/scripts/snapshot-metadata.js"
   },
   "keywords": [
