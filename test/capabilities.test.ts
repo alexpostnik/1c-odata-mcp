@@ -578,3 +578,223 @@ describe("API диагностики и настройка профиля", () =
     expect(parseConfig(base).behavior.capabilityProbeLimit).toBe(64);
   });
 });
+
+const registerName = "AccountingRegister_Хозрасчетный";
+const functionXml = (parameterType = "Edm.DateTime") =>
+  `<Edmx><DataServices><Schema Namespace="S"><EntityType Name="Register"/><ComplexType Name="B"><Property Name="Account_Key" Type="Edm.Guid"/><Property Name="СуммаBalanceDr" Type="Edm.Decimal"/><Property Name="СуммаBalanceCr" Type="Edm.Decimal"/></ComplexType><EntityContainer><EntitySet Name="${registerName}" EntityType="S.Register"/><FunctionImport Name="Balance" ReturnType="Collection(S.B)" IsBindable="true"><Parameter Name="bindingParameter" Type="S.Register"/><Parameter Name="Period" Type="${parameterType}"/></FunctionImport></EntityContainer></Schema></DataServices></Edmx>`;
+
+describe("регрессии независимой проверки", () => {
+  it.each(["register", "chart"])(
+    "R1: изменение accounting.%s обновляет тот же principal сразу",
+    async (key) => {
+      const first = await setup();
+      const old = await first.conn.capabilities.refresh();
+      const target = key === "register" ? "AccountingRegister_Custom" : "ChartOfAccounts_Custom";
+      const second = await setup({ ODATA_ACCOUNTING_CONFIG: JSON.stringify({ [key]: target }) }, first.dir);
+      second.schema(xml("", `<EntitySet Name="${target}" EntityType="S.Catalog_Организации"/>`));
+      await second.conn.capabilities.start();
+      const report = await second.conn.capabilities.status();
+      expect(second.requests.some((r) => r.url.endsWith("$metadata"))).toBe(true);
+      expect(report.scope).toBe(old.scope);
+      expect(report.requirements[`accounting.${key}`]?.entitySet).toBe(target);
+      expect(report.events).toContainEqual(
+        expect.objectContaining({ kind: "newly_required", requirement: `accounting.${key}` }),
+      );
+    },
+  );
+  it.each(["mcpVersion", "sourceVersion", "sourceRef", "requirementsRevision", "revision"])(
+    "R2: изменение %s обходит суточный cache при прежних content hashes",
+    async (key) => {
+      const first = await setup();
+      await first.conn.capabilities.refresh();
+      const path = join(first.dir, (await readdir(first.dir))[0]!);
+      const state = JSON.parse(await readFile(path, "utf8"));
+      if (key === "revision") state.revision = "older";
+      else state.provenance[key] = "older";
+      await writeFile(path, JSON.stringify(state));
+      const second = await setup({}, first.dir);
+      await second.conn.capabilities.start();
+      expect(second.requests.some((r) => r.url.endsWith("$metadata"))).toBe(true);
+      const report = await second.conn.capabilities.status();
+      expect(report.observationProvenance).toMatchObject({
+        mcpVersion: "0.10.0",
+        requirementsRevision: REQUIREMENTS.revision,
+        sourceVersion: REQUIREMENTS.sourceVersion,
+        sourceRef: REQUIREMENTS.sourceRef,
+      });
+    },
+  );
+  it("R3/R5: parameterless Balance отдельно от root, точный отказ и восстановление видны администратору и в drift", async () => {
+    const f = await setup();
+    f.schema(functionXml());
+    await f.conn.capabilities.refresh();
+    await f.conn.client.request(`${registerName}/Balance?$top=0`);
+    let report = await f.conn.capabilities.status();
+    expect(report.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe(
+      "observed_success",
+    );
+    expect(report.requirements["accounting.register"]?.operations[0]?.evidence.effectiveStatus).toBe(
+      "unknown",
+    );
+    f.response(500, '{"odata.error":{"message":{"value":"Нарушение прав доступа!"}}}');
+    await expect(f.conn.client.request(`${registerName}/Balance`)).rejects.toThrow();
+    report = await f.conn.capabilities.status();
+    expect(report.requirements["accounting.balance"]?.status).toBe("published");
+    expect(report.administratorRequest).toContain(
+      `${registerName}; функция Balance: операция read; наблюдён явный отказ`,
+    );
+    expect(report.events).toContainEqual(
+      expect.objectContaining({ kind: "newly_missing", requirement: `${registerName}:Balance:read` }),
+    );
+    f.response(200, '{"value":[]}');
+    await f.conn.client.request(`${registerName}/Balance(Period=datetime'2026-01-01T00:00:00')?$top=0`);
+    expect((await f.conn.capabilities.status()).events).toContainEqual(
+      expect.objectContaining({ kind: "restored", requirement: `${registerName}:Balance:read` }),
+    );
+    await f.conn.client.request(`${registerName}?$top=0`);
+    expect((await f.conn.capabilities.status()).operations).toHaveLength(2);
+  });
+  it("R5: опубликованный параметризованный Balance даёт точный запрос и identity отказа", async () => {
+    const f = await setup();
+    f.schema(functionXml());
+    await f.conn.capabilities.refresh();
+    f.response(500, '{"odata.error":{"message":{"value":"Нарушение прав доступа!"}}}');
+    await expect(
+      f.conn.client.request(`${registerName}/Balance(Period=datetime'2026-01-01T00:00:00')?$top=0`),
+    ).rejects.toThrow();
+    const report = await f.conn.capabilities.status();
+    expect(report.administratorRequest).toContain(
+      `${registerName}; функция Balance: операция read; наблюдён явный отказ`,
+    );
+    expect(report.events).toContainEqual(
+      expect.objectContaining({ kind: "newly_missing", requirement: `${registerName}:Balance:read` }),
+    );
+  });
+  it("R3/R5: bound Post/Unpost сохраняют точную identity отдельно от GET и Balance", async () => {
+    const f = await setup({ READ_ONLY: "false", ODATA_WRITABLE: "true" });
+    f.schema(xml("", '<EntitySet Name="Document_Test" EntityType="S.Catalog_Организации"/>'));
+    await f.conn.capabilities.refresh();
+    f.response(500, '{"odata.error":{"message":{"value":"Нарушение прав доступа!"}}}');
+    for (const action of ["Post", "Unpost"])
+      await expect(
+        f.conn.client.request(`Document_Test(guid'synthetic-key')/${action}`, "POST"),
+      ).rejects.toThrow();
+    const report = await f.conn.capabilities.status();
+    expect(report.administratorRequest).toContain("Document_Test: операция post");
+    expect(report.administratorRequest).toContain("Document_Test: операция unpost");
+    expect(report.events.map((e) => e.requirement)).toEqual(
+      expect.arrayContaining(["Document_Test:post", "Document_Test:unpost"]),
+    );
+    expect(report.operations.every((o) => o.functionName === undefined && o.operation !== "read")).toBe(true);
+  });
+  it("R4: известный тип Period проверяется, неизвестный остаётся явно unknown", async () => {
+    const f = await setup();
+    const req = REQUIREMENTS.definitions["accounting.balance"]!;
+    expect(req.function?.parameters).toEqual([{ name: "Period", type: "Edm.DateTime", optional: true }]);
+    const incompatible = inspectRequirement(req, f.conn.cfg, parseMetadata(functionXml("Edm.Int32")));
+    expect(incompatible).toMatchObject({
+      status: "schema_incompatible",
+      missing: ["parameter:Period:Edm.DateTime"],
+    });
+    const unknown = inspectRequirement(
+      {
+        ...req,
+        function: { name: "Balance", parameters: [{ name: "Period", type: "unknown" }] },
+      } as typeof req,
+      f.conn.cfg,
+      parseMetadata(functionXml()),
+    );
+    expect(unknown).toMatchObject({ status: "unknown", unknown: ["parameter_type:Period"] });
+  });
+  it.each([
+    ["write.catalog.update_nomenclature", { name: "sample", fullName: "sample", article: "sample" }],
+    [
+      "write.counterparty.update_counterparty",
+      { name: "sample", inn: "sample", kpp: "sample", fullName: "sample" },
+    ],
+  ] as const)(
+    "R6: %s описывает реальные optional preview fields и отдельно их schema",
+    async (name, args) => {
+      const f = await setup();
+      f.schema(
+        xml(
+          '<Property Name="Ref_Key" Type="Edm.Guid"/>',
+          '<EntitySet Name="Catalog_Номенклатура" EntityType="S.Catalog_Организации"/><EntitySet Name="Catalog_Контрагенты" EntityType="S.Catalog_Организации"/>',
+        ),
+      );
+      const preview = await snapshotTools(f.conn)[name]!.handler(
+        { ref: "11111111-1111-4111-8111-111111111111", confirm: false, ...args },
+        {},
+      );
+      expect(preview.isError).not.toBe(true);
+      const fields = Object.keys(preview.structuredContent!.fields as object);
+      const record = REQUIREMENTS.tools.find((t) => t.name === name)!;
+      expect(Object.keys(record.mutationFieldModel?.conditionalSent ?? {}).sort()).toEqual(
+        expect.arrayContaining(fields.sort()),
+      );
+      expect(record.mutationFieldModel?.alwaysSent).toEqual([]);
+      await f.conn.capabilities.refresh();
+      const diagnostic = (await f.conn.capabilities.status()).tools.find(
+        (t) => t.name === name,
+      )!.mutationSchema;
+      expect(diagnostic?.alwaysSent?.status).toBe("published");
+      for (const field of fields)
+        expect(diagnostic?.conditional).toContainEqual(
+          expect.objectContaining({
+            field,
+            applicability: "unknown",
+            schema: expect.objectContaining({ status: "schema_incompatible", missing: [field] }),
+          }),
+        );
+      expect(f.requests.every((r) => r.method === "GET")).toBe(true);
+    },
+  );
+  it("R6: контакты и дополнительные реквизиты отражают поля безопасного preview без обязательности для простого имени", async () => {
+    const conn = snapshotConnection();
+    vi.spyOn(conn.client, "getCollection").mockImplementation(async (path: string) => {
+      if (path.startsWith("Catalog_ВидыКонтактнойИнформации"))
+        return {
+          value: path.includes("Parent_Key")
+            ? [
+                { Ref_Key: "11111111-1111-4111-8111-111111111111", Description: "Телефон", Тип: "Телефон" },
+                {
+                  Ref_Key: "22222222-2222-4222-8222-222222222222",
+                  Description: "Email",
+                  Тип: "АдресЭлектроннойПочты",
+                },
+                {
+                  Ref_Key: "33333333-3333-4333-8333-333333333333",
+                  Description: "Юридический адрес",
+                  Тип: "Адрес",
+                },
+              ]
+            : [{ Ref_Key: "44444444-4444-4444-8444-444444444444" }],
+        };
+      return { value: [{ Ref_Key: "55555555-5555-4555-8555-555555555555" }] };
+    });
+    vi.spyOn(conn.client, "getEntity").mockResolvedValue({ КонтактнаяИнформация: [] });
+    const preview = await snapshotTools(conn)["write.counterparty.update_counterparty"]!.handler(
+      {
+        ref: "11111111-1111-4111-8111-111111111111",
+        phone: "sample",
+        email: "sample",
+        address: "sample",
+        ogrn: "sample",
+        confirm: false,
+      },
+      {},
+    );
+    expect(preview.isError).not.toBe(true);
+    const fields = preview.structuredContent!.fields as Record<string, Array<Record<string, unknown>>>;
+    const model = REQUIREMENTS.tools.find(
+      (t) => t.name === "write.counterparty.update_counterparty",
+    )!.mutationFieldModel;
+    for (const [section, rows] of Object.entries(fields)) {
+      expect(model?.conditionalSent).toHaveProperty(section);
+      const rowModel = model?.rows?.[section];
+      const declared = [...(rowModel?.alwaysSent ?? []), ...Object.keys(rowModel?.conditionalSent ?? {})];
+      for (const row of rows) expect(declared).toEqual(expect.arrayContaining(Object.keys(row)));
+    }
+    expect(Object.keys(fields).sort()).toEqual(["ДополнительныеРеквизиты", "КонтактнаяИнформация"].sort());
+  });
+});
