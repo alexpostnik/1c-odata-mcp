@@ -12,6 +12,14 @@ export interface SchemaObservation {
   missing: string[];
   unknown: string[];
   factConflict?: boolean;
+  observedFields?: Record<string, string>;
+  observedKeys?: string[];
+  functionParameters?: Array<{ name: string; type: string }>;
+}
+
+function observedShape(req: Requirement, entity: EntityMeta) {
+  const names = new Set([...(Array.isArray(req.fields) ? req.fields : Object.keys(req.fields)), ...(req.keys ?? []), ...(req.forbiddenFields ?? [])]);
+  return { observedFields: Object.fromEntries(entity.properties.filter((p) => names.has(p.name)).map((p) => [p.name, p.type]).sort(([a], [b]) => a!.localeCompare(b!))), observedKeys: [...entity.keys].sort() };
 }
 
 function fieldProblems(req: Requirement, entity: EntityMeta): string[] {
@@ -66,6 +74,8 @@ export function inspectRequirement(
         candidates,
         entitySet: entity.entitySet,
         missing,
+        ...observedShape(req, { ...entity, properties: fn.properties, keys: [] }),
+        functionParameters: fn.parameters,
         unknown: fn.properties.length ? [] : ["function_result_schema"],
         ...(fact ? { factConflict: true } : {}),
       };
@@ -86,6 +96,7 @@ export function inspectRequirement(
     candidates,
     entitySet: best.entity.entitySet,
     missing: best.missing,
+    ...observedShape(req, best.entity),
     unknown: [],
     ...(fact ? { factConflict: true } : {}),
   };

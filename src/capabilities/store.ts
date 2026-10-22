@@ -20,6 +20,9 @@ const schemaObservation = z.object({
   missing: z.array(name),
   unknown: z.array(name),
   factConflict: z.boolean().optional(),
+  observedFields: z.record(name, z.string().max(200)).optional(),
+  observedKeys: z.array(name).optional(),
+  functionParameters: z.array(z.object({ name, type: z.string().max(200) })).optional(),
 });
 const operationObservation = z.object({
   entitySet: name,

@@ -312,9 +312,9 @@ export class CapabilityMonitor {
           events.push({
             at,
             kind:
-              now.status === "published"
+              now.status === "published" && before.status !== "published"
                 ? "restored"
-                : before.status === "published"
+                : before.status === "published" && now.status !== "published"
                   ? "newly_missing"
                   : "changed",
             requirement: id,
