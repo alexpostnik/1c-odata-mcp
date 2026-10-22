@@ -58,7 +58,12 @@ export function mutationDiagnostics(tool: ToolRequirement, cfg: ConnectionConfig
   if (!model) return undefined;
   const target = tool.required
     .map((id) => REQUIREMENTS.definitions[id])
-    .find((req) => req && req.operations && (req.operations as string[]).includes("create"));
+    .find(
+      (req) =>
+        req &&
+        req.operations &&
+        (req.operations as string[]).some((operation) => operation === "create" || operation === "update"),
+    );
   if (!target) return { model, status: "unknown" };
   const schema = inspectRequirement(target, cfg, metadata);
   const checkFields = (fields: string[], suffix = "") =>

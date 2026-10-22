@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { snapshotConnection, snapshotTools } from "./helpers/metadata-snapshot.js";
 import { parseMetadata } from "../src/odata/metadata.js";
+import { balanceByAccounts } from "../src/odata/accounting.js";
 
 describe("проверка возможностей OData", () => {
   it("показывает требования и независимую диагностику без попытки записи", () => {
@@ -628,7 +629,7 @@ describe("регрессии независимой проверки", () => {
     const f = await setup();
     f.schema(functionXml());
     await f.conn.capabilities.refresh();
-    await f.conn.client.request(`${registerName}/Balance?$top=0`);
+    await balanceByAccounts(f.conn, null);
     let report = await f.conn.capabilities.status();
     expect(report.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe(
       "observed_success",
@@ -751,6 +752,10 @@ describe("регрессии независимой проверки", () => {
   );
   it("R6: контакты и дополнительные реквизиты отражают поля безопасного preview без обязательности для простого имени", async () => {
     const conn = snapshotConnection();
+    const available = await conn.available();
+    vi.spyOn(conn, "available").mockResolvedValue(
+      new Set([...available, "ChartOfCharacteristicTypes_ДополнительныеРеквизитыИСведения"]),
+    );
     vi.spyOn(conn.client, "getCollection").mockImplementation(async (path: string) => {
       if (path.startsWith("Catalog_ВидыКонтактнойИнформации"))
         return {

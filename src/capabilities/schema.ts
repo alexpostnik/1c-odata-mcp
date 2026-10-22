@@ -74,21 +74,32 @@ export function inspectRequirement(
         (f) => f.name === req.function?.name && f.bindingType === entity.entityType,
       );
       if (!fn) continue;
-      const missingParams = (req.function?.parameters ?? [])
-        .map((p) => p.split(" ")[0]!)
-        .filter((p) => !fn.parameters.some((x) => x.name === p));
+      const missingParams: string[] = [];
+      const unknownParams: string[] = [];
+      for (const expected of req.function?.parameters ?? []) {
+        const actual = fn.parameters.find((p) => p.name === expected.name);
+        if (!actual) missingParams.push(`parameter:${expected.name}`);
+        else if (expected.type === "unknown" || !actual.type || actual.type === "unknown")
+          unknownParams.push(`parameter_type:${expected.name}`);
+        else if (actual.type !== expected.type)
+          missingParams.push(`parameter:${expected.name}:${expected.type}`);
+      }
       const missingFields = fn.properties.length
         ? fieldProblems({ ...req, keys: [] }, { ...entity, properties: fn.properties, keys: [] })
         : [];
-      const missing = [...missingParams.map((p) => `parameter:${p}`), ...missingFields];
+      const missing = [...missingParams, ...missingFields];
       return {
-        status: missing.length ? "schema_incompatible" : fn.properties.length ? "published" : "unknown",
+        status: missing.length
+          ? "schema_incompatible"
+          : fn.properties.length && !unknownParams.length
+            ? "published"
+            : "unknown",
         candidates,
         entitySet: entity.entitySet,
         missing,
         ...observedShape(req, { ...entity, properties: fn.properties, keys: [] }),
         functionParameters: fn.parameters,
-        unknown: fn.properties.length ? [] : ["function_result_schema"],
+        unknown: [...unknownParams, ...(fn.properties.length ? [] : ["function_result_schema"])],
         ...(fact ? { factConflict: true } : {}),
       };
     }

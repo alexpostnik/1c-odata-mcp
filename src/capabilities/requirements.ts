@@ -10,7 +10,7 @@ export interface Requirement {
   forbiddenFields?: string[];
   suffixAlternatives?: string[];
   configurationOverride?: string;
-  function?: { name: string; parameters: string[] };
+  function?: { name: string; parameters: Array<{ name: string; type: string; optional?: boolean }> };
   notes?: string;
   [key: string]: unknown;
 }

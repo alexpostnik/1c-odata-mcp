@@ -71,6 +71,11 @@ const stateSchema = z.object({
   provenance: z
     .object({
       requirementsRevision: z.string().max(100),
+      mcpVersion: z.string().max(100).optional(),
+      resolvedTargetFingerprint: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
       sourceVersion: z.string().max(100),
       sourceRef: z.string().max(100),
       profile: CapabilityProfileSchema,

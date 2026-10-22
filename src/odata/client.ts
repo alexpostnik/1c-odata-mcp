@@ -148,7 +148,7 @@ export class ODataClient {
     if (!this.observeRequest) return;
     const match = /^([A-Za-z][\p{L}\p{N}_]*)([?(/]|$)/u.exec(path);
     if (!match) return;
-    const functionName = /^\w[\p{L}\p{N}_]*\/([A-Za-z][A-Za-z0-9_]*)\(/u.exec(path)?.[1];
+    const functionName = /^\w[\p{L}\p{N}_]*\/([A-Za-z][A-Za-z0-9_]*)(?:\(|\?|$)/u.exec(path)?.[1];
     const action = /\)\/(Post|Unpost)(?:\?|$)/.exec(path)?.[1];
     const operation =
       action === "Post"

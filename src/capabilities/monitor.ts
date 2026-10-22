@@ -1,3 +1,4 @@
+import { readVersion } from "../version.js";
 import { mutationDiagnostics } from "./diagnose.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -6,7 +7,7 @@ import type { ODataClient } from "../odata/client.js";
 import { ODataError } from "../odata/errors.js";
 import type { MetadataMap } from "../types/odata.js";
 import { DEFAULT_PROFILE } from "./config.js";
-import { REQUIREMENTS, fingerprint } from "./requirements.js";
+import { REQUIREMENTS, fingerprint, targets } from "./requirements.js";
 import { inspectRequirement, type SchemaObservation } from "./schema.js";
 import {
   CapabilityStore,
@@ -146,7 +147,7 @@ export class CapabilityMonitor {
               : observation.status === "observed_denied"
                 ? "newly_missing"
                 : "observation_failed",
-          requirement: `${input.entitySet}:${input.operation}`,
+          requirement: `${input.entitySet}${input.functionName ? `:${input.functionName}` : ""}:${input.operation}`,
           before: previous.status,
           after: observation.status,
         },
@@ -156,7 +157,7 @@ export class CapabilityMonitor {
         {
           at,
           kind: observation.status === "observed_denied" ? "newly_missing" : "observation_failed",
-          requirement: `${input.entitySet}:${input.operation}`,
+          requirement: `${input.entitySet}${input.functionName ? `:${input.functionName}` : ""}:${input.operation}`,
           after: observation.status,
         },
       ]);
@@ -231,6 +232,7 @@ export class CapabilityMonitor {
     );
     return {
       requirementsRevision: REQUIREMENTS.revision,
+      mcpVersion: readVersion(),
       sourceVersion: REQUIREMENTS.sourceVersion,
       sourceRef: REQUIREMENTS.sourceRef,
       scope: this.state.scope,
@@ -291,13 +293,13 @@ export class CapabilityMonitor {
       .filter(([, o]) => o.status !== "published" || o.factConflict)
       .map(([id, o]) => {
         const req = REQUIREMENTS.definitions[id];
-        return `• ${id}: ${o.candidates.join(" или ")}; потребность: ${REQUIREMENTS.tools.some((tool) => tool.required.includes(id)) ? "обязательная для использующих инструментов" : "условная/необязательная — только для соответствующего сценария"}; операции: ${((req?.operations as string[] | undefined) ?? []).join(", ") || "metadata"}${req?.function ? `; функция ${req.function.name}(${req.function.parameters.join(", ")})` : ""}; поля/ключи: ${[...(Array.isArray(req?.fields) ? req.fields : Object.keys(req?.fields ?? {})), ...(req?.keys ?? []).map((k) => `key:${k}`)].join(", ") || "см. требования инструмента"}; состояние: ${o.status}${o.missing.length ? `; несовместимо: ${o.missing.join(", ")}` : ""}${o.factConflict ? "; факт администратора противоречит текущей схеме" : ""}`;
+        return `• ${id}: ${o.candidates.join(" или ")}; потребность: ${REQUIREMENTS.tools.some((tool) => tool.required.includes(id)) ? "обязательная для использующих инструментов" : "условная/необязательная — только для соответствующего сценария"}; операции: ${((req?.operations as string[] | undefined) ?? []).join(", ") || "metadata"}${req?.function ? `; функция ${req.function.name}(${req.function.parameters.map((p) => `${p.name}:${p.type}${p.optional ? " (optional)" : ""}`).join(", ")})` : ""}; поля/ключи: ${[...(Array.isArray(req?.fields) ? req.fields : Object.keys(req?.fields ?? {})), ...(req?.keys ?? []).map((k) => `key:${k}`)].join(", ") || "см. требования инструмента"}; состояние: ${o.status}${o.missing.length ? `; несовместимо: ${o.missing.join(", ")}` : ""}${o.factConflict ? "; факт администратора противоречит текущей схеме" : ""}`;
       });
     for (const o of this.state.operations.filter(
       (x) => x.status === "observed_denied" && Date.parse(x.expiresAt) > Date.now(),
     ))
       lines.push(
-        `• ${o.entitySet}: операция ${o.operation}; наблюдён явный отказ роли 1С (${o.at}), только для одного запроса.`,
+        `• ${o.entitySet}${o.functionName ? `; функция ${o.functionName}` : ""}: операция ${o.operation}; наблюдён явный отказ роли 1С (${o.at}), только для одного запроса.`,
       );
     return (
       `Конфигурация: ${profile.configuration}, версия: ${profile.configurationVersion}, платформа: ${profile.platformVersion}; источник сведений: ${profile.source}.\n` +
@@ -357,12 +359,7 @@ export class CapabilityMonitor {
       this.state.latest = latest;
       this.state.metadataStatus = "ok";
       this.state.lastSuccessAt = at;
-      this.state.provenance = {
-        requirementsRevision: REQUIREMENTS.revision,
-        sourceVersion: REQUIREMENTS.sourceVersion,
-        sourceRef: REQUIREMENTS.sourceRef,
-        profile: this.cfg.capabilityProfile ?? DEFAULT_PROFILE,
-      };
+      this.state.provenance = this.provenance();
       if (
         oldMetadataStatus === "unknown" &&
         this.state.lastSuccessAt &&
@@ -436,13 +433,29 @@ export class CapabilityMonitor {
     return this.report();
   }
 
+  private provenance() {
+    return {
+      requirementsRevision: REQUIREMENTS.revision,
+      mcpVersion: readVersion(),
+      resolvedTargetFingerprint: fingerprint(
+        Object.fromEntries(
+          Object.entries(REQUIREMENTS.definitions).map(([id, req]) => [id, targets(req, this.cfg)]),
+        ),
+      ),
+      sourceVersion: REQUIREMENTS.sourceVersion,
+      sourceRef: REQUIREMENTS.sourceRef,
+      profile: this.cfg.capabilityProfile ?? DEFAULT_PROFILE,
+    };
+  }
+
   private signatures(): Record<string, string> {
-    return Object.fromEntries(
-      [
-        ...Object.entries(REQUIREMENTS.definitions),
-        ...REQUIREMENTS.tools.map((t) => [`tool:${t.name}`, t] as const),
-      ].map(([id, req]) => [id, fingerprint(req)]),
-    );
+    return Object.fromEntries([
+      ...Object.entries(REQUIREMENTS.definitions).map(([id, req]) => [
+        id,
+        fingerprint({ definition: req, targets: targets(req, this.cfg) }),
+      ]),
+      ...REQUIREMENTS.tools.map((tool) => [`tool:${tool.name}`, fingerprint(tool)]),
+    ]);
   }
 
   /** Повторное подключение в течение интервала использует датированный baseline той же версии. */
@@ -459,10 +472,16 @@ export class CapabilityMonitor {
     await this.load();
     if (this.stopped) return;
     const interval = this.behavior.capabilityIntervalMs ?? 86_400_000;
+    const provenance = this.provenance();
     const changed =
       fingerprint(this.state.fingerprints) !== fingerprint(this.signatures()) ||
-      fingerprint(this.state.provenance?.profile) !==
-        fingerprint(this.cfg.capabilityProfile ?? DEFAULT_PROFILE);
+      this.state.revision !== REQUIREMENTS.revision ||
+      this.state.provenance?.mcpVersion !== provenance.mcpVersion ||
+      this.state.provenance?.sourceVersion !== provenance.sourceVersion ||
+      this.state.provenance?.sourceRef !== provenance.sourceRef ||
+      this.state.provenance?.requirementsRevision !== provenance.requirementsRevision ||
+      this.state.provenance?.resolvedTargetFingerprint !== provenance.resolvedTargetFingerprint ||
+      fingerprint(this.state.provenance?.profile ?? null) !== fingerprint(provenance.profile);
     const age = this.state.lastSuccessAt ? Date.now() - Date.parse(this.state.lastSuccessAt) : Infinity;
     if (changed || this.state.metadataStatus !== "ok" || age >= interval)
       await this.refresh(undefined, changed || !this.state.lastSuccessAt);

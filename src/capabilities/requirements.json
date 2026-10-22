@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "0.10.0-1",
+  "revision": "0.10.0-2",
   "sourceVersion": "0.10.0",
   "sourceRef": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
   "definitions": {
@@ -172,7 +172,11 @@
       "function": {
         "name": "Balance",
         "parameters": [
-          "Period (optional Edm.DateTime)"
+          {
+            "name": "Period",
+            "type": "Edm.DateTime",
+            "optional": true
+          }
         ]
       },
       "source": {
@@ -204,8 +208,14 @@
       "function": {
         "name": "BalanceAndTurnovers",
         "parameters": [
-          "StartPeriod",
-          "EndPeriod"
+          {
+            "name": "StartPeriod",
+            "type": "Edm.DateTime"
+          },
+          {
+            "name": "EndPeriod",
+            "type": "Edm.DateTime"
+          }
         ]
       },
       "source": {
@@ -237,8 +247,14 @@
       "function": {
         "name": "RecordsWithExtDimensions",
         "parameters": [
-          "StartPeriod",
-          "EndPeriod"
+          {
+            "name": "StartPeriod",
+            "type": "Edm.DateTime"
+          },
+          {
+            "name": "EndPeriod",
+            "type": "Edm.DateTime"
+          }
         ]
       },
       "conditionalFields": [
@@ -4427,6 +4443,39 @@
         "line": 2121,
         "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
         "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2121"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [],
+        "conditionalSent": {
+          "Description": "name supplied",
+          "ИНН": "inn supplied",
+          "КПП": "kpp supplied",
+          "НаименованиеПолное": "fullName supplied",
+          "КонтактнаяИнформация": "phone/email/address supplied; merge preserves other rows",
+          "ДополнительныеРеквизиты": "ogrn supplied and additional property resolved"
+        },
+        "rows": {
+          "КонтактнаяИнформация": {
+            "alwaysSent": [
+              "LineNumber",
+              "Тип",
+              "Вид_Key",
+              "Представление"
+            ],
+            "conditionalSent": {
+              "НомерТелефона": "phone supplied and phone kind resolved",
+              "АдресЭП": "email supplied and email kind resolved"
+            }
+          },
+          "ДополнительныеРеквизиты": {
+            "alwaysSent": [
+              "LineNumber",
+              "Свойство_Key",
+              "Значение"
+            ]
+          }
+        },
+        "note": "All update fields depend on supplied inputs; no optional field is mandatory for unrelated updates. Contact merge preserves existing rows and renumbers LineNumber."
       }
     },
     {
@@ -4446,6 +4495,15 @@
         "line": 2185,
         "ref": "c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f",
         "url": "https://github.com/evilbruce666/1c-odata-mcp/blob/c3baa6ab2a93a5fc32e4982dd8d3e87ebe4cb83f/src/tools/write.ts#L2185"
+      },
+      "mutationFieldModel": {
+        "alwaysSent": [],
+        "conditionalSent": {
+          "Description": "name supplied",
+          "НаименованиеПолное": "fullName supplied",
+          "Артикул": "article supplied"
+        },
+        "rows": {}
       }
     },
     {
