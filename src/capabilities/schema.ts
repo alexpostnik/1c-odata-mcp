@@ -18,8 +18,20 @@ export interface SchemaObservation {
 }
 
 function observedShape(req: Requirement, entity: EntityMeta) {
-  const names = new Set([...(Array.isArray(req.fields) ? req.fields : Object.keys(req.fields)), ...(req.keys ?? []), ...(req.forbiddenFields ?? [])]);
-  return { observedFields: Object.fromEntries(entity.properties.filter((p) => names.has(p.name)).map((p) => [p.name, p.type]).sort(([a], [b]) => a!.localeCompare(b!))), observedKeys: [...entity.keys].sort() };
+  const names = new Set([
+    ...(Array.isArray(req.fields) ? req.fields : Object.keys(req.fields)),
+    ...(req.keys ?? []),
+    ...(req.forbiddenFields ?? []),
+  ]);
+  return {
+    observedFields: Object.fromEntries(
+      entity.properties
+        .filter((p) => names.has(p.name))
+        .map((p) => [p.name, p.type])
+        .sort(([a], [b]) => a!.localeCompare(b!)),
+    ),
+    observedKeys: [...entity.keys].sort(),
+  };
 }
 
 function fieldProblems(req: Requirement, entity: EntityMeta): string[] {

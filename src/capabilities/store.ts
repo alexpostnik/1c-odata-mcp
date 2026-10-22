@@ -68,8 +68,24 @@ const stateSchema = z.object({
   lastAttemptAt: stamp.optional(),
   lastSuccessAt: stamp.optional(),
   metadataStatus: z.enum(["ok", "unknown"]),
-  provenance: z.object({ requirementsRevision: z.string().max(100), sourceVersion: z.string().max(100), sourceRef: z.string().max(100), profile: CapabilityProfileSchema }).optional(),
-  probeCoverage: z.object({ at: stamp, candidateCount: z.number().int().min(0).max(10000), checked: z.array(name).max(64), fullPass: z.boolean(), periodicBudget: z.number().int().min(0).max(64) }).optional(),
+  provenance: z
+    .object({
+      requirementsRevision: z.string().max(100),
+      sourceVersion: z.string().max(100),
+      sourceRef: z.string().max(100),
+      profile: CapabilityProfileSchema,
+    })
+    .optional(),
+  probeCoverage: z
+    .object({
+      at: stamp,
+      candidateCount: z.number().int().min(0).max(10000),
+      checked: z.array(name).max(64),
+      fullPass: z.boolean(),
+      periodicBudget: z.number().int().min(0).max(64),
+    })
+    .optional(),
+  knownEntities: z.array(name).max(10000).optional(),
   latest: z.record(name, schemaObservation),
   operations: z.array(operationObservation).max(5000),
   events: z.array(eventSchema).max(1000),

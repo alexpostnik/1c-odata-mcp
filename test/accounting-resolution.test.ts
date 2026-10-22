@@ -32,7 +32,9 @@ describe("account and metadata resolution", () => {
     const read = vi
       .spyOn(c.client, "getText")
       .mockRejectedValueOnce(new Error("temporary"))
-      .mockResolvedValue('<Schema Namespace="StandardODATA" />');
+      .mockResolvedValue(
+        '<Edmx><DataServices><Schema Namespace="StandardODATA"><EntityContainer Name="Container" /></Schema></DataServices></Edmx>',
+      );
     await expect(c.getMetadata()).rejects.toThrow("temporary");
     await c.client.getMetadata();
     expect(read).toHaveBeenCalledTimes(2);

@@ -389,14 +389,23 @@ describe("точность свидетельств функций", () => {
   it("успех корневого GET не доказывает вызов Balance; нормальный вызов учитывается отдельно", async () => {
     const f = await setup({ ODATA_CAPABILITY_PROBE_LIMIT: "0" });
     const register = "AccountingRegister_Хозрасчетный";
-    f.schema(xml().replace('</EntityContainer>', `<EntitySet Name="${register}" EntityType="S.${register}"/></EntityContainer>`));
+    f.schema(
+      xml().replace(
+        "</EntityContainer>",
+        `<EntitySet Name="${register}" EntityType="S.${register}"/></EntityContainer>`,
+      ),
+    );
     await f.conn.capabilities.refresh();
     await f.conn.client.request(`${register}?$top=0`);
     const before = await f.conn.capabilities.status();
-    expect(before.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe("unknown");
+    expect(before.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe(
+      "unknown",
+    );
     await f.conn.client.request(`${register}/Balance(Period=datetime'2026-01-01T00:00:00')?$top=0`);
     const after = await f.conn.capabilities.status();
-    expect(after.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe("observed_success");
+    expect(after.requirements["accounting.balance"]?.operations[0]?.evidence.effectiveStatus).toBe(
+      "observed_success",
+    );
     expect(after.operations).toContainEqual(expect.objectContaining({ functionName: "Balance" }));
   });
 });
@@ -421,26 +430,40 @@ describe("полнота автоматической проверки и proven
     const f = await setup();
     const report = await f.conn.capabilities.refresh();
     expect(report).toHaveProperty("observationProvenance");
-    expect(Reflect.get(report, "observationProvenance")).toMatchObject({ requirementsRevision: REQUIREMENTS.revision, sourceRef: REQUIREMENTS.sourceRef, profile: { configurationVersion: "unknown" } });
+    expect(Reflect.get(report, "observationProvenance")).toMatchObject({
+      requirementsRevision: REQUIREMENTS.revision,
+      sourceRef: REQUIREMENTS.sourceRef,
+      profile: { configurationVersion: "unknown" },
+    });
   });
 });
 
 describe("изменения формы контракта", () => {
   it("изменение типа используемого поля видно даже когда имя осталось", async () => {
-    const f = await setup(); await f.conn.capabilities.refresh();
-    f.schema(xml('<Property Name="Ref_Key" Type="Edm.Guid"/><Property Name="Description" Type="Edm.Int32"/><Property Name="ИНН" Type="Edm.String"/>'));
+    const f = await setup();
+    await f.conn.capabilities.refresh();
+    f.schema(
+      xml(
+        '<Property Name="Ref_Key" Type="Edm.Guid"/><Property Name="Description" Type="Edm.Int32"/><Property Name="ИНН" Type="Edm.String"/>',
+      ),
+    );
     const report = await f.conn.capabilities.refresh();
-    expect(report.events).toContainEqual(expect.objectContaining({ kind: "changed", requirement: "organizations" }));
+    expect(report.events).toContainEqual(
+      expect.objectContaining({ kind: "changed", requirement: "organizations" }),
+    );
     expect(report.requirements.organizations).toHaveProperty("observedFields.Description", "Edm.Int32");
   });
   it("отозванное объявление функции становится unknown и не исчезает из истории", async () => {
     const f = await setup();
     const fnXml = `<Edmx><DataServices><Schema Namespace="S"><EntityType Name="Register"/><ComplexType Name="B"><Property Name="Account_Key" Type="Edm.Guid"/><Property Name="СуммаBalanceDr" Type="Edm.Decimal"/><Property Name="СуммаBalanceCr" Type="Edm.Decimal"/></ComplexType><EntityContainer><EntitySet Name="AccountingRegister_Хозрасчетный" EntityType="S.Register"/><FunctionImport Name="Balance" ReturnType="Collection(S.B)" IsBindable="true"><Parameter Name="bindingParameter" Type="S.Register"/><Parameter Name="Period" Type="Edm.DateTime"/></FunctionImport></EntityContainer></Schema></DataServices></Edmx>`;
-    f.schema(fnXml); await f.conn.capabilities.refresh();
+    f.schema(fnXml);
+    await f.conn.capabilities.refresh();
     f.schema(fnXml.replace(/<FunctionImport[\s\S]*?<\/FunctionImport>/, ""));
     const report = await f.conn.capabilities.refresh();
     expect(report.requirements["accounting.balance"]?.status).toBe("unknown");
-    expect(report.events).toContainEqual(expect.objectContaining({ kind: "newly_missing", requirement: "accounting.balance" }));
+    expect(report.events).toContainEqual(
+      expect.objectContaining({ kind: "newly_missing", requirement: "accounting.balance" }),
+    );
   });
 });
 
@@ -451,12 +474,107 @@ describe("ежедневное расписание по решению влад
     expect((await f.conn.capabilities.refresh()).limits.observationTtlMs).toBeGreaterThan(86400000);
   });
   it("повторное подключение с тем же перечнем в пределах суток использует датированный отчёт", async () => {
-    const first = await setup(); await first.conn.capabilities.refresh();
+    const first = await setup();
+    await first.conn.capabilities.refresh();
     const firstReport = await first.conn.capabilities.status();
     const second = await setup({}, first.dir);
     await second.conn.capabilities.start();
     const reused = await second.conn.capabilities.status();
     expect(second.requests.length).toBe(0);
     expect(reused.summary.lastSuccessAt).toBe(firstReport.summary.lastSuccessAt);
+  });
+});
+
+describe("повторное подключение и обновление требований", () => {
+  it("назначает проверку на остаток суток после повторного подключения", async () => {
+    vi.useFakeTimers();
+    const baseTime = Date.parse("2026-10-01T00:00:00.000Z");
+    vi.setSystemTime(baseTime);
+    const first = await setup();
+    await first.conn.capabilities.refresh();
+    vi.setSystemTime(baseTime + 12 * 60 * 60 * 1000);
+    const second = await setup({}, first.dir);
+    await second.conn.capabilities.start();
+    expect(second.requests.length).toBe(0);
+    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000 - 1);
+    expect(second.requests.length).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(second.requests.some((r) => r.url.endsWith("$metadata"))).toBe(true);
+    await second.conn.capabilities.status();
+  });
+  it("изменённая существующая запись перечня обходит суточную задержку", async () => {
+    const first = await setup();
+    await first.conn.capabilities.refresh();
+    const path = join(first.dir, (await readdir(first.dir))[0]!);
+    const state = JSON.parse(await readFile(path, "utf8"));
+    state.fingerprints["tool:read.system.list_organizations"] = "0".repeat(64);
+    await writeFile(path, JSON.stringify(state));
+    const second = await setup({}, first.dir);
+    await second.conn.capabilities.start();
+    const report = await second.conn.capabilities.status();
+    expect(second.requests.some((r) => r.url.endsWith("$metadata"))).toBe(true);
+    expect(report.events).toContainEqual(
+      expect.objectContaining({ kind: "newly_required", requirement: "tool:read.system.list_organizations" }),
+    );
+  });
+  it("одновременные refresh разделяют один запрос metadata", async () => {
+    const f = await setup();
+    await f.conn.capabilities.status();
+    let release!: (value: ReturnType<typeof parseMetadata>) => void;
+    const pending = new Promise<ReturnType<typeof parseMetadata>>((resolve) => {
+      release = resolve;
+    });
+    const metadata = vi.spyOn(f.conn.client, "getMetadata").mockReturnValue(pending);
+    const a = f.conn.capabilities.refresh();
+    const b = f.conn.capabilities.refresh();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(metadata).toHaveBeenCalledTimes(1);
+    release(parseMetadata(xml()));
+    const [one, two] = await Promise.all([a, b]);
+    expect(one.summary.lastSuccessAt).toBe(two.summary.lastSuccessAt);
+  });
+});
+
+describe("API диагностики и настройка профиля", () => {
+  it("три API дают filtered inventory, сохранённый статус и принудительный read-only refresh", async () => {
+    const f = await setup();
+    const tools = snapshotTools(f.conn);
+    const requirement = await tools["read.system.odata_requirements"]!.handler(
+      { tool: "read.system.list_organizations" },
+      {},
+    );
+    expect(requirement.isError).not.toBe(true);
+    expect(requirement.structuredContent?.tools).toEqual([
+      expect.objectContaining({ name: "read.system.list_organizations" }),
+    ]);
+    const before = await tools["read.system.odata_capabilities"]!.handler({}, {});
+    expect(before.structuredContent?.summary).toMatchObject({
+      metadataStatus: "unknown",
+      lastSuccessAt: null,
+    });
+    expect(f.requests).toEqual([]);
+    const refresh = await tools["read.system.odata_refresh"]!.handler({}, {});
+    expect(refresh.isError).not.toBe(true);
+    expect(refresh.structuredContent?.summary).toMatchObject({ metadataStatus: "ok" });
+    expect(f.requests.every((r) => r.method === "GET")).toBe(true);
+    const after = await tools["read.system.odata_capabilities"]!.handler({}, {});
+    expect(after.structuredContent?.summary).toMatchObject({ metadataStatus: "ok" });
+    const invalid = await tools["read.system.odata_requirements"]!.handler({ tool: "not-a-tool" }, {});
+    expect(invalid.isError).toBe(true);
+  });
+  it("неверный JSON профиля отклоняется, пустое значение использует generic", () => {
+    const base = {
+      ODATA_BASE_URL: "https://example.invalid/odata/",
+      ODATA_USERNAME: "u",
+      ODATA_PASSWORD: "p",
+    };
+    expect(() => parseConfig({ ...base, ODATA_CAPABILITY_PROFILE: "{invalid" })).toThrow(
+      "JSON-настройка профиля",
+    );
+    expect(
+      parseConfig({ ...base, ODATA_CAPABILITY_PROFILE: " " }).connections[0]!.capabilityProfile,
+    ).toBeUndefined();
+    expect(parseConfig(base).behavior.capabilityProbeLimit).toBe(64);
   });
 });

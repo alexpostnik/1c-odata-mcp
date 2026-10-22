@@ -77,6 +77,7 @@ export class CapabilityMonitor {
   private load(): Promise<void> {
     this.loaded ??= this.store.load().then(({ state, status }) => {
       this.state = state;
+      if (state.knownEntities) this.knownEntities = new Set(state.knownEntities);
       this.persistence = status;
     });
     return this.loaded;
@@ -101,7 +102,11 @@ export class CapabilityMonitor {
   /** Вызывается только для уже произошедшего обычного запроса, автоматической записи нет. */
   async observe(input: RequestObservation): Promise<void> {
     if (!this.active || !entityName.test(input.entitySet) || !this.knownEntities.has(input.entitySet)) return;
-    if (input.functionName && !Object.values(REQUIREMENTS.definitions).some((req) => req.function?.name === input.functionName)) return;
+    if (
+      input.functionName &&
+      !Object.values(REQUIREMENTS.definitions).some((req) => req.function?.name === input.functionName)
+    )
+      return;
     await this.load();
     const at = new Date().toISOString();
     const observation: OperationObservation = {
@@ -116,11 +121,17 @@ export class CapabilityMonitor {
     if (input.error?.kind === "not_found" && input.scope === "one_record")
       observation.reason = "record_not_found";
     const previous = this.state.operations.find(
-      (o) => o.entitySet === input.entitySet && o.operation === input.operation && o.functionName === input.functionName,
+      (o) =>
+        o.entitySet === input.entitySet &&
+        o.operation === input.operation &&
+        o.functionName === input.functionName,
     );
     this.state.operations = [
       ...this.state.operations.filter(
-        (o) => o.entitySet !== input.entitySet || o.operation !== input.operation || o.functionName !== input.functionName,
+        (o) =>
+          o.entitySet !== input.entitySet ||
+          o.operation !== input.operation ||
+          o.functionName !== input.functionName,
       ),
       observation,
     ].slice(-5000);
@@ -162,7 +173,15 @@ export class CapabilityMonitor {
       metadataStatus: this.state.metadataStatus,
       lastAttemptAt: this.state.lastAttemptAt ?? null,
       lastSuccessAt: this.state.lastSuccessAt ?? null,
-      nextRefreshAt: this.state.lastSuccessAt ? new Date(Date.parse(this.state.lastSuccessAt) + (this.behavior.capabilityIntervalMs ?? 86_400_000)).toISOString() : null,
+      nextRefreshAt: (
+        this.state.metadataStatus === "ok" ? this.state.lastSuccessAt : this.state.lastAttemptAt
+      )
+        ? new Date(
+            Date.parse(
+              (this.state.metadataStatus === "ok" ? this.state.lastSuccessAt : this.state.lastAttemptAt)!,
+            ) + (this.behavior.capabilityIntervalMs ?? 86_400_000),
+          ).toISOString()
+        : null,
       missing: Object.values(this.state.latest).filter((o) => o.status !== "published").length,
       events: this.state.events.length,
       persistence: this.persistence,
@@ -200,7 +219,10 @@ export class CapabilityMonitor {
             (operation) => ({
               operation,
               evidence: operations.find(
-                (o) => o.entitySet === schema.entitySet && o.operation === operation && o.functionName === REQUIREMENTS.definitions[id]?.function?.name,
+                (o) =>
+                  o.entitySet === schema.entitySet &&
+                  o.operation === operation &&
+                  o.functionName === REQUIREMENTS.definitions[id]?.function?.name,
               ) ?? { effectiveStatus: "unknown" },
             }),
           ),
@@ -222,7 +244,16 @@ export class CapabilityMonitor {
       requirements,
       lastSuccessfulSchema: this.state.latest,
       observationProvenance: this.state.provenance ?? null,
-      probeCoverage: this.state.probeCoverage ? { ...this.state.probeCoverage, periodicWorstCaseMs: this.state.probeCoverage.periodicBudget ? Math.ceil(this.state.probeCoverage.candidateCount / this.state.probeCoverage.periodicBudget) * (this.behavior.capabilityIntervalMs ?? 86_400_000) : null, note: "Последний проход; checked означает попытку ограниченного запроса, а не наличие прав на строки. При меньшем бюджете объекты проверяются по кругу; к интервалу добавляется время запросов." } : null,
+      probeCoverage: this.state.probeCoverage
+        ? {
+            ...this.state.probeCoverage,
+            periodicWorstCaseMs: this.state.probeCoverage.periodicBudget
+              ? Math.ceil(this.state.probeCoverage.candidateCount / this.state.probeCoverage.periodicBudget) *
+                (this.behavior.capabilityIntervalMs ?? 86_400_000)
+              : null,
+            note: "Последний проход; checked означает попытку ограниченного запроса, а не наличие прав на строки. При меньшем бюджете объекты проверяются по кругу; к интервалу добавляется время запросов.",
+          }
+        : null,
       operations,
       events: this.state.events,
       tools: REQUIREMENTS.tools.map((t) => ({
@@ -255,11 +286,12 @@ export class CapabilityMonitor {
   }
 
   private adminRequest(observations: Record<string, SchemaObservation>): string {
+    const profile = this.cfg.capabilityProfile ?? DEFAULT_PROFILE;
     const lines = Object.entries(observations)
       .filter(([, o]) => o.status !== "published" || o.factConflict)
       .map(([id, o]) => {
         const req = REQUIREMENTS.definitions[id];
-        return `• ${id}: ${o.candidates.join(" или ")}; операции: ${((req?.operations as string[] | undefined) ?? []).join(", ") || "metadata"}${req?.function ? `; функция ${req.function.name}(${req.function.parameters.join(", ")})` : ""}; поля/ключи: ${[...(Array.isArray(req?.fields) ? req.fields : Object.keys(req?.fields ?? {})), ...(req?.keys ?? []).map((k) => `key:${k}`)].join(", ") || "см. требования инструмента"}; состояние: ${o.status}${o.missing.length ? `; несовместимо: ${o.missing.join(", ")}` : ""}${o.factConflict ? "; факт администратора противоречит текущей схеме" : ""}`;
+        return `• ${id}: ${o.candidates.join(" или ")}; потребность: ${REQUIREMENTS.tools.some((tool) => tool.required.includes(id)) ? "обязательная для использующих инструментов" : "условная/необязательная — только для соответствующего сценария"}; операции: ${((req?.operations as string[] | undefined) ?? []).join(", ") || "metadata"}${req?.function ? `; функция ${req.function.name}(${req.function.parameters.join(", ")})` : ""}; поля/ключи: ${[...(Array.isArray(req?.fields) ? req.fields : Object.keys(req?.fields ?? {})), ...(req?.keys ?? []).map((k) => `key:${k}`)].join(", ") || "см. требования инструмента"}; состояние: ${o.status}${o.missing.length ? `; несовместимо: ${o.missing.join(", ")}` : ""}${o.factConflict ? "; факт администратора противоречит текущей схеме" : ""}`;
       });
     for (const o of this.state.operations.filter(
       (x) => x.status === "observed_denied" && Date.parse(x.expiresAt) > Date.now(),
@@ -268,6 +300,7 @@ export class CapabilityMonitor {
         `• ${o.entitySet}: операция ${o.operation}; наблюдён явный отказ роли 1С (${o.at}), только для одного запроса.`,
       );
     return (
+      `Конфигурация: ${profile.configuration}, версия: ${profile.configurationVersion}, платформа: ${profile.platformVersion}; источник сведений: ${profile.source}.\n` +
       "Установка/обновление MCP не настраивает публикацию и роли 1С. Просьба проверить существование перечисленных объектов в указанной конфигурации/версии, затем их публикацию в стандартном OData и отдельно права пользователя на нужные операции. Если объект не реализован, подтвердите конфигурацию, версию и источник факта. Право изменять состав публикации — административное и отличается от права читать/создавать/изменять/проводить данные. При наличии административных прав откройте «Настройка стандартного интерфейса OData → Состав», проверьте точные имена и роли; иначе передайте запрос администратору/поддержке. MCP публикацию не меняет.\n" +
       lines.join("\n")
     );
@@ -296,6 +329,7 @@ export class CapabilityMonitor {
     try {
       this.metadata = await this.client.getMetadata(true);
       this.knownEntities = new Set(this.metadata.entities.keys());
+      this.state.knownEntities = [...this.knownEntities];
       const latest = Object.fromEntries(
         Object.entries(REQUIREMENTS.definitions).map(([id, req]) => [
           id,
@@ -323,7 +357,12 @@ export class CapabilityMonitor {
       this.state.latest = latest;
       this.state.metadataStatus = "ok";
       this.state.lastSuccessAt = at;
-      this.state.provenance = { requirementsRevision: REQUIREMENTS.revision, sourceVersion: REQUIREMENTS.sourceVersion, sourceRef: REQUIREMENTS.sourceRef, profile: this.cfg.capabilityProfile ?? DEFAULT_PROFILE };
+      this.state.provenance = {
+        requirementsRevision: REQUIREMENTS.revision,
+        sourceVersion: REQUIREMENTS.sourceVersion,
+        sourceRef: REQUIREMENTS.sourceRef,
+        profile: this.cfg.capabilityProfile ?? DEFAULT_PROFILE,
+      };
       if (
         oldMetadataStatus === "unknown" &&
         this.state.lastSuccessAt &&
@@ -360,12 +399,24 @@ export class CapabilityMonitor {
         if (!key || !entityName.test(key)) continue;
         checked.push(entity);
         try {
-          await this.client.request(`${entity}?$top=0&$select=${encodeURIComponent(key)}&$format=json`, "GET", undefined, {}, { singleAttempt: true });
+          await this.client.request(
+            `${entity}?$top=0&$select=${encodeURIComponent(key)}&$format=json`,
+            "GET",
+            undefined,
+            {},
+            { singleAttempt: true },
+          );
         } catch {
           /* Клиент записывает лишь классификацию; один отказ не останавливает остальные. */
         }
       }
-      this.state.probeCoverage = { at, candidateCount: candidates.length, checked, fullPass, periodicBudget: this.behavior.capabilityProbeLimit ?? 64 };
+      this.state.probeCoverage = {
+        at,
+        candidateCount: candidates.length,
+        checked,
+        fullPass,
+        periodicBudget: this.behavior.capabilityProbeLimit ?? 64,
+      };
       this.cursor = candidates.length ? (this.cursor + selected.length) % candidates.length : 0;
     } catch {
       this.state.metadataStatus = "unknown";
@@ -386,7 +437,12 @@ export class CapabilityMonitor {
   }
 
   private signatures(): Record<string, string> {
-    return Object.fromEntries([...Object.entries(REQUIREMENTS.definitions), ...REQUIREMENTS.tools.map((t) => [`tool:${t.name}`, t] as const)].map(([id, req]) => [id, fingerprint(req)]));
+    return Object.fromEntries(
+      [
+        ...Object.entries(REQUIREMENTS.definitions),
+        ...REQUIREMENTS.tools.map((t) => [`tool:${t.name}`, t] as const),
+      ].map(([id, req]) => [id, fingerprint(req)]),
+    );
   }
 
   /** Повторное подключение в течение интервала использует датированный baseline той же версии. */
@@ -403,13 +459,22 @@ export class CapabilityMonitor {
     await this.load();
     if (this.stopped) return;
     const interval = this.behavior.capabilityIntervalMs ?? 86_400_000;
-    const changed = fingerprint(this.state.fingerprints) !== fingerprint(this.signatures()) || fingerprint(this.state.provenance?.profile) !== fingerprint(this.cfg.capabilityProfile ?? DEFAULT_PROFILE);
+    const changed =
+      fingerprint(this.state.fingerprints) !== fingerprint(this.signatures()) ||
+      fingerprint(this.state.provenance?.profile) !==
+        fingerprint(this.cfg.capabilityProfile ?? DEFAULT_PROFILE);
     const age = this.state.lastSuccessAt ? Date.now() - Date.parse(this.state.lastSuccessAt) : Infinity;
-    if (changed || this.state.metadataStatus !== "ok" || age >= interval) await this.refresh(undefined, changed || !this.state.lastSuccessAt);
+    if (changed || this.state.metadataStatus !== "ok" || age >= interval)
+      await this.refresh(undefined, changed || !this.state.lastSuccessAt);
     if (this.stopped) return;
     // При неудаче следующая плановая попытка — через интервал, не tight retry loop.
-    const due = this.state.metadataStatus === "ok" && this.state.lastSuccessAt ? Math.max(1, Date.parse(this.state.lastSuccessAt) + interval - Date.now()) : interval;
-    this.timer = setTimeout(() => { void this.scheduledScan(); }, due);
+    const due =
+      this.state.metadataStatus === "ok" && this.state.lastSuccessAt
+        ? Math.max(1, Date.parse(this.state.lastSuccessAt) + interval - Date.now())
+        : interval;
+    this.timer = setTimeout(() => {
+      void this.scheduledScan();
+    }, due);
     this.timer.unref();
   }
   stop(): void {

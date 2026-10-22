@@ -5,8 +5,23 @@ import { REQUIREMENTS } from "../capabilities/requirements.js";
 import { diagnoseDynamic } from "../capabilities/diagnose.js";
 import { databaseField, guard, ok } from "./_shared.js";
 
-const requirementsOutput = z.object({ schemaVersion: z.number(), revision: z.string(), tools: z.array(z.object({ name: z.string() }).passthrough()) }).passthrough();
-const capabilitiesOutput = z.object({ requirementsRevision: z.string(), scope: z.string(), summary: z.object({ metadataStatus: z.string(), persistence: z.string() }).passthrough(), requirements: z.record(z.string(), z.unknown()), events: z.array(z.unknown()), administratorRequest: z.string() }).passthrough();
+const requirementsOutput = z
+  .object({
+    schemaVersion: z.number(),
+    revision: z.string(),
+    tools: z.array(z.object({ name: z.string() }).passthrough()),
+  })
+  .passthrough();
+const capabilitiesOutput = z
+  .object({
+    requirementsRevision: z.string(),
+    scope: z.string(),
+    summary: z.object({ metadataStatus: z.string(), persistence: z.string() }).passthrough(),
+    requirements: z.record(z.string(), z.unknown()),
+    events: z.array(z.unknown()),
+    administratorRequest: z.string(),
+  })
+  .passthrough();
 
 const technicalName = z.string().regex(/^[A-Za-z\p{L}_][\p{L}\p{N}_]{0,180}$/u);
 export function registerCapabilityTools(server: McpServer, ctx: ServerContext): void {

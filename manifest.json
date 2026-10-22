@@ -4,7 +4,7 @@
   "display_name": "1С:Предприятие через OData",
   "version": "0.10.0",
   "description": "MCP-сервер для 1С:Предприятие через OData: аналитика (дебиторка, остатки, продажи, деньги, ОСВ, проводки) и создание/изменение документов — на естественном языке.",
-  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 74 инструмента и 3 готовых сценария: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, проверка закрытия месяца, карточка счёта, акт сверки, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
+  "long_description": "Подключает любой MCP-клиент (Claude, Cursor, VS Code и др.) к базе 1С:Предприятие через стандартный интерфейс OData. Ничего не устанавливается внутри 1С. По умолчанию только чтение — 77 инструментов и 3 готовых сценария: аналитика (дебиторка и кредиторка по срокам, деньги на счетах, неоплаченные счета, проверка закрытия месяца, карточка счёта, акт сверки, остатки, продажи, движение денег, налоги, ОСВ по счёту, проводки документа, хронология для аудита), справочники и документы. Запись включается отдельно (readOnly=false) и всегда работает в режиме предпросмотра — сначала показывает, что будет создано/изменено, и пишет только после подтверждения.",
   "author": {
     "name": "evilbruce666",
     "url": "https://github.com/evilbruce666"
@@ -42,7 +42,9 @@
         "ODATA_USERNAME": "${user_config.username}",
         "ODATA_PASSWORD": "${user_config.password}",
         "READ_ONLY": "${user_config.read_only}",
-        "ODATA_WRITABLE": "${user_config.writable}"
+        "ODATA_WRITABLE": "${user_config.writable}",
+        "ODATA_CAPABILITY_INTERVAL_MS": "${user_config.capability_interval_ms}",
+        "ODATA_CAPABILITY_PROBE_LIMIT": "${user_config.capability_probe_limit}"
       }
     }
   },
@@ -78,6 +80,20 @@
       "title": "Разрешить запись в базу",
       "description": "Разрешает создание/изменение документов и справочников. Действует только вместе с выключенным «Только чтение». Каждая операция записи по умолчанию требует подтверждения (dry-run → confirm).",
       "default": false,
+      "required": false
+    },
+    "capability_interval_ms": {
+      "type": "string",
+      "title": "Интервал проверки OData (мс)",
+      "description": "Одна проверка за 24 часа по умолчанию. Интервал 60000..86400000 мс. Повторное подключение использует свежий отчёт; обновление требований и ручной refresh проверяются сразу.",
+      "default": "86400000",
+      "required": false
+    },
+    "capability_probe_limit": {
+      "type": "string",
+      "title": "Бюджет периодических проверок чтения",
+      "description": "0..64 GET за периодический проход. По умолчанию 64, без запросов строк и без пробных записей. Меньший бюджет растягивает обход объектов.",
+      "default": "64",
       "required": false
     }
   },
@@ -456,6 +472,213 @@
           "keys",
           "fields",
           "relations"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.system.odata_requirements",
+      "title": "Требования инструментов к OData",
+      "description": "Версионный перечень объектов, полей, ключей, функций и операций каждого инструмента. Условные зависимости перечислены отдельно. Для динамического инструмента можно указать точный entitySet и поля без значений записей.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "entitySet": {
+            "type": "string",
+            "pattern": "^[A-Za-z\\p{L}_][\\p{L}\\p{N}_]{0,180}$"
+          },
+          "fields": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z\\p{L}_][\\p{L}\\p{N}_]{0,180}$"
+            }
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "revision",
+          "tools"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.system.odata_capabilities",
+      "title": "Возможности и изменения OData",
+      "description": "Последняя диагностика по базе и пользователю: схема, наблюдённые операции с ограниченным сроком действия, неизвестные права, изменения и точный запрос администратору. Без новых обращений к 1С.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "requirementsRevision": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "metadataStatus": {
+                "type": "string"
+              },
+              "persistence": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "metadataStatus",
+              "persistence"
+            ],
+            "additionalProperties": {}
+          },
+          "requirements": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "events": {
+            "type": "array",
+            "items": {}
+          },
+          "administratorRequest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirementsRevision",
+          "scope",
+          "summary",
+          "requirements",
+          "events",
+          "administratorRequest"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "read.system.odata_refresh",
+      "title": "Перепроверить возможности OData",
+      "description": "Принудительно перечитывает metadata, выполняет ограниченный проход GET top=0 по статическим требованиям и сохраняет диагностику. Ни одной пробной записи. Один отказ не прекращает независимые проверки.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "description": "Имя базы 1С из list_databases. Без указания — база по умолчанию.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "requirementsRevision": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "metadataStatus": {
+                "type": "string"
+              },
+              "persistence": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "metadataStatus",
+              "persistence"
+            ],
+            "additionalProperties": {}
+          },
+          "requirements": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "events": {
+            "type": "array",
+            "items": {}
+          },
+          "administratorRequest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirementsRevision",
+          "scope",
+          "summary",
+          "requirements",
+          "events",
+          "administratorRequest"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": {}

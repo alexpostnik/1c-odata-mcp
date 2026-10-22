@@ -1,4 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../src/mcp/server.js";
 import { fake1C } from "./helpers/fake-1c.js";
@@ -19,6 +21,7 @@ const budget: Record<string, number> = existsSync(BUDGET_FILE)
   ? (JSON.parse(readFileSync(BUDGET_FILE, "utf8")) as Record<string, number>)
   : {};
 const measured: Record<string, number> = {};
+const capabilityDirs: string[] = [];
 
 type Schema = {
   type?: string | string[];
@@ -151,11 +154,14 @@ const EXPECTED_ERRORS: Record<string, string> = {};
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  for (const path of capabilityDirs.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
 describe("все инструменты против поддельной 1С на снимке схемы БП 3.0", () => {
   it.each(manifest.tools.map((t) => [t.name, t] as const))("%s", async (name, tool) => {
-    const fake = fake1C({ READ_ONLY: "true" });
+    const capabilityDir = mkdtempSync(join(tmpdir(), "fake-1c-capabilities-"));
+    capabilityDirs.push(capabilityDir);
+    const fake = fake1C({ READ_ONLY: "true", ODATA_CAPABILITY_STATE_DIR: capabilityDir });
     const tools = (
       createServer(fake.ctx) as unknown as {
         _registeredTools: Record<
