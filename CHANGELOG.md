@@ -5,6 +5,8 @@
 
 ## [Не выпущено]
 
+## [0.10.0] — 2026-10-22
+
 Настройки счетов расчётов с контрагентами и перенос счетов в уже созданные банковские документы — от [@alexpostnik](https://github.com/alexpostnik) (PR #43). Карточка «Долги по срокам» прямо в ответе (MCP Apps). Проверки для контрибуторов: снимок схемы БП 3.0 и тест сверки записи.
 
 ### Добавлено
@@ -660,7 +662,8 @@ POST-тестом (create → read → mark) на реальной базе — 
   коды плана счетов); вежливый фоллбэк при отсутствии объекта в «Составе OData».
 - npm-пакет с запуском через `npx 1c-odata-mcp`.
 
-[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.9.0...HEAD
+[Не выпущено]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/evilbruce666/1c-odata-mcp/compare/v0.6.1...v0.7.0
