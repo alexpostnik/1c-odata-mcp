@@ -53,7 +53,8 @@ export interface JournalEntry {
 
 /**
  * Durable, local idempotency journal for confirmed OData creates and non-idempotent document edits.
- * Only a payload hash and a small result reference are persisted, never the payload itself.
+ * Only a payload hash, a small result reference and, after a failed attempt, the 1C error text
+ * (bounded, see ERROR_MESSAGE_MAX) are persisted — never the payload itself.
  */
 export class WriteOperationJournal {
   private readonly directory: string;

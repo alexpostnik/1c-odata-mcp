@@ -38,6 +38,7 @@
     "prepublishOnly": "npm run build && node --eval \"require('fs').rmSync('dist/scripts',{recursive:true,force:true})\"",
     "manifest": "npm run build && node dist/scripts/gen-manifest.js",
     "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js",
+    "test:live:read": "npm run build && node --env-file=.env dist/scripts/live-read.js",
     "budget:update": "UPDATE_REQUEST_BUDGET=1 vitest run test/fake-1c.test.ts",
     "snapshot:metadata": "npm run build && node --env-file=.env dist/scripts/snapshot-metadata.js"
   },
