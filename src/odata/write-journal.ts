@@ -498,7 +498,8 @@ function boundedMessage(message: string): string {
 }
 
 function isDefinitiveRejection(error: unknown): boolean {
-  return error instanceof ODataError && ["auth", "not_found", "bad_request"].includes(error.kind);
+  // busy — запрос не дождался места под HTTP и в 1С не отправлялся: исход известен, дубля не будет.
+  return error instanceof ODataError && ["auth", "not_found", "bad_request", "busy"].includes(error.kind);
 }
 
 function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {

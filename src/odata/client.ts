@@ -7,6 +7,7 @@ import { WriteOperationJournal, type OperationCheck } from "./write-journal.js";
 import { loadMetadata } from "./metadata.js";
 import type { MetadataMap } from "../types/odata.js";
 import { uuidV1 } from "./uuid-v1.js";
+import { RequestLimiter } from "./limiter.js";
 
 /** HTTP-методы только для чтения; остальные (POST/PATCH) считаются записью и гейтуются. */
 const READ_METHODS = new Set(["GET", "HEAD"]);
@@ -15,6 +16,8 @@ export class ODataClient {
   private readonly authHeader: string;
   private metaPromise: Promise<MetadataMap> | undefined;
   private journal: WriteOperationJournal | undefined;
+  /** Необязательный предел одновременных HTTP этого подключения (#57); 0 — без предела. */
+  readonly limiter: RequestLimiter;
 
   constructor(
     private readonly conn: ConnectionConfig,
@@ -22,6 +25,7 @@ export class ODataClient {
   ) {
     const token = Buffer.from(`${conn.username}:${conn.password}`).toString("base64");
     this.authHeader = `Basic ${token}`;
+    this.limiter = new RequestLimiter(behavior.maxConcurrentRequests ?? 0, behavior.queueTimeoutMs ?? 30_000);
   }
 
   getMetadata(): Promise<MetadataMap> {
@@ -92,6 +96,8 @@ export class ODataClient {
 
     let lastErr: ODataError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Место под HTTP — до тайм-аута запроса: ожидание места в тайм-аут 1С не входит.
+      const release = await this.limiter.acquire();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.behavior.timeoutMs);
       const started = performance.now();
@@ -116,6 +122,7 @@ export class ODataClient {
           logger.warn({ url, status: res.status, ms, kind: err.kind }, "odata error");
           if (err.retryable && attempt < maxAttempts) {
             lastErr = err;
+            release(); // пауза между повторами не держит место
             await backoff(attempt, res.headers.get("Retry-After"));
             continue;
           }
@@ -131,12 +138,14 @@ export class ODataClient {
         if (err.retryable && attempt < maxAttempts) {
           lastErr = err;
           logger.warn({ url, kind: err.kind, attempt }, "retrying");
+          release();
           await backoff(attempt);
           continue;
         }
         throw err;
       } finally {
         clearTimeout(timer);
+        release();
       }
     }
     throw lastErr ?? new ODataError({ kind: "unknown", message: "Запрос не выполнен", url });
@@ -289,6 +298,7 @@ export class ODataClient {
   async getText(path: string): Promise<string> {
     this.assertWritable("GET");
     const url = this.url(path);
+    const release = await this.limiter.acquire();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.behavior.timeoutMs);
     try {
@@ -306,6 +316,7 @@ export class ODataClient {
       throw normalize(e, url);
     } finally {
       clearTimeout(timer);
+      release();
     }
   }
 }

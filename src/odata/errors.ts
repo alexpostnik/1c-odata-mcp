@@ -13,6 +13,7 @@ export type ODataErrorKind =
   | "timeout" // прервано по таймауту
   | "network" // DNS/соединение
   | "parse" // не удалось разобрать ответ
+  | "busy" // не дождались места под запрос (ODATA_MAX_CONCURRENT_REQUESTS) — запрос не отправлялся
   | "unknown";
 
 export class ODataError extends Error {
@@ -47,6 +48,7 @@ const RETRYABLE_DEFAULT: Record<ODataErrorKind, boolean> = {
   timeout: true,
   network: true,
   parse: false,
+  busy: false,
   unknown: false,
 };
 
