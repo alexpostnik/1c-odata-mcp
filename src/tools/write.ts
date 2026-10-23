@@ -1511,6 +1511,9 @@ async function createSubordinate(
   });
 }
 
+/** Раньше этого срока после попытки операцию нельзя закрыть как неприменённую даже вручную. */
+const NOT_APPLIED_MIN_AGE_SEC = 120;
+
 export function registerWriteTools(server: McpServer, ctx: ServerContext): void {
   server.registerTool(
     "write.operation.status",
@@ -1522,15 +1525,25 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
         "настройка регистра — по точному составному ключу и отпечатку проверяемых полей. Совпадение фиксирует " +
         "успех без повторной отправки. Для изменения группы, Post/Unpost и неподтверждённого результата " +
         "регистра ответ unverifiable удерживает повтор и требует ручной сверки. Отсутствие объекта само по " +
-        "себе не разрешает новый запрос: он мог ещё выполняться. Новый предпросмотр допустим после " +
-        "подтверждённого not_applied либо rejected с устранённой причиной. Ничего не записывает в 1С.",
+        "себе не разрешает новый запрос: 1С могла ещё выполнять его, сколько бы времени ни прошло, — ответ " +
+        "not_found. Закрыть операцию как not_applied можно только с markNotApplied=true после того, как " +
+        "человек сам сверил базу. Новый предпросмотр допустим после not_applied либо rejected с устранённой " +
+        "причиной. Ничего не записывает в 1С.",
       inputSchema: {
         database: databaseField,
         operationId: z.string().uuid().describe("operationId из предпросмотра создания"),
+        markNotApplied: z
+          .boolean()
+          .optional()
+          .describe(
+            "Только по явному решению человека, который сам сверил базу 1С и убедился, что записи нет. " +
+              "Сверка всё равно выполняется: найденный объект фиксируется как успех. Не раньше чем через " +
+              `${NOT_APPLIED_MIN_AGE_SEC} с после попытки.`,
+          ),
       },
       outputSchema: operationStatusSchema,
     },
-    ({ database, operationId }) =>
+    ({ database, operationId, markNotApplied }) =>
       guard("write.operation.status", async () => {
         const conn = ctx.db(database);
         const base = { operationId, database: conn.cfg.name };
@@ -1630,6 +1643,31 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             note: "Исход записи настройки неизвестен. Сверьте точный составной ключ и ресурсы вручную; повторная отправка заблокирована.",
           });
         const ageSec = Math.round((Date.now() - Date.parse(entry.updatedAt)) / 1000);
+        // Отсутствие следа записи не доказывает, что запрос не применился: клиент обрывает ожидание по
+        // таймауту, а 1С может закончить запись позже. Поэтому операция закрывается как not_applied только
+        // по явному решению человека после ручной сверки (issue #52), и не сразу после попытки.
+        const absent = async (what: string, ref?: string) => {
+          if (markNotApplied && ageSec >= NOT_APPLIED_MIN_AGE_SEC) {
+            await conn.client.markOperationNotApplied(operationId);
+            return ok({
+              ...common,
+              status: "not_applied",
+              ...(ref ? { ref } : {}),
+              note: `${what} Операция закрыта как неприменённая по ручному подтверждению; для новой записи выполните новый предпросмотр.`,
+            });
+          }
+          return ok({
+            ...common,
+            status: "not_found",
+            ...(ref ? { ref } : {}),
+            note:
+              `${what} С последней попытки ${ageSec} с. ` +
+              (markNotApplied
+                ? `Закрыть как неприменённую можно не раньше чем через ${NOT_APPLIED_MIN_AGE_SEC} с — повторите позже. `
+                : "Это не доказывает, что запись не дошла: 1С могла ещё выполнять запрос. Не создавайте запись заново. ") +
+              "Сверьте базу 1С вручную; если записи точно нет, вызовите write.operation.status с markNotApplied=true.",
+          });
+        };
         // Правка строк документа — сверяем по числу строк до/после записи.
         if (entry.check?.kind === "lineCount") {
           const { ref, before, expected } = entry.check;
@@ -1643,23 +1681,13 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
               note: `В документе ${count} строк(и), как и ожидалось после правки: операция зафиксирована как успешная.`,
             });
           }
-          if (count === before && ageSec >= 120) {
-            await conn.client.markOperationNotApplied(operationId);
-            return ok({
-              ...common,
-              status: "not_applied",
-              ref,
-              note: `В документе по-прежнему ${count} строк(и): правка до 1С не дошла. Выполните новый предпросмотр.`,
-            });
-          }
+          if (count === before)
+            return absent(`Правка не видна: в документе по-прежнему ${count} строк(и).`, ref);
           return ok({
             ...common,
-            status: count === before ? "not_found" : "unverifiable",
+            status: "unverifiable",
             ref,
-            note:
-              count === before
-                ? `Правка пока не видна (строк ${count}, с последней попытки ${ageSec} с): запрос мог ещё выполняться — повторите проверку позже.`
-                : `Число строк ${count} не совпадает ни с исходным (${before}), ни с ожидаемым (${expected}): документ меняли. Проверьте его в 1С вручную.`,
+            note: `Число строк ${count} не совпадает ни с исходным (${before}), ни с ожидаемым (${expected}): документ меняли. Проверьте его в 1С вручную.`,
           });
         }
         // Создание с назначенным Ref_Key — сверка простым GET по ссылке (справочники тоже).
@@ -1683,19 +1711,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
               note: "Объект с назначенной ссылкой есть в 1С; операция зафиксирована как успешная. Повторное подтверждение вернёт эту ссылку.",
             });
           }
-          if (ageSec >= 120) {
-            await conn.client.markOperationNotApplied(operationId);
-            return ok({
-              ...common,
-              status: "not_applied",
-              note: "Объекта с назначенной ссылкой в 1С нет: запись не дошла. Выполните новый предпросмотр.",
-            });
-          }
-          return ok({
-            ...common,
-            status: "not_found",
-            note: `Объекта пока нет (с последней попытки ${ageSec} с): запрос мог ещё выполняться — повторите проверку позже.`,
-          });
+          return absent("Объекта с назначенной ссылкой в 1С нет.");
         }
         // executing | outcome_unknown, старые операции без Ref_Key — сверяем с 1С по метке
         if (!(await entityHasComment(conn, entry.entitySet))) {
@@ -1725,14 +1741,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             note: "Объект найден по метке; операция зафиксирована как успешная. Повторное подтверждение вернёт эту ссылку.",
           });
         }
-        return ok({
-          ...common,
-          status: "not_found",
-          note:
-            `По метке объект не найден (с последней попытки ${ageSec} с). ` +
-            (ageSec < 120 ? "Запрос мог ещё выполняться в 1С — повторите проверку позже. " : "") +
-            "Если прошло достаточно времени, объекта нет: выполните новый предпросмотр с новым operationId.",
-        });
+        return absent("По метке объект не найден.");
       }),
   );
 
