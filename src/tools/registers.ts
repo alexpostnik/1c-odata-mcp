@@ -206,7 +206,8 @@ export interface PostingDimension {
 
 /**
  * Что известно об аналитике (субконто) стороны проводки (#49):
- * present — есть значения; empty — 1С вернула поля субконто, и они пустые (подтверждено);
+ * present — есть значения; empty — субконто подтверждённо пусты (поля вернулись пустыми или у
+ * счёта нет такого субконто по плану счетов);
  * not_in_schema — в $metadata регистра нет полей ExtDimension этой стороны (аналитику не установить);
  * not_returned — поля объявлены, но 1С не вернула значения (null/нет в ответе) — не то же, что «пусто».
  */
@@ -404,7 +405,7 @@ export async function getDocumentPostings(conn: Connection, documentEntity: stri
     throw new InputError(`documentRef должен быть GUID (Ref_Key документа): ${documentRef}`);
   const em = await requireDocumentEntity(conn, documentEntity);
   const doc = await readDocumentHeader(conn, em, ref);
-  const { rows, meta, source, filter } = await fetchRegistrarPostings(conn, documentEntity, ref);
+  const { rows, meta, source, filter, dimensions } = await fetchRegistrarPostings(conn, documentEntity, ref);
 
   const accountKeys: string[] = [];
   for (const r of rows) {
@@ -459,22 +460,27 @@ export async function getDocumentPostings(conn: Connection, documentEntity: stri
     postings: agg.postings,
     byCorrespondence: agg.byCorrespondence,
     ...(note ? { note } : {}),
-    ...dimensionsNote(agg.postings),
+    ...dimensionsNote(agg.postings, dimensions),
     source: { entitySet: source.entitySet, filter },
     scan: { rowsScanned: meta.rowsScanned, windows: meta.chunks, elapsedMs: Date.now() - t0 },
   };
 }
 
 /** Пояснение, когда аналитику проводок установить не удалось: это не то же, что «субконто пусты» (#49). */
-function dimensionsNote(postings: readonly Posting[]): { dimensionsNote?: string } {
+function dimensionsNote(
+  postings: readonly Posting[],
+  dimensions: { from: string } | { unavailable: string },
+): { dimensionsNote?: string } {
   const statuses = new Set(
     postings.flatMap((p) => [p.debit, p.credit]).flatMap((side) => (side ? [side.dimensionsStatus] : [])),
   );
   if (statuses.has("not_in_schema"))
     return {
       dimensionsNote:
-        "В схеме регистра нет полей субконто (ExtDimensionDr/Cr) для части проводок — аналитику по ним " +
-        "установить нельзя; это не означает, что субконто пусты. Проверьте «Состав OData» и права.",
+        "Субконто проводок получить не удалось: в записях регистра их нет, а из «Движений с субконто» " +
+        "(RecordsWithExtDimensions) — " +
+        ("unavailable" in dimensions ? dimensions.unavailable : "нет полей ExtDimensionDr/Cr") +
+        ". Это не означает, что субконто пусты.",
     };
   if (statuses.has("not_returned"))
     return {
