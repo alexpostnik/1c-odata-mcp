@@ -127,6 +127,12 @@ export const postDocumentResultSchema = z
     willCall: z.string().optional(),
     note: z.string().optional(),
     done: z.boolean().optional(),
+    verified: z.boolean().optional(),
+    verificationScope: z.enum(["document_state", "journal_receipt"]).optional(),
+    accountingMovementsVerified: z.boolean().optional(),
+    readbackFetched: z.boolean().optional(),
+    readback: z.record(z.string(), z.unknown()).optional(),
+    readbackNote: z.string().optional(),
     ref: z.string().optional(),
     action: z.string().optional(),
     postings: z
