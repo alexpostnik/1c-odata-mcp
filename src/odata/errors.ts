@@ -95,9 +95,26 @@ export function fromHttpStatus(
   if (status >= 500 && detail && /Нарушение прав доступа/i.test(detail)) {
     return authError(`Нет прав в 1С (${status}): Нарушение прав доступа!`);
   }
+  // Ошибки самого запроса, которые 1С отдаёт как 500: повтор того же запроса даст тот же отказ,
+  // поэтому не повторяем (лишние запросы и паузы, #53). Вид остаётся server — журнал записи
+  // классифицирует такие отказы как раньше.
+  if (status >= 500 && detail && DETERMINISTIC_500.some((re) => re.test(detail)))
+    return new ODataError({
+      kind: "server",
+      status,
+      url,
+      retryable: false,
+      message: `Ошибка сервера 1С (${status}): ${detail}. Запрос в таком виде 1С не выполняет — повтор не поможет`,
+    });
   if (status >= 500) return base(`Ошибка сервера 1С (${status})`, "server");
   return base(`Неожиданный ответ OData (${status})`, "unknown");
 }
+
+/** Тексты 500-ответов 1С об ошибке в самом запросе (условие, сравнение типов) — не временные. */
+const DETERMINISTIC_500: readonly RegExp[] = [
+  /Операция не разрешена в предложении/i,
+  /Нельзя сравнивать поля неограниченной длины/i,
+];
 
 /** Пытается достать человекочитаемое сообщение из тела ошибки OData (JSON или XML). */
 function extract1cMessage(body?: string): string | undefined {

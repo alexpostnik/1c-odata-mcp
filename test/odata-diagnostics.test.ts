@@ -170,3 +170,25 @@ describe("health_check перечитывает общую схему", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("детерминированный отказ 1С не повторяется (#53)", () => {
+  it("GET с 500 «Операция не разрешена в предложении ГДЕ» отправляется один раз", async () => {
+    const { conn } = fake1C({ ODATA_RETRIES: "2" });
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            "odata.error": { code: "-1", message: { value: 'Операция не разрешена в предложении "ГДЕ"' } },
+          }),
+          { status: 500 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await guard("synthetic", async () =>
+      ok(await conn.client.getCollection(`${ENTITY}?$format=json`)),
+    );
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("ГДЕ");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
