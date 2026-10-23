@@ -783,7 +783,7 @@ async function buildSectionRows(
  * произвольный счёт (rows[0] без сортировки) — на счёте и в акте печатались
  * реквизиты не того банка.
  */
-async function resolveOrgBankAccount(
+export async function resolveOrgBankAccount(
   conn: Connection,
   orgKey: string,
   query: string | undefined,
@@ -793,13 +793,25 @@ async function resolveOrgBankAccount(
   if (!q) {
     const main = await mainOrgBankAccount(conn, orgKey);
     if (main) return main;
-    const [first] = await orgBankAccounts(conn, orgKey);
-    // Подбор не удался — не критично: 1С подставит счёт организации по умолчанию.
-    return first?.ref;
+    // Подбор не удался — не критично: 1С подставит счёт организации по умолчанию. Из неполного
+    // списка «первый по алфавиту» был бы случайным счётом, поэтому тогда не подставляем ничего.
+    const list = await orgBankAccounts(conn, orgKey).catch(() => undefined);
+    return list && !list.truncated ? list.accounts[0]?.ref : undefined;
   }
-  const accounts = await orgBankAccounts(conn, orgKey);
+  // Ошибка чтения — не «счёта нет»: пусть дойдёт до пользователя как есть (#54).
+  const { accounts, truncated } = await orgBankAccounts(conn, orgKey);
   const needle = q.toLowerCase();
   const hits = accounts.filter((a) => a.name.toLowerCase().includes(needle) || a.number.includes(q));
+  // Список счетов обрезан: нужного может не быть в прочитанной части, а единственное совпадение —
+  // не гарантия единственности. Без явного Ref_Key принимаем только точный номер счёта.
+  if (truncated) {
+    const exact = hits.filter((a) => a.number === q);
+    if (exact.length === 1) return exact[0]!.ref;
+    throw new InputError(
+      `Банковский счёт организации «${q}»: в базе больше ${ORG_BANK_ACCOUNTS_MAX} банковских счетов, ` +
+        "прочитана только часть, поэтому по названию счёт не подобрать. Укажите полный номер счёта или его Ref_Key.",
+    );
+  }
   if (hits.length === 1) return hits[0]?.ref;
   if (hits.length === 0) {
     const known = accounts.map((a) => a.name).join("; ");
@@ -827,37 +839,37 @@ async function resolveOrgBankAccount(
  * Отбор по названию тоже клиентский: substringof по Description 1С отклоняет
  * по той же причине.
  */
+/** Сколько банковских счетов (всех организаций) читаем для подбора по названию. */
+const ORG_BANK_ACCOUNTS_MAX = 1000;
+
 async function orgBankAccounts(
   conn: Connection,
   orgKey: string,
-): Promise<Array<{ ref: string; name: string; number: string }>> {
+): Promise<{ accounts: Array<{ ref: string; name: string; number: string }>; truncated: boolean }> {
   const available = await conn.available();
   const set = resolveEntity(CATALOGS.bankAccounts, available);
-  if (!set) return [];
+  if (!set) return { accounts: [], truncated: false };
   const orgSet = resolveEntity(CATALOGS.organizations, available);
   const filter = and(
     orgSet ? cmp("Owner_Type", "eq", odataString(`StandardODATA.${orgSet}`)) : undefined,
     cmp("DeletionMark", "eq", "false"),
   );
-  try {
-    const { rows } = await fetchAll(
-      conn.client,
-      set,
-      { filter, select: ["Ref_Key", "Description", "НомерСчета", "Owner"] },
-      conn.behavior.pageSize,
-      200,
-    );
-    return rows
-      .filter((r) => String(r["Owner"] ?? "") === orgKey)
-      .map((r) => ({
-        ref: String(r["Ref_Key"] ?? ""),
-        name: String(r["Description"] ?? ""),
-        number: String(r["НомерСчета"] ?? ""),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
-  } catch {
-    return [];
-  }
+  const { rows, truncated } = await fetchAll(
+    conn.client,
+    set,
+    { filter, select: ["Ref_Key", "Description", "НомерСчета", "Owner"] },
+    conn.behavior.pageSize,
+    ORG_BANK_ACCOUNTS_MAX,
+  );
+  const accounts = rows
+    .filter((r) => String(r["Owner"] ?? "") === orgKey)
+    .map((r) => ({
+      ref: String(r["Ref_Key"] ?? ""),
+      name: String(r["Description"] ?? ""),
+      number: String(r["НомерСчета"] ?? ""),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  return { accounts, truncated };
 }
 
 /** Основной банковский счёт организации (реквизит ОсновнойБанковскийСчет). */
