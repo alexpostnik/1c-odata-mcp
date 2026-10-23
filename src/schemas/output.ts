@@ -491,6 +491,7 @@ const postingSideSchema = z
     accountName: z.string(),
     accountRef: z.string(),
     dimensions: z.array(postingDimensionSchema).optional(),
+    dimensionsStatus: z.enum(["present", "empty", "not_in_schema", "not_returned"]).optional(),
     divisionRef: z.string().optional(),
   })
   .passthrough()
@@ -547,6 +548,7 @@ export const getDocumentPostingsResultSchema = z
         .passthrough(),
     ),
     note: z.string().optional(),
+    dimensionsNote: z.string().optional(),
     source: z.object({ entitySet: z.string(), filter: z.string() }).passthrough(),
     scan: scanSchema,
   })

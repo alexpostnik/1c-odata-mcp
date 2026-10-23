@@ -204,11 +204,20 @@ export interface PostingDimension {
   value?: string;
 }
 
+/**
+ * Что известно об аналитике (субконто) стороны проводки (#49):
+ * present — есть значения; empty — 1С вернула поля субконто, и они пустые (подтверждено);
+ * not_in_schema — в $metadata регистра нет полей ExtDimension этой стороны (аналитику не установить);
+ * not_returned — поля объявлены, но 1С не вернула значения (null/нет в ответе) — не то же, что «пусто».
+ */
+export type DimensionsStatus = "present" | "empty" | "not_in_schema" | "not_returned";
+
 export interface PostingSide {
   accountCode: string;
   accountName: string;
   accountRef: string;
   dimensions?: PostingDimension[];
+  dimensionsStatus: DimensionsStatus;
   divisionRef?: string;
 }
 
@@ -229,18 +238,29 @@ export interface Posting {
 
 const GUIDISH = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-function dimensionsOf(r: ODataEntity, source: PostingsSource, side: "Dr" | "Cr"): PostingDimension[] {
+function dimensionsOf(
+  r: ODataEntity,
+  source: PostingsSource,
+  side: "Dr" | "Cr",
+): { dimensions: PostingDimension[]; status: DimensionsStatus } {
   const out: PostingDimension[] = [];
+  let declared = 0;
+  let returned = 0;
   for (const d of source.extDimensions) {
     if (d.side !== side) continue;
+    declared += 1;
     const v = r[d.field];
-    if (v === undefined || v === null || v === "" || v === EMPTY_GUID) continue;
+    if (v === undefined || v === null) continue;
+    returned += 1;
+    if (v === "" || v === EMPTY_GUID) continue;
     const t = d.typeField ? r[d.typeField] : undefined;
     const type = typeof t === "string" && t ? t.slice(t.lastIndexOf(".") + 1) : undefined;
     const s = String(v);
     out.push({ index: d.index, ...(type ? { type } : {}), ...(GUIDISH.test(s) ? { ref: s } : { value: s }) });
   }
-  return out;
+  const status: DimensionsStatus =
+    out.length > 0 ? "present" : declared === 0 ? "not_in_schema" : returned === 0 ? "not_returned" : "empty";
+  return { dimensions: out, status };
 }
 
 /**
@@ -285,13 +305,14 @@ export function aggregateDocumentPostings(
     if (!key) return null;
     const acc = accounts.get(accountLookupKey(key));
     if (!acc) throw new Error(`Счёт ${key} (поле ${field}) не сопоставлен с планом счетов.`);
-    const dims = dimensionsOf(r, source, side);
+    const { dimensions: dims, status } = dimensionsOf(r, source, side);
     const division = refOrUndefined(r[side === "Dr" ? o.divisionDr : o.divisionCr]);
     return {
       accountCode: acc.code,
       accountName: acc.description,
       accountRef: acc.key,
       ...(dims.length ? { dimensions: dims } : {}),
+      dimensionsStatus: status,
       ...(division ? { divisionRef: division } : {}),
     };
   };
@@ -438,9 +459,30 @@ export async function getDocumentPostings(conn: Connection, documentEntity: stri
     postings: agg.postings,
     byCorrespondence: agg.byCorrespondence,
     ...(note ? { note } : {}),
+    ...dimensionsNote(agg.postings),
     source: { entitySet: source.entitySet, filter },
     scan: { rowsScanned: meta.rowsScanned, windows: meta.chunks, elapsedMs: Date.now() - t0 },
   };
+}
+
+/** Пояснение, когда аналитику проводок установить не удалось: это не то же, что «субконто пусты» (#49). */
+function dimensionsNote(postings: readonly Posting[]): { dimensionsNote?: string } {
+  const statuses = new Set(
+    postings.flatMap((p) => [p.debit, p.credit]).flatMap((side) => (side ? [side.dimensionsStatus] : [])),
+  );
+  if (statuses.has("not_in_schema"))
+    return {
+      dimensionsNote:
+        "В схеме регистра нет полей субконто (ExtDimensionDr/Cr) для части проводок — аналитику по ним " +
+        "установить нельзя; это не означает, что субконто пусты. Проверьте «Состав OData» и права.",
+    };
+  if (statuses.has("not_returned"))
+    return {
+      dimensionsNote:
+        "1С не вернула значения субконто для части проводок (dimensionsStatus=not_returned) — аналитика " +
+        "неизвестна, это не означает, что субконто пусты.",
+    };
+  return {};
 }
 
 async function orgKeyOf(conn: Connection, organization?: string): Promise<{ key?: string; name?: string }> {
@@ -611,6 +653,8 @@ export function registerRegisterTools(server: McpServer, ctx: ServerContext): vo
       description:
         "Бухгалтерские проводки, сформированные одним документом (регистратором), из регистра " +
         "бухгалтерии Хозрасчетный: Дт/Кт (код, наименование, Ref_Key счёта, субконто), сумма, " +
+        "у каждой стороны dimensionsStatus: present/empty — субконто есть/подтверждённо пусты, " +
+        "not_in_schema/not_returned — аналитику установить нельзя (это не «пусто»). " +
         "количество/валютная сумма, итоги Дт/Кт и свод по корреспонденциям счетов. Подходит для " +
         "любого вида документа (Document_*). Только чтение. documentEntity — имя документа из " +
         "list_entities (class=document), documentRef — его Ref_Key (из search_documents).",

@@ -462,6 +462,63 @@ describe("read.accounting.get_document_postings", () => {
     expect(text(r)).toMatch(/отсутствуют в доступной OData-схеме/);
   });
 
+  // #49: «субконто пусты» и «аналитику установить нельзя» должны различаться в ответе.
+  describe("dimensionsStatus", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const postingsOf = async (opts: Fake1C): Promise<Record<string, any>> => {
+      const { ctx } = setup(opts);
+      const r = await callTool(ctx, { documentEntity: DOC, documentRef: DOC_REF });
+      expect(r.isError).toBeFalsy();
+      return r.structuredContent as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+    const DIM = "bbbbbbbb-0000-0000-0000-000000000001";
+
+    it("значение есть → present; пустые ссылки → empty (подтверждённо пусто), без dimensionsNote", async () => {
+      const s = await postingsOf({
+        records: [
+          rec(1, A9021, A20, 100, { ExtDimensionDr1: DIM, ExtDimensionDr1_Type: "StandardODATA.Catalog_X" }),
+        ],
+      });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("present");
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("empty");
+      expect(s["dimensionsNote"]).toBeUndefined();
+    });
+
+    it("поля субконто объявлены, но 1С их не вернула → not_returned и пояснение", async () => {
+      const row = rec(1, A9021, A20, 100);
+      for (const k of ["ExtDimensionDr1", "ExtDimensionDr2", "ExtDimensionCr1"]) delete row[k];
+      const s = await postingsOf({ records: [row] });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].debit.dimensions).toBeUndefined();
+      expect(s["dimensionsNote"]).toContain("не означает, что субконто пусты");
+    });
+
+    it("null тоже «не вернула», а не «пусто»", async () => {
+      const s = await postingsOf({
+        records: [rec(1, A9021, A20, 100, { ExtDimensionCr1: null })],
+      });
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("empty");
+    });
+
+    it("в схеме регистра нет полей ExtDimension → not_in_schema и пояснение", async () => {
+      const props = RECORD_PROPS.filter((p) => !p.startsWith("ExtDimension"));
+      const row = rec(1, A9021, A20, 100);
+      for (const k of Object.keys(row)) if (k.startsWith("ExtDimension")) delete row[k];
+      const s = await postingsOf({ recordProps: props, records: [row] });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("not_in_schema");
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_in_schema");
+      expect(s["dimensionsNote"]).toContain("нет полей субконто");
+    });
+
+    it("забалансовая сторона (null) статуса не имеет", async () => {
+      const s = await postingsOf({ records: [rec(1, A001, EMPTY, 100)] });
+      expect(s["postings"][0].credit).toBeNull();
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("empty");
+    });
+  });
+
   it("конфигурация полей записей регистра собрана в одной константе", () => {
     expect(REGISTER_RECORDS.required).toEqual({
       period: "Period",
