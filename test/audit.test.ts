@@ -403,7 +403,9 @@ describe("read.audit.get_document_history", () => {
 
     const s = setup();
     await expect(getDocumentHistory(s.conn, "Catalog_Пользователи", V1_REF)).rejects.toThrow(/не документ/);
-    await expect(getDocumentHistory(s.conn, "Document_НетТакого", V1_REF)).rejects.toThrow(/не опубликованы/);
+    await expect(getDocumentHistory(s.conn, "Document_НетТакого", V1_REF)).rejects.toThrow(
+      /отсутствуют в доступной OData-схеме/,
+    );
     await expect(getDocumentHistory(s.conn, `${DOC}_УдалитьОшибки`, V1_REF)).rejects.toThrow(
       /табличная часть/,
     );

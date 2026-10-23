@@ -91,7 +91,7 @@ export async function readSavedSettlementSettings(
   const entitySet = resolveEntity(REGISTERS.settlementAccounts, new Set(metadata.entities.keys()));
   if (!entitySet)
     throw new InputError(
-      "Регистр сохранённых счетов расчётов отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
+      "Регистр сохранённых счетов расчётов (InformationRegister_СчетаУчетаРасчетовСКонтрагентами) отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
     );
   const meta = metadata.entities.get(entitySet)!;
   const props = new Map(meta.properties.map((v) => [v.name, v.type]));

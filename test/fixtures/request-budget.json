@@ -4,7 +4,7 @@
   "read.accounting.get_account_turnover": 2,
   "read.accounting.get_balance_origin": 2,
   "read.accounting.get_contract_settlement_settings": 5,
-  "read.accounting.get_document_postings": 4,
+  "read.accounting.get_document_postings": 5,
   "read.accounting.get_settlement_settings": 5,
   "read.analytics.get_cash_balance": 3,
   "read.analytics.get_cashflow": 4,

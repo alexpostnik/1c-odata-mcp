@@ -5,6 +5,7 @@ import { ok, guard, withTruncationNote, databaseField, organizationField } from 
 import { fetchAll } from "../odata/pagination.js";
 import { and, cmp, odataGuid, buildQuery } from "../odata/query.js";
 import { DOC_FIELDS } from "../config/mapping.js";
+import { InputError } from "../errors.js";
 import { resolveOrganization } from "../odata/orgs.js";
 import { ensurePublished } from "../odata/publication.js";
 import type { DocumentSummary } from "../types/domain.js";
@@ -59,9 +60,20 @@ export function registerDocumentTools(server: McpServer, ctx: ServerContext): vo
         let cpServer: string | undefined;
         let cpClientRef: string | undefined;
         let cpNote: string | undefined;
-        if (counterpartyRef) {
-          const meta = await conn.getMetadata();
-          const props = new Set((meta.entities.get(entitySet)?.properties ?? []).map((p) => p.name));
+        const props =
+          counterpartyRef || typeof minAmount === "number"
+            ? new Set(
+                ((await conn.getMetadata()).entities.get(entitySet)?.properties ?? []).map((p) => p.name),
+              )
+            : undefined;
+        // У перемещения, инвентаризации и др. нет СуммаДокумента — 1С на такой фильтр отвечает 400 (#45).
+        // Молча пропустить фильтр нельзя: вернулись бы документы на любую сумму.
+        if (typeof minAmount === "number" && !props?.has(DOC_FIELDS.amount))
+          throw new InputError(
+            `В документе ${entitySet} нет поля «${DOC_FIELDS.amount}» — фильтр minAmount к нему неприменим. ` +
+              "Уберите minAmount; поля документа — в read.schema.describe_entity.",
+          );
+        if (counterpartyRef && props) {
           if (props.has(DOC_FIELDS.counterparty)) {
             cpServer = cmp(DOC_FIELDS.counterparty, "eq", odataGuid(counterpartyRef));
           } else if (props.has("Контрагент")) {

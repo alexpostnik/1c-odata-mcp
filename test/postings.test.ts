@@ -127,6 +127,8 @@ interface Fake1C {
   cap?: number;
   /** Имитация 1С, которая проигнорировала $filter по регистратору. */
   ignoreRecorderFilter?: boolean;
+  /** «Движения с субконто» (RecordsWithExtDimensions); не задано — 404, как неопубликованная функция. */
+  dimRows?: Row[];
 }
 
 interface Call {
@@ -177,6 +179,13 @@ function setup(opts: Fake1C = {}) {
         pool = records.filter((r) => r["Recorder"] === m[1] && String(r["Recorder_Type"]).endsWith(m[2]!));
       }
       return json({ value: pool.slice(skip, skip + top) });
+    }
+
+    if (rel.startsWith(`${REG}/RecordsWithExtDimensions(`)) {
+      if (!opts.dimRows) return json({ "odata.error": { message: { value: "Не найдено" } } }, 404);
+      const m = /^Recorder eq cast\(guid'([^']+)', '([^']+)'\)$/.exec(filter);
+      if (!m) return json({ "odata.error": { message: { value: "bad filter" } } }, 400);
+      return json({ value: opts.dimRows.filter((r) => r["Recorder"] === m[1]).slice(skip, skip + top) });
     }
 
     // План счетов и организации грузятся целиком в кэш подключения (без $filter).
@@ -459,7 +468,111 @@ describe("read.accounting.get_document_postings", () => {
     // неопубликованный документ — подсказка про «Состав OData»
     const r = await callTool(ctx, { documentEntity: "Document_Несуществующий", documentRef: DOC_REF });
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/не опубликованы в OData/);
+    expect(text(r)).toMatch(/отсутствуют в доступной OData-схеме/);
+  });
+
+  // #49: «субконто пусты» и «аналитику установить нельзя» должны различаться в ответе.
+  describe("dimensionsStatus", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const postingsOf = async (opts: Fake1C): Promise<Record<string, any>> => {
+      const { ctx } = setup(opts);
+      const r = await callTool(ctx, { documentEntity: DOC, documentRef: DOC_REF });
+      expect(r.isError).toBeFalsy();
+      return r.structuredContent as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    };
+    const DIM = "bbbbbbbb-0000-0000-0000-000000000001";
+
+    it("значение есть → present; пустые ссылки → empty (подтверждённо пусто), без dimensionsNote", async () => {
+      const s = await postingsOf({
+        records: [
+          rec(1, A9021, A20, 100, { ExtDimensionDr1: DIM, ExtDimensionDr1_Type: "StandardODATA.Catalog_X" }),
+        ],
+      });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("present");
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("empty");
+      expect(s["dimensionsNote"]).toBeUndefined();
+    });
+
+    it("поля субконто объявлены, но 1С их не вернула → not_returned и пояснение", async () => {
+      const row = rec(1, A9021, A20, 100);
+      for (const k of ["ExtDimensionDr1", "ExtDimensionDr2", "ExtDimensionCr1"]) delete row[k];
+      const s = await postingsOf({ records: [row] });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].debit.dimensions).toBeUndefined();
+      expect(s["dimensionsNote"]).toContain("не означает, что субконто пусты");
+    });
+
+    it("null тоже «не вернула», а не «пусто»", async () => {
+      const s = await postingsOf({
+        records: [rec(1, A9021, A20, 100, { ExtDimensionCr1: null })],
+      });
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_returned");
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("empty");
+    });
+
+    // Так устроена живая БП 3.0: в записях регистра (_RecordType) субконто нет вовсе.
+    const withoutDims = () => {
+      const props = RECORD_PROPS.filter((p) => !p.startsWith("ExtDimension"));
+      const strip = (r: Row) =>
+        Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith("ExtDimension")));
+      return { props, records: [strip(rec(1, A9021, A20, 100)), strip(rec(2, A26, A20, 50))] };
+    };
+
+    it("в записях субконто нет → берутся из «Движений с субконто» по номеру строки", async () => {
+      const { props, records } = withoutDims();
+      const dimRows = [
+        rec(1, A9021, A20, 100, { ExtDimensionDr1: DIM, ExtDimensionDr1_Type: "StandardODATA.Catalog_X" }),
+        rec(2, A26, A20, 50),
+      ];
+      const s = await postingsOf({ recordProps: props, records, dimRows });
+      expect(s["postings"][0].debit).toMatchObject({
+        dimensionsStatus: "present",
+        dimensions: [{ index: 1, type: "Catalog_X", ref: DIM }],
+      });
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("empty");
+      expect(s["postings"][1].debit.dimensionsStatus).toBe("empty");
+      expect(s["dimensionsNote"]).toBeUndefined();
+    });
+
+    it("у счёта нет субконто (вид субконто null) — empty, а не «1С не вернула»", async () => {
+      const { props, records } = withoutDims();
+      const noSlots = {
+        ExtDimensionDr1: null,
+        ExtDimensionTypeDr1_Key: null,
+        ExtDimensionDr2: null,
+        ExtDimensionTypeDr2_Key: null,
+      };
+      const unknown = { ExtDimensionCr1: null, ExtDimensionTypeCr1_Key: "kind-1" };
+      const dimRows = [rec(1, A9021, A20, 100, { ...noSlots, ...unknown }), rec(2, A26, A20, 50)];
+      const s = await postingsOf({ recordProps: props, records, dimRows });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("empty");
+      // вид субконто есть, а значения нет — вот это действительно «не вернула»
+      expect(s["postings"][0].credit.dimensionsStatus).toBe("not_returned");
+    });
+
+    it("«Движения с субконто» недоступны → not_in_schema, проводки на месте, причина в пояснении", async () => {
+      const { props, records } = withoutDims();
+      const s = await postingsOf({ recordProps: props, records });
+      expect(s["postingsCount"]).toBe(2);
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("not_in_schema");
+      expect(s["dimensionsNote"]).toContain("RecordsWithExtDimensions");
+      expect(s["dimensionsNote"]).toContain("не означает, что субконто пусты");
+    });
+
+    it("строки «Движений с субконто» не сходятся с записями — субконто не подставляются", async () => {
+      const { props, records } = withoutDims();
+      const dimRows = [rec(1, A9021, A20, 100, { ExtDimensionDr1: DIM })];
+      const s = await postingsOf({ recordProps: props, records, dimRows });
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("not_in_schema");
+      expect(s["dimensionsNote"]).toContain("сопоставить по номеру строки нельзя");
+    });
+
+    it("забалансовая сторона (null) статуса не имеет", async () => {
+      const s = await postingsOf({ records: [rec(1, A001, EMPTY, 100)] });
+      expect(s["postings"][0].credit).toBeNull();
+      expect(s["postings"][0].debit.dimensionsStatus).toBe("empty");
+    });
   });
 
   it("конфигурация полей записей регистра собрана в одной константе", () => {

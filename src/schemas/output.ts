@@ -127,6 +127,12 @@ export const postDocumentResultSchema = z
     willCall: z.string().optional(),
     note: z.string().optional(),
     done: z.boolean().optional(),
+    verified: z.boolean().optional(),
+    verificationScope: z.enum(["document_state", "journal_receipt"]).optional(),
+    accountingMovementsVerified: z.boolean().optional(),
+    readbackFetched: z.boolean().optional(),
+    readback: z.record(z.string(), z.unknown()).optional(),
+    readbackNote: z.string().optional(),
     ref: z.string().optional(),
     action: z.string().optional(),
     postings: z
@@ -485,6 +491,7 @@ const postingSideSchema = z
     accountName: z.string(),
     accountRef: z.string(),
     dimensions: z.array(postingDimensionSchema).optional(),
+    dimensionsStatus: z.enum(["present", "empty", "not_in_schema", "not_returned"]).optional(),
     divisionRef: z.string().optional(),
   })
   .passthrough()
@@ -541,6 +548,7 @@ export const getDocumentPostingsResultSchema = z
         .passthrough(),
     ),
     note: z.string().optional(),
+    dimensionsNote: z.string().optional(),
     source: z.object({ entitySet: z.string(), filter: z.string() }).passthrough(),
     scan: scanSchema,
   })
@@ -757,5 +765,6 @@ export const operationStatusSchema = z
     ref: z.string().optional(),
     number: z.string().optional(),
     note: z.string().optional(),
+    lastError: z.string().optional(),
   })
   .passthrough();

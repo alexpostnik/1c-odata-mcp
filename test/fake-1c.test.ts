@@ -320,12 +320,8 @@ const DOCUMENT_SETS = [...new Set(Object.values(DOCUMENTS).flat())].filter((s) =
 
 /**
  * Известные ошибки — тест ждёт, что нарушение ещё есть. Исправили — уберите строку отсюда.
- * search_documents с minAmount: у перемещения и инвентаризации в БП 3.0 нет СуммаДокумента.
  */
-const KNOWN_VIOLATIONS: Record<string, string> = {
-  "read.document.search_documents Document_ПеремещениеТоваров": "СуммаДокумента",
-  "read.document.search_documents Document_ИнвентаризацияТоваровНаСкладе": "СуммаДокумента",
-};
+const KNOWN_VIOLATIONS: Record<string, string> = {};
 
 describe("инструменты для любого документа — по всем видам документов БП 3.0", () => {
   const cases = Object.entries(ANY_DOCUMENT).flatMap(([name, field]) =>
@@ -340,5 +336,31 @@ describe("инструменты для любого документа — по
         known,
       );
     else expect(fake.violations, "запросы к полям, которых нет в схеме БП 3.0").toEqual([]);
+  });
+});
+
+// Снимок — схема реальной БП 3.0: в записях регистра (_RecordType) нет полей ExtDimension. Субконто
+// проводок должны браться из RecordsWithExtDimensions; раньше тест проводок рисовал субконто прямо в
+// записях, и то, что на живой базе их не было никогда, тесты не видели (#49).
+describe("проводки документа на схеме БП 3.0 — субконто из «Движений с субконто»", () => {
+  it("в записях регистра снимка субконто нет", () => {
+    const props = bp30Metadata().entities.get("AccountingRegister_Хозрасчетный_RecordType")!.properties;
+    expect(props.some((p) => p.name.startsWith("ExtDimension"))).toBe(false);
+  });
+  it("get_document_postings не отвечает «субконто недоступны»", async () => {
+    const { r: result, fake } = await call("read.accounting.get_document_postings", {
+      documentEntity: "Document_РеализацияТоваровУслуг",
+      documentRef: id,
+    });
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as {
+      postings: Array<{ debit: { dimensionsStatus: string } | null }>;
+      dimensionsNote?: string;
+    };
+    expect(sc.postings[0]!.debit!.dimensionsStatus).not.toBe("not_in_schema");
+    expect(sc.dimensionsNote).toBeUndefined();
+    // «Движения с субконто» — функция самого регистра (поддельная 1С пишет в requests имя регистра).
+    expect(fake.requests.some((r) => r.resource === "AccountingRegister_Хозрасчетный")).toBe(true);
+    expect(fake.violations).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "1c-odata-mcp",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "MCP server for 1C:Enterprise (1С) over OData. Ask your accounting database in natural language — debtors and creditors by due date, unpaid invoices, cash on hand, month-close checks, account cards, reconciliation statements, sales, taxes, cash flow, account turnover, postings — from any MCP client (Claude, Cursor, VS Code, local models…). 74 tools, run with npx, nothing installed inside 1C; read-only by default with opt-in (gated) write.",
   "type": "module",
   "bin": {
@@ -38,6 +38,7 @@
     "prepublishOnly": "npm run build && node --eval \"require('fs').rmSync('dist/scripts',{recursive:true,force:true})\"",
     "manifest": "npm run build && node dist/scripts/gen-manifest.js",
     "test:live": "npm run build && node --env-file=.env dist/scripts/live-write.js",
+    "test:live:read": "npm run build && node --env-file=.env dist/scripts/live-read.js",
     "budget:update": "UPDATE_REQUEST_BUDGET=1 vitest run test/fake-1c.test.ts",
     "snapshot:metadata": "npm run build && node --env-file=.env dist/scripts/snapshot-metadata.js"
   },
