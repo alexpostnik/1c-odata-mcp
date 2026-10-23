@@ -28,6 +28,22 @@ describe("fromHttpStatus — классификация HTTP-ошибок OData"
     expect(e.kind).toBe("server");
     expect(e.retryable).toBe(true);
   });
+  // #53: ошибка в самом запросе — повтор того же запроса даст тот же отказ.
+  it.each([
+    'Операция не разрешена в предложении "ГДЕ"',
+    "Нельзя сравнивать поля неограниченной длины и поля несовместимых типов",
+  ])("500 «%s» → server, но не повторяется, текст 1С в сообщении", (text) => {
+    const body = JSON.stringify({ "odata.error": { code: "-1", message: { lang: "ru", value: text } } });
+    const e = fromHttpStatus(500, "url", body);
+    expect(e.kind).toBe("server");
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain(text);
+    expect(e.message).toContain("повтор не поможет");
+  });
+  it("500 с другим текстом 1С по-прежнему повторяется", () => {
+    const body = JSON.stringify({ "odata.error": { code: "-1", message: { value: "Сеанс занят" } } });
+    expect(fromHttpStatus(500, "url", body).retryable).toBe(true);
+  });
   it("вытаскивает сообщение 1С из JSON-тела ошибки", () => {
     const body = JSON.stringify({ error: { message: { value: "Плохой фильтр" } } });
     expect(fromHttpStatus(400, "url", body).message).toContain("Плохой фильтр");

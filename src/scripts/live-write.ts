@@ -6,7 +6,8 @@
  *
  * Пишет в боевую базу, поэтому запускается только явно:
  *   npm run test:live -- --db <имя базы> --yes [--slow]
- * --slow добавляет сценарий «правка не дошла» (ждёт 2 минуты, пока статус закроет операцию).
+ * --slow добавляет сценарий «правка не дошла» (ждёт 2 минуты; статус сам операцию не закрывает,
+ * закрытие — только явным markNotApplied=true, #52).
  * Журнал операций — во временном каталоге, рабочий журнал не трогается.
  * Код возврата 1 — если хоть один сценарий не прошёл.
  */
@@ -334,21 +335,27 @@ async function main(): Promise<number> {
         await run("write.document.remove_document_line", { ...rem, confirm: true, operationId });
         restore();
         const early = await run("write.operation.status", { operationId });
+        // Раньше 2 минут не закрывается даже по ручному подтверждению.
+        const earlyMark = await run("write.operation.status", { operationId, markNotApplied: true });
         line("  … ждём 2 минуты для сценария «правка не дошла»");
         await new Promise((r) => setTimeout(r, 125_000));
+        // Без ручного подтверждения время само ничего не закрывает (#52).
         const late = await run("write.operation.status", { operationId });
+        const marked = await run("write.operation.status", { operationId, markNotApplied: true });
         const again = await run("write.document.remove_document_line", {
           ...rem,
           confirm: true,
           operationId,
         });
         check(
-          "строка: правка не дошла → not_applied",
+          "строка: правка не дошла → not_applied только по markNotApplied",
           early.sc["status"] === "not_found" &&
-            late.sc["status"] === "not_applied" &&
+            earlyMark.sc["status"] === "not_found" &&
+            late.sc["status"] === "not_found" &&
+            marked.sc["status"] === "not_applied" &&
             again.err &&
             (await count()) === n3,
-          `статус ${String(early.sc["status"])} → ${String(late.sc["status"])}`,
+          `статус ${String(early.sc["status"])} → ${String(late.sc["status"])} → ${String(marked.sc["status"])}`,
         );
       }
     }

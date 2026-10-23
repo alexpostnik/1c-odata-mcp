@@ -44,6 +44,10 @@ export interface Behavior {
    * сверка идёт по назначенному Ref_Key; метка — только для тех, кому нужна видимая в 1С привязка.
    */
   writeOperationMarker: boolean;
+  /** Предел одновременных HTTP-запросов одного подключения; 0 — без предела (по умолчанию). */
+  maxConcurrentRequests: number;
+  /** Сколько ждать свободного места под запрос, мс. */
+  queueTimeoutMs: number;
   /**
    * Код валюты регламентированного учёта (по справочнику «Валюты»): по нему договор относится к виду
    * расчётов «в валюте регламентированного учёта» при подборе счетов расчётов. По умолчанию 643 (рубль).
@@ -86,6 +90,9 @@ const BehaviorSchema = z.object({
   ODATA_ANALYTICS_MAX_ROWS: z.coerce.number().int().positive().max(1_000_000).default(200_000),
   ODATA_WRITE_JOURNAL_DIR: z.string().min(1).optional(),
   ODATA_WRITE_OPERATION_MARKER: z.enum(["true", "false"]).default("false"),
+  // Предел одновременных HTTP-запросов к одной базе (0 — без предела) и сколько ждать места.
+  ODATA_MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(0).max(64).default(0),
+  ODATA_QUEUE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   // Пустое значение (обычное в шаблонах .env) = «не задано», а не ошибка старта.
   ODATA_REGULATED_CURRENCY_CODE: CurrencyCodeSchema,
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
@@ -216,6 +223,8 @@ export function parseConfig(env: Env): RuntimeConfig {
       analyticsMaxRows: b.ODATA_ANALYTICS_MAX_ROWS,
       readOnly: b.READ_ONLY === "true",
       writeOperationMarker: b.ODATA_WRITE_OPERATION_MARKER === "true",
+      maxConcurrentRequests: b.ODATA_MAX_CONCURRENT_REQUESTS,
+      queueTimeoutMs: b.ODATA_QUEUE_TIMEOUT_MS,
       regulatedCurrencyCode: b.ODATA_REGULATED_CURRENCY_CODE ?? "643",
       regulatedCurrencySource: b.ODATA_REGULATED_CURRENCY_CODE ? "global" : "default",
       writeJournalDir: resolve(

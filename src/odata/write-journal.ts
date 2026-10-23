@@ -44,6 +44,8 @@ export interface JournalEntry {
   updatedAt: string;
   result?: Record<string, string>;
   errorKind?: string;
+  /** Текст ошибки последней попытки (сообщение 1С), не длиннее ERROR_MESSAGE_MAX — для сверки. */
+  errorMessage?: string;
   check?: OperationCheck;
   /** Ref_Key, который MCP задаёт создаваемому объекту: по нему сверка — простым GET. */
   refKey?: string;
@@ -51,7 +53,8 @@ export interface JournalEntry {
 
 /**
  * Durable, local idempotency journal for confirmed OData creates and non-idempotent document edits.
- * Only a payload hash and a small result reference are persisted, never the payload itself.
+ * Only a payload hash, a small result reference and, after a failed attempt, the 1C error text
+ * (bounded, see ERROR_MESSAGE_MAX) are persisted — never the payload itself.
  */
 export class WriteOperationJournal {
   private readonly directory: string;
@@ -152,7 +155,9 @@ export class WriteOperationJournal {
           ...entry,
           state: rejected ? "rejected" : "outcome_unknown",
           updatedAt: new Date().toISOString(),
-          ...(cause instanceof ODataError ? { errorKind: cause.kind } : {}),
+          ...(cause instanceof ODataError
+            ? { errorKind: cause.kind, errorMessage: boundedMessage(cause.message) }
+            : {}),
         };
         try {
           await this.replace(failed);
@@ -475,7 +480,8 @@ export class WriteOperationJournal {
   }
 
   private unknownResult(operationId: string, cause?: unknown): ODataError {
-    const reason = cause instanceof ODataError ? ` (${cause.kind})` : "";
+    // Текст 1С (например, «Ошибка сервера 1С (500): …») нужен для сверки — не теряем его (#55).
+    const reason = cause instanceof ODataError ? ` (${cause.kind}: ${boundedMessage(cause.message)})` : "";
     return new ODataError({
       kind: "unknown",
       message:
@@ -486,8 +492,15 @@ export class WriteOperationJournal {
   }
 }
 
+const ERROR_MESSAGE_MAX = 500;
+
+function boundedMessage(message: string): string {
+  return message.length > ERROR_MESSAGE_MAX ? `${message.slice(0, ERROR_MESSAGE_MAX)}…` : message;
+}
+
 function isDefinitiveRejection(error: unknown): boolean {
-  return error instanceof ODataError && ["auth", "not_found", "bad_request"].includes(error.kind);
+  // busy — запрос не дождался места под HTTP и в 1С не отправлялся: исход известен, дубля не будет.
+  return error instanceof ODataError && ["auth", "not_found", "bad_request", "busy"].includes(error.kind);
 }
 
 function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {

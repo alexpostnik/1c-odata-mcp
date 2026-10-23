@@ -54,6 +54,41 @@ describe("WriteOperationJournal", () => {
     expect(replayed.Description).toBeUndefined();
   });
 
+  // #55: при неизвестном исходе текст 1С не терялся ни в ответе, ни в журнале.
+  it("keeps the 1C message of an HTTP 500 in the error and in the journal entry", async () => {
+    const journal = await createJournal();
+    const operationId = randomUUID();
+    await journal.prepare(operationId, entitySet, payload, requestHash);
+    const body = JSON.stringify({ "odata.error": { message: { value: "SYNTHETIC_VALIDATION_DETAIL" } } });
+    const error = await journal
+      .execute(operationId, entitySet, payload, requestHash, async () => {
+        throw fromHttpStatus(500, baseUrl, body);
+      })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ODataError);
+    expect((error as ODataError).message).toContain("SYNTHETIC_VALIDATION_DETAIL");
+    expect((error as ODataError).message).toContain("Повторная отправка заблокирована");
+    const entry = await new WriteOperationJournal(roots[0]!, database, baseUrl).lookup(operationId);
+    expect(entry).toMatchObject({ state: "outcome_unknown", errorKind: "server" });
+    expect(entry?.errorMessage).toContain("SYNTHETIC_VALIDATION_DETAIL");
+  });
+
+  it("bounds a long 1C message in the error and in the journal", async () => {
+    const journal = await createJournal();
+    const operationId = randomUUID();
+    await journal.prepare(operationId, entitySet, payload, requestHash);
+    const body = JSON.stringify({ "odata.error": { message: { value: "x".repeat(5000) } } });
+    const error = (await journal
+      .execute(operationId, entitySet, payload, requestHash, async () => {
+        throw fromHttpStatus(500, baseUrl, body);
+      })
+      .catch((e: unknown) => e)) as ODataError;
+    expect(error.message.length).toBeLessThan(1000);
+    const entry = await new WriteOperationJournal(roots[0]!, database, baseUrl).lookup(operationId);
+    expect(entry?.errorMessage?.length).toBeLessThanOrEqual(501);
+  });
+
   it("blocks a retry when the first POST ended with an unknown outcome", async () => {
     const journal = await createJournal();
     const operationId = randomUUID();

@@ -293,7 +293,7 @@ describe("line operations (add/remove document line) and journal replay", () => 
   });
 
   describe("write.operation.status by line count", () => {
-    const status = async (lines: number, ageMs: number) => {
+    const status = async (lines: number, ageMs: number, markNotApplied?: boolean) => {
       const reconcileOperation = vi.fn(async () => undefined);
       const markOperationNotApplied = vi.fn(async () => undefined);
       const connection = {
@@ -311,7 +311,7 @@ describe("line operations (add/remove document line) and journal replay", () => 
         },
       };
       const res = await toolsOf(connection)["write.operation.status"]!.handler(
-        { database: "default", operationId: "88888888-8888-4888-8888-888888888888" },
+        { database: "default", operationId: "88888888-8888-4888-8888-888888888888", markNotApplied },
         {},
       );
       return { sc: res.structuredContent as { status: string }, reconcileOperation, markOperationNotApplied };
@@ -322,10 +322,32 @@ describe("line operations (add/remove document line) and journal replay", () => 
       expect(r.sc.status).toBe("found_reconciled");
       expect(r.reconcileOperation).toHaveBeenCalledOnce();
     });
-    it("unchanged after 2+ minutes → not_applied (journal closed)", async () => {
-      const r = await status(2, 5 * 60_000);
+    // #52: время и неизменное число строк не доказывают, что PATCH не применится позже.
+    it("unchanged after 2+ minutes → not_found, journal untouched without manual confirmation", async () => {
+      const r = await status(2, 60 * 60_000);
+      expect(r.sc.status).toBe("not_found");
+      expect((r.sc as { note?: string }).note).toContain("markNotApplied=true");
+      expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+    });
+    it("unchanged + markNotApplied after 2+ minutes → not_applied (journal closed)", async () => {
+      const r = await status(2, 5 * 60_000, true);
       expect(r.sc.status).toBe("not_applied");
       expect(r.markOperationNotApplied).toHaveBeenCalledOnce();
+    });
+    it("markNotApplied right after the attempt → not_found, journal untouched", async () => {
+      const r = await status(2, 10_000, true);
+      expect(r.sc.status).toBe("not_found");
+      expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+    });
+    it("markNotApplied but the edit is visible → found_reconciled, not closed as not_applied", async () => {
+      const r = await status(3, 5 * 60_000, true);
+      expect(r.sc.status).toBe("found_reconciled");
+      expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+    });
+    it("markNotApplied with an unexpected count → unverifiable, journal untouched", async () => {
+      const r = await status(5, 5 * 60_000, true);
+      expect(r.sc.status).toBe("unverifiable");
+      expect(r.markOperationNotApplied).not.toHaveBeenCalled();
     });
     it("unchanged right after the attempt → not_found, journal untouched", async () => {
       const r = await status(2, 10_000);
@@ -343,7 +365,7 @@ describe("line operations (add/remove document line) and journal replay", () => 
 
 describe("write.operation.status по назначенному Ref_Key", () => {
   const refKey = "aaaaaaaa-bbbb-1ccc-8ddd-eeeeeeeeeeee";
-  const status = async (exists: boolean, ageMs: number) => {
+  const status = async (exists: boolean, ageMs: number, markNotApplied?: boolean) => {
     const reconcileOperation = vi.fn(async () => undefined);
     const markOperationNotApplied = vi.fn(async () => undefined);
     const { ODataError } = await import("../src/odata/errors.js");
@@ -365,7 +387,7 @@ describe("write.operation.status по назначенному Ref_Key", () => {
       },
     };
     const res = await toolsOf(connection)["write.operation.status"]!.handler(
-      { database: "default", operationId: "99999999-9999-4999-8999-999999999999" },
+      { database: "default", operationId: "99999999-9999-4999-8999-999999999999", markNotApplied },
       {},
     );
     return {
@@ -379,14 +401,90 @@ describe("write.operation.status по назначенному Ref_Key", () => {
     expect(r.sc).toMatchObject({ status: "found_reconciled", ref: refKey });
     expect(r.reconcileOperation).toHaveBeenCalledOnce();
   });
-  it("объекта нет 2+ минуты → not_applied", async () => {
-    const r = await status(false, 5 * 60_000);
+  // #52: 404 через любое время не доказывает, что POST не завершится в 1С позже.
+  it("объекта нет 2+ минуты → not_found без закрытия, пока человек не подтвердит", async () => {
+    const r = await status(false, 60 * 60_000);
+    expect(r.sc.status).toBe("not_found");
+    expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+  });
+  it("объекта нет 2+ минуты и markNotApplied → not_applied", async () => {
+    const r = await status(false, 5 * 60_000, true);
     expect(r.sc.status).toBe("not_applied");
     expect(r.markOperationNotApplied).toHaveBeenCalledOnce();
+  });
+  it("markNotApplied, но объект есть → found_reconciled, не закрывается", async () => {
+    const r = await status(true, 5 * 60_000, true);
+    expect(r.sc).toMatchObject({ status: "found_reconciled", ref: refKey });
+    expect(r.markOperationNotApplied).not.toHaveBeenCalled();
   });
   it("объекта нет сразу после попытки → not_found без закрытия", async () => {
     const r = await status(false, 5_000);
     expect(r.sc.status).toBe("not_found");
     expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+  });
+});
+
+describe("write.operation.status по метке: не закрывает без ручного подтверждения (#52)", () => {
+  const status = async (markNotApplied?: boolean) => {
+    const markOperationNotApplied = vi.fn(async () => undefined);
+    const connection = {
+      cfg: { name: "default" },
+      getMetadata: async () => ({
+        entities: new Map([[CATALOGS.counterparties[0]!, { properties: [{ name: "Комментарий" }] }]]),
+      }),
+      client: {
+        operationEntry: async () => ({
+          state: "outcome_unknown",
+          entitySet: CATALOGS.counterparties[0]!,
+          updatedAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+        }),
+        getCollection: vi.fn(async () => ({ value: [] })),
+        reconcileOperation: vi.fn(async () => undefined),
+        markOperationNotApplied,
+      },
+    };
+    const res = await toolsOf(connection)["write.operation.status"]!.handler(
+      { database: "default", operationId: "44444444-4444-4444-8444-444444444444", markNotApplied },
+      {},
+    );
+    return { sc: res.structuredContent as { status: string; note?: string }, markOperationNotApplied };
+  };
+  it("метки нет через час → not_found, без совета создать заново", async () => {
+    const r = await status();
+    expect(r.sc.status).toBe("not_found");
+    expect(r.sc.note).not.toContain("выполните новый предпросмотр");
+    expect(r.markOperationNotApplied).not.toHaveBeenCalled();
+  });
+  it("метки нет и markNotApplied → not_applied", async () => {
+    const r = await status(true);
+    expect(r.sc.status).toBe("not_applied");
+    expect(r.markOperationNotApplied).toHaveBeenCalledOnce();
+  });
+});
+
+describe("write.operation.status показывает текст ошибки 1С из журнала (#55)", () => {
+  it("outcome_unknown → lastError с сообщением 1С", async () => {
+    const connection = {
+      cfg: { name: "default" },
+      getMetadata: async () => ({ entities: new Map() }),
+      client: {
+        operationEntry: async () => ({
+          state: "outcome_unknown",
+          entitySet: "Document_ПлатежноеПоручение",
+          updatedAt: new Date().toISOString(),
+          errorKind: "server",
+          errorMessage: "Ошибка сервера 1С (500): SYNTHETIC_VALIDATION_DETAIL",
+          check: { kind: "documentState" },
+        }),
+      },
+    };
+    const res = await toolsOf(connection)["write.operation.status"]!.handler(
+      { database: "default", operationId: "55555555-5555-4555-8555-555555555555" },
+      {},
+    );
+    expect(res.structuredContent).toMatchObject({
+      status: "unverifiable",
+      lastError: "Ошибка сервера 1С (500): SYNTHETIC_VALIDATION_DETAIL",
+    });
   });
 });

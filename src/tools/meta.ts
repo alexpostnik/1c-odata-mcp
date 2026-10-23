@@ -54,7 +54,7 @@ export function registerMetaTools(server: McpServer, ctx: ServerContext): void {
       title: "Проверка соединения",
       description:
         "Проверяет доступность OData-сервиса 1С и корректность авторизации для выбранной базы. " +
-        "Возвращает версию OData и число опубликованных объектов. " +
+        "Перечитывает $metadata и обновляет кеш схемы; возвращает версию OData и число видимых объектов. " +
         "Вызывайте первым, если другие инструменты выдают ошибки.",
       inputSchema: { database: databaseField },
       outputSchema: healthCheckResultSchema,
@@ -62,7 +62,7 @@ export function registerMetaTools(server: McpServer, ctx: ServerContext): void {
     ({ database }) =>
       guard("read.system.health_check", async () => {
         const conn = ctx.db(database);
-        const meta = await conn.getMetadata();
+        const meta = await conn.client.refreshMetadata();
         const journal = await conn.client.journalSummary();
         return ok({
           status: "ok",

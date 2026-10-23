@@ -459,12 +459,11 @@ export const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 /**
  * ЗАПИСИ регистра бухгалтерии (не виртуальные таблицы) — то, как их публикует 1С.
  *
- * ⚠ НЕ ПРОВЕРЕНО НА ЖИВОЙ 1С (LIVE-UNVERIFIED). Это ПРЕДПОЛОЖЕНИЕ, а не факт:
- *   - что записи регистра опубликованы как EntitySet «AccountingRegister_Хозрасчетный_RecordType»;
- *   - что в нём есть поля Recorder / Recorder_Type / Period / AccountDr_Key / AccountCr_Key / Сумма.
- * Юнит-тесты (test/postings.test.ts) ЭМУЛИРУЮТ именно эту ожидаемую структуру и
- * поэтому совместимость с реальной 1С НЕ подтверждают. Реальное представление
- * определяется по $metadata живой базы после развёртывания.
+ * Проверено на двух живых базах БП 3.0 (23.10.2026): записи опубликованы как EntitySet
+ * «AccountingRegister_Хозрасчетный_RecordType» с полями Recorder / Recorder_Type / Period /
+ * AccountDr_Key / AccountCr_Key / Сумма. Субконто (ExtDimension…) в нём НЕТ — их отдаёт
+ * виртуальная таблица RecordsWithExtDimensions (см. fetchRegistrarPostings). Другие конфигурации
+ * могут публиковать иначе — поэтому структура по-прежнему сверяется с $metadata конкретной базы.
  *
  * Защита от неверного предположения: перед запросом fetchRegistrarPostings сверяет
  * имена полей с $metadata конкретной базы (resolvePostingsSource) и при расхождении
@@ -511,12 +510,10 @@ export const REGISTER_RECORDS = {
 /**
  * ЕДИНСТВЕННОЕ место с синтаксисом отбора по регистратору.
  *
- * ⚠ НЕ ПРОВЕРЕНО НА ЖИВОЙ 1С (LIVE-UNVERIFIED). Синтаксис
+ * Синтаксис
  *     Recorder eq cast(guid'…', 'Document_…')
- * — ПРЕДПОЛОЖЕНИЕ по аналогии с прочими полями составного типа стандартного
- * интерфейса OData 1С (регистратор Хозрасчетного — составного типа). Фейковая 1С
- * в юнит-тестах разбирает ровно этот синтаксис, поэтому тесты его совместимость
- * с реальной 1С НЕ подтверждают.
+ * проверен на двух живых базах БП 3.0 (23.10.2026): и на записях регистра (_RecordType), и на
+ * RecordsWithExtDimensions 1С возвращает ровно записи этого документа.
  *
  * Если живая 1С отвергнет фильтр (400) или вернёт не те записи — инструмент обязан
  * упасть явно (ODataError / проверка assertPostingRows). Никакого альтернативного
@@ -724,7 +721,14 @@ export async function fetchRegistrarPostings(
   conn: Connection,
   documentEntity: string,
   ref: string,
-): Promise<{ rows: ODataEntity[]; meta: ScanMeta; source: PostingsSource; filter: string }> {
+): Promise<{
+  rows: ODataEntity[];
+  meta: ScanMeta;
+  source: PostingsSource;
+  filter: string;
+  /** Откуда взяты субконто: из записей регистра или из «Движений с субконто»; нет — почему. */
+  dimensions: { from: "records" | "recordsWithExtDimensions" } | { unavailable: string };
+}> {
   const source = await resolvePostingsSource(conn);
   const filter = recorderFilter(documentEntity, ref);
   const lineField = REGISTER_RECORDS.optional.lineNumber;
@@ -739,7 +743,85 @@ export async function fetchRegistrarPostings(
     `документ ${documentEntity} ${ref}`,
   );
   assertPostingRows(rows, documentEntity, ref, source);
-  return { rows, meta, source, filter };
+  if (source.extDimensions.length > 0 || rows.length === 0)
+    return { rows, meta, source, filter, dimensions: { from: "records" } };
+  // На БП 3.0 записи регистра (_RecordType) субконто не публикуют вовсе (проверено на живых базах):
+  // их отдаёт виртуальная таблица «Движения с субконто» — та же, что у карточки счёта (#49).
+  try {
+    const enriched = await withExtDimensions(conn, documentEntity, ref, rows);
+    if ("unavailable" in enriched) return { rows, meta, source, filter, dimensions: enriched };
+    return {
+      rows: enriched.rows,
+      meta: addMeta(meta, enriched.meta),
+      source: { ...source, extDimensions: enriched.extDimensions },
+      filter,
+      dimensions: { from: "recordsWithExtDimensions" },
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { rows, meta, source, filter, dimensions: { unavailable: reason } };
+  }
+}
+
+const RECORDS_WITH_EXT_DIMENSIONS = "RecordsWithExtDimensions";
+
+/**
+ * Субконто проводок документа из «Движений с субконто» (RecordsWithExtDimensions): за период его
+ * проводок, отбор по тому же регистратору, сопоставление с записями регистра по LineNumber.
+ * Не сошлось число строк или номера — субконто не подставляем (unavailable), проводки остаются.
+ */
+async function withExtDimensions(
+  conn: Connection,
+  documentEntity: string,
+  ref: string,
+  rows: readonly ODataEntity[],
+): Promise<
+  { rows: ODataEntity[]; meta: ScanMeta; extDimensions: ExtDimensionField[] } | { unavailable: string }
+> {
+  const reg = await requireEntity(conn, accountingRegister(conn.cfg), "Регистр бухгалтерии «Хозрасчётный»");
+  const periods = rows
+    .map((r) => String(r[REGISTER_RECORDS.required.period] ?? ""))
+    .filter(Boolean)
+    .sort();
+  const from = periods[0]!.slice(0, 19);
+  const to = periods[periods.length - 1]!.slice(0, 19);
+  const path = `${reg}/${RECORDS_WITH_EXT_DIMENSIONS}(StartPeriod=datetime'${from}',EndPeriod=datetime'${to}')`;
+  const { rows: dimRows, meta } = await fetchAllForAggregation(
+    conn,
+    path,
+    { filter: recorderFilter(documentEntity, ref) },
+    `субконто документа ${documentEntity} ${ref}`,
+  );
+  const line = REGISTER_RECORDS.optional.lineNumber;
+  const byLine = new Map(dimRows.map((r) => [Number(r[line]), r]));
+  if (dimRows.length !== rows.length || rows.some((r) => !byLine.has(Number(r[line]))))
+    return {
+      unavailable: `«Движения с субконто» вернули ${dimRows.length} строк(и) при ${rows.length} записях регистра — сопоставить по номеру строки нельзя`,
+    };
+  const fields = new Set<string>();
+  for (const r of dimRows)
+    for (const k of Object.keys(r)) if (REGISTER_RECORDS.extDimensionRe.test(k)) fields.add(k);
+  const extDimensions: ExtDimensionField[] = [...fields]
+    .map((field) => {
+      const m = REGISTER_RECORDS.extDimensionRe.exec(field)!;
+      return { side: m[1] as "Dr" | "Cr", index: Number(m[2]), field, typeField: `${field}_Type` };
+    })
+    .sort((a, b) => a.index - b.index);
+  const merged = rows.map((r) => {
+    const d = byLine.get(Number(r[line]))!;
+    const extra: ODataEntity = {};
+    for (const x of extDimensions) {
+      // Вида субконто нет (ExtDimensionType…_Key = null) — у счёта такого субконто нет по плану
+      // счетов, 1С отдаёт null и в значении. Это подтверждённая пустота, а не «не вернула»
+      // (проверено на живой базе: счёт 84.01 без видов субконто).
+      const kindKey = `ExtDimensionType${x.side}${x.index}_Key`;
+      const noSuchSlot = d[x.field] == null && kindKey in d && d[kindKey] == null;
+      extra[x.field] = noSuchSlot ? "" : d[x.field];
+      if (x.typeField && x.typeField in d) extra[x.typeField] = d[x.typeField];
+    }
+    return { ...r, ...extra };
+  });
+  return { rows: merged, meta, extDimensions };
 }
 
 /**
