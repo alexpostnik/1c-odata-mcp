@@ -459,7 +459,7 @@ describe("read.accounting.get_document_postings", () => {
     // неопубликованный документ — подсказка про «Состав OData»
     const r = await callTool(ctx, { documentEntity: "Document_Несуществующий", documentRef: DOC_REF });
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/не опубликованы в OData/);
+    expect(text(r)).toMatch(/отсутствуют в доступной OData-схеме/);
   });
 
   it("конфигурация полей записей регистра собрана в одной константе", () => {

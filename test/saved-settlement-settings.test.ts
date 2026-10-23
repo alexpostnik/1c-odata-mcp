@@ -290,7 +290,7 @@ describe("exact contract saved settlement settings", () => {
     expect(missing.isError).toBe(true);
     expect(missing.content).toContainEqual({
       type: "text",
-      text: "Регистр сохранённых счетов расчётов отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
+      text: "Регистр сохранённых счетов расчётов (InformationRegister_СчетаУчетаРасчетовСКонтрагентами) отсутствует в доступной OData-схеме; проверьте имя, состав публикации и права. Настройка не читается и не записывается.",
     });
     const g = await fixture();
     g.meta.keys.push("Unknown");
