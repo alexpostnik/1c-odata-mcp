@@ -37,7 +37,7 @@ describe("точная диагностика OData", () => {
     expect(message).toContain(ENTITY);
     expect(message.indexOf("Добавьте")).toBeLessThan(message.indexOf("другое имя"));
     expect(message).toContain("конфигурации");
-    expect(message).toContain("права");
+    expect(message).toContain("ограничения прав");
   });
   it("ошибка настроек расчётов называет техническое имя регистра", async () => {
     const { conn } = fake1C();
