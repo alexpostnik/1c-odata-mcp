@@ -2019,8 +2019,6 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
       title: "Провести / отменить проведение документа",
       description:
         "Проводит документ (влияет на учёт) или отменяет проведение. По умолчанию предпросмотр (dry-run); " +
-        "Для повторного проведения Posted=true задайте repost=true, post=true и expectedDataVersion. " +
-        "Версионный Post использует PostingModeOperational=false без Unpost; проверяет состояние документа, не проводки. " +
         "применение — при confirm=true. ВНИМАНИЕ: проведение меняет учётные данные — используйте осознанно.",
       inputSchema: {
         database: databaseField,
@@ -2032,20 +2030,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             "Точная текущая версия включает durable preview/action/readback. Post/Unpost выполняются отдельно; атомарная CAS действия не подтверждена.",
           ),
         post: z.boolean().default(true).describe("true — провести, false — отменить проведение"),
-        repost: z
-          .boolean()
-          .optional()
-          .describe(
-            "Явно разрешить повторный Post уже проведённого документа; требует post=true и expectedDataVersion",
-          ),
         confirm: confirmField,
       },
       outputSchema: postDocumentResultSchema,
     },
-    ({ database, entitySet, ref, post, repost, confirm, expectedDataVersion }) =>
+    ({ database, entitySet, ref, post, confirm, expectedDataVersion }) =>
       guard("write.document.post_document", async () => {
-        if (repost && (!post || expectedDataVersion === undefined))
-          throw new InputError("repost=true требует post=true и точную expectedDataVersion.");
         const conn = ctx.db(database);
         ensurePublished(await conn.available(), entitySet);
         if (expectedDataVersion !== undefined) {
@@ -2054,7 +2044,7 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             if (missing) return fail(missing);
           }
           return ok(
-            await guardedDocumentAction(conn, { entitySet, ref, post, repost, expectedDataVersion }, confirm),
+            await guardedDocumentAction(conn, { entitySet, ref, post, expectedDataVersion }, confirm),
           );
         }
         const guid = ref.replace(/[{}']/g, "");

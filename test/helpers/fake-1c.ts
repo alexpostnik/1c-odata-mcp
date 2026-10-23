@@ -7,8 +7,8 @@ import { BP30_METADATA_XML, bp30Enums, bp30Metadata, SNAPSHOT_REF } from "./meta
  * «Поддельная 1С» на снимке схемы БП 3.0: подменяет fetch и отвечает как OData 1С. Коннектор
  * работает целиком (загрузка $metadata, клиент, классификация ошибок), а подделка проверяет каждый
  * запрос так же строго, как настоящая база: объект существует, поля $select / $filter / $orderby
- * есть, в теле записи (и в строках табличных частей) только опубликованные поля, вид операции —
- * значение перечисления. Нарушение — ответ 400 с текстом, как у 1С, и запись в `violations`.
+ * есть, в теле записи (и в строках табличных частей) только опубликованные поля, функция регистра и
+ * её параметры объявлены в $metadata, вид операции — значение перечисления. Нарушение — ответ 400 с текстом, как у 1С, и запись в `violations`.
  * Данные синтетические: по одной строке каждого объекта со значениями по типам полей.
  */
 
@@ -26,17 +26,27 @@ export interface Fake1C {
   violations: string[];
 }
 
-/** Виртуальные таблицы регистров: имя функции в адресе → суффикс её типа в $metadata. */
-const VIRTUAL: Record<string, string> = {
-  Balance: "Balance",
-  Turnovers: "Turnover",
-  BalanceAndTurnovers: "BalanceAndTurnover",
-  RecordsWithExtDimensions: "RecordsWithExtDimensions",
-  ExtDimensions: "ExtDimensions",
-  DrCrTurnovers: "DrCrTurnover",
-  SliceLast: "SliceLast",
-  SliceFirst: "SliceFirst",
-};
+/** Функции регистров из снимка (Balance, Turnovers, SliceLast…): «регистр/имя» → параметры и тип результата. */
+interface FakeFunction {
+  params: Set<string>;
+  returns: string;
+}
+let functionCache: Map<string, FakeFunction> | undefined;
+function functions(): Map<string, FakeFunction> {
+  if (functionCache) return functionCache;
+  functionCache = new Map();
+  for (const m of BP30_METADATA_XML.matchAll(/<FunctionImport Name="([^"]+)"[\s\S]*?<\/FunctionImport>/g)) {
+    const params = [...m[0].matchAll(/<Parameter Name="([^"]+)"\s+Type="([^"]+)"/g)];
+    const binding = params.find((p) => p[1] === "bindingParameter")?.[2]?.replace(/^StandardODATA\./, "");
+    const returns = /ReturnType="(?:Collection\()?StandardODATA\.([^")]+)/.exec(m[0])?.[1];
+    if (binding && returns)
+      functionCache.set(`${binding}/${m[1]}`, {
+        params: new Set(params.map((p) => p[1]!).filter((n) => n !== "bindingParameter")),
+        returns,
+      });
+  }
+  return functionCache;
+}
 
 /** Слова языка запросов OData, которые не являются полями. */
 const KEYWORDS = new Set(
@@ -192,15 +202,25 @@ export function fake1C(env: Record<string, string> = {}): Fake1C {
 
     // Виртуальная таблица регистра: поля — из её типа; действие документа — без полей.
     const tail = path.slice(base.length).replace(/^\([^)]*\)/, "");
-    const fn = /^\/(\w+)/.exec(tail)?.[1];
-    const virtual = fn && VIRTUAL[fn] ? complexTypes().get(`${base}_${VIRTUAL[fn]}`) : undefined;
-    if (fn && !VIRTUAL[fn] && !["Post", "Unpost"].includes(fn) && !fields.has(fn))
-      return odataError(400, `Неизвестное действие или поле '${fn}' у '${base}'`);
-    const scope = virtual ?? fields;
+    const call = /^\/([\wА-Яа-яЁё]+)(?:\(([^)]*)\))?/.exec(tail);
+    const fn = call?.[1];
+    const declared = fn ? functions().get(`${base}/${fn}`) : undefined;
     const bad = (where: string, name: string) => {
       violations.push(`${method} ${base}${fn ? `/${fn}` : ""}: ${where} — нет поля «${name}»`);
       return odataError(400, `Неизвестное поле '${name}' (${where})`);
     };
+    if (fn && !declared && !["Post", "Unpost"].includes(fn) && !fields.has(fn)) {
+      violations.push(`${method} ${base}/${fn}: функция не объявлена в $metadata`);
+      return odataError(400, `Неизвестное действие или поле '${fn}' у '${base}'`);
+    }
+    // Параметры функции — только объявленные (Period, StartPeriod, Condition…).
+    if (declared)
+      for (const p of (call?.[2] ?? "").replace(/'(?:[^']|'')*'/g, "''").matchAll(/([\wА-Яа-яЁё]+)=/g))
+        if (!declared.params.has(p[1]!)) return bad(`параметр ${fn}()`, p[1]!);
+    const virtual = declared
+      ? (complexTypes().get(declared.returns) ?? entityFields(declared.returns))
+      : undefined;
+    const scope = virtual ?? fields;
     const known = (name: string) => scope.has(name.split("/")[0]!);
 
     for (const name of (params.get("$select") ?? "").split(",").filter(Boolean))

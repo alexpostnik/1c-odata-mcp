@@ -2,7 +2,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../src/mcp/server.js";
 import { fake1C } from "./helpers/fake-1c.js";
-import { SNAPSHOT_REF as id } from "./helpers/metadata-snapshot.js";
+import { SNAPSHOT_REF as id, bp30Metadata } from "./helpers/metadata-snapshot.js";
+import { DOCUMENTS } from "../src/config/mapping.js";
 
 /**
  * Все инструменты против «поддельной 1С» на снимке схемы БП 3.0 (test/helpers/fake-1c.ts):
@@ -134,14 +135,25 @@ function valueFor(name: string, s: Schema): unknown {
   return name === "account" ? "62" : "Тест";
 }
 
-function argsFor(tool: { name: string; inputSchema: Schema }): Record<string, unknown> {
+/** `optional` — заполнить и необязательные аргументы (фильтры, суммы), кроме выбора базы и организации. */
+function argsFor(tool: { name: string; inputSchema: Schema }, optional = false): Record<string, unknown> {
   const props = tool.inputSchema.properties ?? {};
   const args: Record<string, unknown> = {};
-  for (const name of tool.inputSchema.required ?? []) args[name] = valueFor(name, props[name] ?? {});
+  const names = optional
+    ? Object.keys(props).filter((n) => !["database", "organization", "operationId", "confirm"].includes(n))
+    : (tool.inputSchema.required ?? []);
+  for (const name of names) args[name] = valueFor(name, props[name] ?? {});
   Object.assign(args, OVERRIDES[tool.name]);
   if (tool.name.startsWith("write.") && "confirm" in props) args.confirm = false;
   return args;
 }
+
+/**
+ * Потолок ответа инструмента в символах. Клиенты обрезают или отвергают большие ответы (Claude Code —
+ * около 25 тыс. токенов; русский JSON — примерно 2–3 символа на токен). Большой отчёт — давайте сводку
+ * и подробности по фильтру.
+ */
+const MAX_RESPONSE_CHARS = 50_000;
 
 /**
  * Инструменты, которым синтетических данных подделки мало для успешного ответа (ошибка — по
@@ -153,29 +165,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+type Tools = Record<
+  string,
+  {
+    inputSchema?: { parse: (a: unknown) => Record<string, unknown> };
+    handler: (
+      a: Record<string, unknown>,
+      e: unknown,
+    ) => Promise<{ isError?: boolean; content?: { text?: string }[] }>;
+  }
+>;
+
+/** Вызов инструмента так же, как SDK: аргументы проходят схему (значения по умолчанию, проверка типов). */
+async function call(name: string, raw: Record<string, unknown>) {
+  const fake = fake1C({ READ_ONLY: "true" });
+  const registered = (createServer(fake.ctx) as unknown as { _registeredTools: Tools })._registeredTools[
+    name
+  ]!;
+  const args = registered.inputSchema ? registered.inputSchema.parse(raw) : raw;
+  const r = await registered.handler(args, {});
+  const text = (r.content ?? []).map((c) => c.text ?? "").join("");
+  expect(
+    text.length,
+    `${name}: ответ ${text.length} символов — больше ${MAX_RESPONSE_CHARS}, в контекст модели не поместится`,
+  ).toBeLessThanOrEqual(MAX_RESPONSE_CHARS);
+  return { fake, r, text };
+}
+
 describe("все инструменты против поддельной 1С на снимке схемы БП 3.0", () => {
   it.each(manifest.tools.map((t) => [t.name, t] as const))("%s", async (name, tool) => {
-    const fake = fake1C({ READ_ONLY: "true" });
-    const tools = (
-      createServer(fake.ctx) as unknown as {
-        _registeredTools: Record<
-          string,
-          {
-            inputSchema?: { parse: (a: unknown) => Record<string, unknown> };
-            handler: (
-              a: Record<string, unknown>,
-              e: unknown,
-            ) => Promise<{ isError?: boolean; content?: { text?: string }[] }>;
-          }
-        >;
-      }
-    )._registeredTools;
-    // Как SDK: аргументы проходят схему инструмента (значения по умолчанию, проверка типов).
-    const registered = tools[name]!;
-    const args = registered.inputSchema ? registered.inputSchema.parse(argsFor(tool)) : argsFor(tool);
-    const r = await registered.handler(args, {});
+    const { fake, r, text } = await call(name, argsFor(tool));
     expect(fake.violations, "запросы к полям, которых нет в схеме БП 3.0").toEqual([]);
-    if (!EXPECTED_ERRORS[name]) expect(r.isError, r.content?.[0]?.text).not.toBe(true);
+    if (!EXPECTED_ERRORS[name]) expect(r.isError, text).not.toBe(true);
 
     const count = fake.requests.length;
     measured[name] = count;
@@ -245,10 +266,79 @@ describe("самопроверка: поддельная 1С отвечает н
     expect(v).toContain("ОплатаОтПокупателя");
   });
 
+  it("функция регистра, которой нет в $metadata, и её необъявленный параметр", async () => {
+    const fake = fake1C({ READ_ONLY: "true" });
+    const v = await expectRejected(fake, () =>
+      fake.conn.client.getCollection("AccountingRegister_Хозрасчетный/Остатки?$format=json"),
+    );
+    expect(v).toContain("не объявлена");
+    const f2 = fake1C({ READ_ONLY: "true" });
+    const v2 = await expectRejected(f2, () =>
+      f2.conn.client.getCollection(
+        "AccountingRegister_Хозрасчетный/Balance(Период=datetime'2026-09-01T00:00:00')?$format=json",
+      ),
+    );
+    expect(v2).toContain("Период");
+  });
+
   it("объект, который не опубликован", async () => {
     const fake = fake1C({ READ_ONLY: "true" });
     await expect(fake.conn.client.getCollection("Catalog_Выдуманный?$format=json")).rejects.toThrow(
       /не найден/,
     );
+  });
+});
+
+/** Необязательные аргументы, которые не заполнить по имени: взаимоисключающие или особой формы. */
+const OPTIONAL_OMIT: Record<string, string[]> = {
+  "read.analytics.get_deal_history": ["dealKey"], // взаимоисключающий с contractRef
+  "write.document.copy_document": ["lines"], // правки строк по номеру, не новые строки
+};
+
+describe("с заполненными необязательными аргументами", () => {
+  // Фильтры и параметры, которые не задаются в основном прогоне. Синтетические строки («Тест» вместо
+  // имени счёта или объекта) дают отказы бизнес-логики — здесь проверяется только схема запросов.
+  it.each(manifest.tools.map((t) => [t.name, t] as const))("%s", async (name, tool) => {
+    const raw = { ...argsFor(tool, true), ...OVERRIDES[name] };
+    for (const arg of OPTIONAL_OMIT[name] ?? []) delete raw[arg];
+    if (name.startsWith("write.")) raw.confirm = false;
+    const { fake } = await call(name, raw);
+    expect(fake.violations, "запросы к полям, которых нет в схеме БП 3.0").toEqual([]);
+  });
+});
+
+/** Инструменты, которые принимают любой документ: прогоняются по всем видам документов из маппинга. */
+const ANY_DOCUMENT: Record<string, string> = {
+  "read.document.search_documents": "entitySet",
+  "read.document.get_document": "entitySet",
+  "read.accounting.get_document_postings": "documentEntity",
+  "read.audit.get_document_history": "documentEntity",
+};
+const DOCUMENT_SETS = [...new Set(Object.values(DOCUMENTS).flat())].filter((s) =>
+  bp30Metadata().entities.has(s),
+);
+
+/**
+ * Известные ошибки — тест ждёт, что нарушение ещё есть. Исправили — уберите строку отсюда.
+ * search_documents с minAmount: у перемещения и инвентаризации в БП 3.0 нет СуммаДокумента.
+ */
+const KNOWN_VIOLATIONS: Record<string, string> = {
+  "read.document.search_documents Document_ПеремещениеТоваров": "СуммаДокумента",
+  "read.document.search_documents Document_ИнвентаризацияТоваровНаСкладе": "СуммаДокумента",
+};
+
+describe("инструменты для любого документа — по всем видам документов БП 3.0", () => {
+  const cases = Object.entries(ANY_DOCUMENT).flatMap(([name, field]) =>
+    DOCUMENT_SETS.map((set) => [`${name} ${set}`, name, field, set] as const),
+  );
+  it.each(cases)("%s", async (label, name, field, set) => {
+    const tool = manifest.tools.find((t) => t.name === name)!;
+    const { fake } = await call(name, { ...argsFor(tool, true), ...OVERRIDES[name], [field]: set });
+    const known = KNOWN_VIOLATIONS[label];
+    if (known)
+      expect(fake.violations.join("\n"), "ошибка исправлена — уберите её из KNOWN_VIOLATIONS").toContain(
+        known,
+      );
+    else expect(fake.violations, "запросы к полям, которых нет в схеме БП 3.0").toEqual([]);
   });
 });

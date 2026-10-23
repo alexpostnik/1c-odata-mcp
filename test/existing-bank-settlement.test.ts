@@ -615,98 +615,6 @@ describe("mutation HTTP retry boundary", () => {
   });
 });
 describe("version guarded separate Post/Unpost", () => {
-  it("explicitly re-posts a modified posted document once, returning the existing full readback", async () => {
-    const f = await fixture();
-    f.setDoc({ Posted: true, [ACCOUNT_FIELD]: ACCOUNT, НазначениеПлатежа: "Synthetic corrected payment" });
-    const p = await f.run({ post: true, repost: true }, "write.document.post_document");
-    expect(p.isError).toBeFalsy();
-    expect(f.writes).toEqual([]);
-    expect(data(p).path).toContain("/Post?$format=json&PostingModeOperational=false");
-    const before = f.doc();
-    const read = vi.spyOn(f.conn.client, "getEntity");
-    const args = { post: true, repost: true, confirm: true, operationId: data(p).operationId };
-    const result = await f.run(args, "write.document.post_document");
-    expect(result.isError).toBeFalsy();
-    expect(f.writes).toHaveLength(1);
-    expect(f.writes[0]).toMatchObject({
-      method: "POST",
-      path: `${SET}(guid'${DOC}')/Post?$format=json&PostingModeOperational=false`,
-      body: undefined,
-    });
-    // The existing contract preflight selects two fields; only the version check and
-    // the single action readback fetch the full document.
-    expect(read.mock.calls.filter(([path]) => path.endsWith("?$format=json"))).toHaveLength(2);
-    expect(data(result)).toMatchObject({
-      done: true,
-      action: "Post",
-      verified: true,
-      verificationScope: "document_state",
-      accountingMovementsVerified: false,
-      readbackFetched: true,
-      readback: { ...before, DataVersion: "v2" },
-    });
-    read.mockClear();
-    const replay = await f.run(args, "write.document.post_document");
-    expect(replay.isError).toBeFalsy();
-    expect(data(replay)).toMatchObject({
-      done: true,
-      action: "Post",
-      replayed: true,
-      verified: false,
-      verificationScope: "journal_receipt",
-      accountingMovementsVerified: false,
-      readbackFetched: false,
-    });
-    expect(data(replay).readback).toBeUndefined();
-    expect(read).not.toHaveBeenCalled();
-    expect(f.writes).toHaveLength(1);
-    expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe("succeeded");
-  });
-  it.each([
-    { post: true },
-    { post: true, repost: false },
-    { post: false, repost: true },
-    { post: true, repost: true, expectedDataVersion: undefined },
-  ])("rejects invalid or implicit re-post before writing: %j", async (args) => {
-    const f = await fixture();
-    f.setDoc({ Posted: true });
-    const result = await f.run(args, "write.document.post_document");
-    expect(result.isError).toBe(true);
-    expect(f.writes).toEqual([]);
-  });
-  it("requires preview operationId and unchanged version/intent for explicit re-post", async () => {
-    const f = await fixture();
-    f.setDoc({ Posted: true });
-    const args = { post: true, repost: true };
-    expect((await f.run({ ...args, confirm: true }, "write.document.post_document")).isError).toBe(true);
-    const p = await f.run(args, "write.document.post_document");
-    const confirmation = { ...args, confirm: true, operationId: data(p).operationId };
-    expect((await f.run({ ...confirmation, repost: false }, "write.document.post_document")).isError).toBe(
-      true,
-    );
-    f.setDoc({ DataVersion: "stale" });
-    expect((await f.run(confirmation, "write.document.post_document")).isError).toBe(true);
-    expect(f.writes).toEqual([]);
-  });
-  it.each(["write", "readback"] as const)(
-    "holds unknown explicit re-post after %s failure",
-    async (stage) => {
-      const f = await fixture();
-      f.setDoc({ Posted: true });
-      const p = await f.run({ post: true, repost: true }, "write.document.post_document");
-      f.fail(stage);
-      const args = { post: true, repost: true, confirm: true, operationId: data(p).operationId };
-      expect((await f.run(args, "write.document.post_document")).isError).toBe(true);
-      expect((await f.run(args, "write.document.post_document")).isError).toBe(true);
-      expect(f.writes).toHaveLength(1);
-      expect(f.writes[0]!.path).not.toContain("Unpost");
-      const status = await f.run({ operationId: data(p).operationId }, "write.operation.status");
-      expect(data(status).status).toBe("unverifiable");
-      expect((await f.conn.client.operationEntry(String(data(p).operationId)))?.state).toBe(
-        "outcome_unknown",
-      );
-    },
-  );
   it.each([true, false])("previews and executes post=%s once with readback", async (post) => {
     const f = await fixture();
     f.setDoc({ Posted: !post });
@@ -718,7 +626,6 @@ describe("version guarded separate Post/Unpost", () => {
     expect((await f.run(args, "write.document.post_document")).isError).toBeFalsy();
     expect(f.writes).toHaveLength(1);
     expect(f.doc().Posted).toBe(post);
-    expect(f.writes[0]!.path.includes("PostingModeOperational=false")).toBe(post);
   });
   it("rejects changed version before action", async () => {
     const f = await fixture(),
