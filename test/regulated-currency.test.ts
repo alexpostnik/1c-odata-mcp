@@ -78,7 +78,10 @@ describe("regulated currency per connection", () => {
     "health exposes effective currency and its actual configuration source",
     async (env, name, code, source) => {
       const ctx = new ServerContext(parseConfig(env));
-      vi.spyOn(ctx.db(name), "getMetadata").mockResolvedValue({ entities: new Map(), odataVersion: "3.0" });
+      vi.spyOn(ctx.db(name).client, "refreshMetadata").mockResolvedValue({
+        entities: new Map(),
+        odataVersion: "3.0",
+      });
       vi.spyOn(ctx.db(name).client, "journalSummary").mockResolvedValue(undefined);
       const tools = (
         createServer(ctx) as unknown as {

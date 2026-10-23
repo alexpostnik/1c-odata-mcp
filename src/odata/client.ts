@@ -25,11 +25,18 @@ export class ODataClient {
   }
 
   getMetadata(): Promise<MetadataMap> {
-    this.metaPromise ??= loadMetadata(this).catch((error) => {
-      this.metaPromise = undefined;
+    return this.metaPromise ?? this.refreshMetadata();
+  }
+
+  /** Явно перечитывает схему; последующие инструменты используют этот же кеш. */
+  refreshMetadata(): Promise<MetadataMap> {
+    const pending = loadMetadata(this).catch((error) => {
+      // Отказ старого запроса не должен сбрасывать более новое обновление.
+      if (this.metaPromise === pending) this.metaPromise = undefined;
       throw error;
     });
-    return this.metaPromise;
+    this.metaPromise = pending;
+    return pending;
   }
 
   /** Журнал операций записи создаётся при первом обращении: чтению и read-only он не нужен. */
@@ -105,7 +112,7 @@ export class ODataClient {
         const ms = Math.round(performance.now() - started);
         if (!res.ok) {
           const body = await res.text().catch(() => undefined);
-          const err = fromHttpStatus(res.status, url, body);
+          const err = fromHttpStatus(res.status, url, body, { method, path });
           logger.warn({ url, status: res.status, ms, kind: err.kind }, "odata error");
           if (err.retryable && attempt < maxAttempts) {
             lastErr = err;
@@ -292,7 +299,7 @@ export class ODataClient {
       });
       if (!res.ok) {
         const body = await res.text().catch(() => undefined);
-        throw fromHttpStatus(res.status, url, body);
+        throw fromHttpStatus(res.status, url, body, { method: "GET", path });
       }
       return await res.text();
     } catch (e) {
