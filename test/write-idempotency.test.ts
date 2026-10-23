@@ -461,3 +461,30 @@ describe("write.operation.status по метке: не закрывает без
     expect(r.markOperationNotApplied).toHaveBeenCalledOnce();
   });
 });
+
+describe("write.operation.status показывает текст ошибки 1С из журнала (#55)", () => {
+  it("outcome_unknown → lastError с сообщением 1С", async () => {
+    const connection = {
+      cfg: { name: "default" },
+      getMetadata: async () => ({ entities: new Map() }),
+      client: {
+        operationEntry: async () => ({
+          state: "outcome_unknown",
+          entitySet: "Document_ПлатежноеПоручение",
+          updatedAt: new Date().toISOString(),
+          errorKind: "server",
+          errorMessage: "Ошибка сервера 1С (500): SYNTHETIC_VALIDATION_DETAIL",
+          check: { kind: "documentState" },
+        }),
+      },
+    };
+    const res = await toolsOf(connection)["write.operation.status"]!.handler(
+      { database: "default", operationId: "55555555-5555-4555-8555-555555555555" },
+      {},
+    );
+    expect(res.structuredContent).toMatchObject({
+      status: "unverifiable",
+      lastError: "Ошибка сервера 1С (500): SYNTHETIC_VALIDATION_DETAIL",
+    });
+  });
+});

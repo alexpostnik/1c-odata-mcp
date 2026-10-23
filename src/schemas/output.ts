@@ -763,5 +763,6 @@ export const operationStatusSchema = z
     ref: z.string().optional(),
     number: z.string().optional(),
     note: z.string().optional(),
+    lastError: z.string().optional(),
   })
   .passthrough();

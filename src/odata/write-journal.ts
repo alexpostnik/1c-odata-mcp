@@ -44,6 +44,8 @@ export interface JournalEntry {
   updatedAt: string;
   result?: Record<string, string>;
   errorKind?: string;
+  /** Текст ошибки последней попытки (сообщение 1С), не длиннее ERROR_MESSAGE_MAX — для сверки. */
+  errorMessage?: string;
   check?: OperationCheck;
   /** Ref_Key, который MCP задаёт создаваемому объекту: по нему сверка — простым GET. */
   refKey?: string;
@@ -152,7 +154,9 @@ export class WriteOperationJournal {
           ...entry,
           state: rejected ? "rejected" : "outcome_unknown",
           updatedAt: new Date().toISOString(),
-          ...(cause instanceof ODataError ? { errorKind: cause.kind } : {}),
+          ...(cause instanceof ODataError
+            ? { errorKind: cause.kind, errorMessage: boundedMessage(cause.message) }
+            : {}),
         };
         try {
           await this.replace(failed);
@@ -475,7 +479,8 @@ export class WriteOperationJournal {
   }
 
   private unknownResult(operationId: string, cause?: unknown): ODataError {
-    const reason = cause instanceof ODataError ? ` (${cause.kind})` : "";
+    // Текст 1С (например, «Ошибка сервера 1С (500): …») нужен для сверки — не теряем его (#55).
+    const reason = cause instanceof ODataError ? ` (${cause.kind}: ${boundedMessage(cause.message)})` : "";
     return new ODataError({
       kind: "unknown",
       message:
@@ -484,6 +489,12 @@ export class WriteOperationJournal {
       cause,
     });
   }
+}
+
+const ERROR_MESSAGE_MAX = 500;
+
+function boundedMessage(message: string): string {
+  return message.length > ERROR_MESSAGE_MAX ? `${message.slice(0, ERROR_MESSAGE_MAX)}…` : message;
 }
 
 function isDefinitiveRejection(error: unknown): boolean {

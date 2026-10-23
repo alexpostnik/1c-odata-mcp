@@ -1567,7 +1567,12 @@ export function registerWriteTools(server: McpServer, ctx: ServerContext): void 
             note: "Операция не найдена в локальном журнале этой базы: подтверждение не выполнялось.",
           });
         }
-        const common = { ...base, entitySet: entry.entitySet };
+        const common = {
+          ...base,
+          entitySet: entry.entitySet,
+          // Причина неизвестного исхода или отказа — текст 1С из журнала (#55).
+          ...(entry.errorMessage && entry.state !== "succeeded" ? { lastError: entry.errorMessage } : {}),
+        };
         if (entry.state === "succeeded") {
           return ok({
             ...common,
