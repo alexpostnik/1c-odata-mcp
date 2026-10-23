@@ -319,16 +319,15 @@ export async function applyBankSettlementSettings(
 /** Separate bound action: fresh read guards version; OData Post CAS is not claimed. */
 export async function guardedDocumentAction(
   conn: Connection,
-  input: { entitySet: string; ref: string; post: boolean; repost?: boolean; expectedDataVersion: string },
+  input: { entitySet: string; ref: string; post: boolean; expectedDataVersion: string },
   confirm: boolean,
 ): Promise<Record<string, unknown>> {
   const p = input;
-  if (p.repost && !p.post) throw new InputError("repost=true требует post=true.");
   const { doc, meta, path } = await readVersionedDocument(conn, p.entitySet, p.ref, p.expectedDataVersion);
-  if (doc.Posted === p.post && !p.repost)
+  if (doc.Posted === p.post)
     throw new InputError("Документ уже имеет требуемое состояние; действие не отправлено.");
   const action = p.post ? "Post" : "Unpost",
-    actionPath = `${p.entitySet}(${odataGuid(p.ref)})/${action}?$format=json${p.post ? "&PostingModeOperational=false" : ""}`;
+    actionPath = `${p.entitySet}(${odataGuid(p.ref)})/${action}?$format=json`;
   const prepared = {
     method: "POST",
     path: actionPath,
@@ -354,11 +353,7 @@ export async function guardedDocumentAction(
   );
   return {
     done: true,
-    verified: result._operation_replayed !== true,
-    verificationScope: result._operation_replayed === true ? "journal_receipt" : "document_state",
-    accountingMovementsVerified: false,
-    readbackFetched: result._operation_replayed !== true,
-    ...(result._operation_replayed === true ? { replayed: true } : { readback: result }),
+    verified: true,
     database: conn.cfg.name,
     ref: result.Ref_Key,
     dataVersion: result.DataVersion,

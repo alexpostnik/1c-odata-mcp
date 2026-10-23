@@ -127,18 +127,6 @@ export function createServer(ctx: ServerContext): McpServer {
           if (settled) {
             replay = ok({
               ...(isCreateTool ? { created: true } : { updated: true }),
-              ...(name === "write.document.post_document"
-                ? {
-                    done: true,
-                    action: args.post ? "Post" : "Unpost",
-                    verified: false,
-                    verificationScope: "journal_receipt",
-                    readbackFetched: false,
-                    accountingMovementsVerified: false,
-                    readbackNote:
-                      "Журнал хранит только квитанцию; полный документ и проводки повторно не читались.",
-                  }
-                : {}),
               replayed: true,
               note: "Операция с этим operationId уже выполнена; повторный запрос в 1С не отправлялся.",
               database: conn.cfg.name,
