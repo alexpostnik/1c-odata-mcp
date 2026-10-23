@@ -3,7 +3,7 @@
  *   npm run build && node --env-file=.env dist/scripts/snapshot-metadata.js [--db <имя базы>] [--out <файл>]
  *
  * Снимает $metadata базы и оставляет только объекты, которые упоминаются в src (с их табличными
- * частями и виртуальными таблицами), и все перечисления. Данных базы в $metadata нет — только схема;
+ * частями, виртуальными таблицами и объявлениями функций Balance/Turnovers…), и все перечисления. Данных базы в $metadata нет — только схема;
  * перед коммитом всё равно просмотрите дифф. По умолчанию пишет test/fixtures/metadata/bp30.xml.
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -47,6 +47,10 @@ export function pruneMetadata(xml: string, sets: string[]): string {
   const entitySets = [...text.matchAll(/\t+<EntitySet Name="([^"]+)"[^>]*?\/>\n/g)].filter((m) =>
     keep(m[1]!),
   );
+  // Функции регистров (Balance, Turnovers…) объявлены в контейнере; по типу результата видно, чьи они.
+  const functions = blocks("FunctionImport").filter(([, b]) =>
+    keep(/ReturnType="(?:Collection\()?StandardODATA\.([^")]+)/.exec(b)?.[1] ?? ""),
+  );
   const head = text.slice(0, text.search(/\t+<EntityType /));
   const container = /\t+<EntityContainer[^>]*>\n/.exec(text)?.[0];
   if (head.length === 0 || !container)
@@ -56,6 +60,7 @@ export function pruneMetadata(xml: string, sets: string[]): string {
     [...entities, ...complex, ...enums].map(([, b]) => b).join("") +
     container +
     entitySets.map((m) => m[0]).join("") +
+    functions.map(([, b]) => b).join("") +
     "\t\t\t</EntityContainer>\n\t\t</Schema>\n\t</edmx:DataServices>\n</edmx:Edmx>\n"
   );
 }
@@ -68,7 +73,8 @@ async function main(): Promise<void> {
   writeFileSync(out, xml);
   const count = (re: RegExp) => (xml.match(re) ?? []).length;
   process.stdout.write(
-    `База ${conn.cfg.name}: объектов ${count(/<EntitySet /g)}, перечислений ${count(/<EnumType /g)}, ` +
+    `База ${conn.cfg.name}: объектов ${count(/<EntitySet /g)}, функций ${count(/<FunctionImport /g)}, ` +
+      `перечислений ${count(/<EnumType /g)}, ` +
       `${Math.round(xml.length / 1024)} КБ → ${out}\n`,
   );
 }
