@@ -320,12 +320,8 @@ const DOCUMENT_SETS = [...new Set(Object.values(DOCUMENTS).flat())].filter((s) =
 
 /**
  * Известные ошибки — тест ждёт, что нарушение ещё есть. Исправили — уберите строку отсюда.
- * search_documents с minAmount: у перемещения и инвентаризации в БП 3.0 нет СуммаДокумента.
  */
-const KNOWN_VIOLATIONS: Record<string, string> = {
-  "read.document.search_documents Document_ПеремещениеТоваров": "СуммаДокумента",
-  "read.document.search_documents Document_ИнвентаризацияТоваровНаСкладе": "СуммаДокумента",
-};
+const KNOWN_VIOLATIONS: Record<string, string> = {};
 
 describe("инструменты для любого документа — по всем видам документов БП 3.0", () => {
   const cases = Object.entries(ANY_DOCUMENT).flatMap(([name, field]) =>
